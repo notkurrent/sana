@@ -1,0 +1,15 @@
+# Виртуальное окружение
+venv/
+
+# Секреты
+.env
+
+# Файлы Python
+__pycache__/
+
+# Базы данных SQLite (мусор)
+*.db
+*.db-journal
+
+# Мусор macOS
+.DS_Store
