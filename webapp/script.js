@@ -41,10 +41,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const defaultEmojis = {
         'Food': '🍔', 'Transport': '🚌', 'Housing': '🏠',
-        'Entertainment': '🎬', 'Other': '📦', 'Salary': '💰', 'Freelance': '💻',
+        'Entertainment': '🎬', 'Salary': '💰', 'Freelance': '💻',
         'Gifts': '🎁', 
     };
-    const defaultIconExpense = '🛒';
+    const defaultIconExpense = '📦';
     const defaultIconIncome = '💎';
 
     const timeFormatter = new Intl.DateTimeFormat('en-US', {
