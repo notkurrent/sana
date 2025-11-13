@@ -1013,13 +1013,26 @@ document.addEventListener("DOMContentLoaded", () => {
             data.forEach(item => {
                 const itemEl = document.createElement('div');
                 itemEl.className = 'summary-list-item';
+
+                // >>>>> ИЗМЕНЕНИЕ ЗДЕСЬ <<<<<<
                 const { icon, name } = parseCategory(item.category); 
-                const categoryDisplay = icon ? `${icon} ${name}` : name;
+                
+                // Если нет иконки, проверяем в словаре defaultEmojis
+                let categoryDisplay;
+                if (icon) {
+                    categoryDisplay = `${icon} ${name}`;
+                } else if (defaultEmojis[item.category]) { // Проверяем, есть ли чистое имя в словаре
+                    categoryDisplay = `${defaultEmojis[item.category]} ${item.category}`;
+                } else {
+                    categoryDisplay = name; // Если ничего нет, оставляем как есть
+                }
                 
                 itemEl.innerHTML = `
                     <span class="category">${categoryDisplay}</span>
                     <span class="amount">-${formatCurrency(item.total)}</span>
                 `;
+                // >>>>> КОНЕЦ ИЗМЕНЕНИЯ <<<<<<
+                
                 DOM.analytics.summaryList.appendChild(itemEl);
             });
 

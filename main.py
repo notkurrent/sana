@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import google.generativeai as genai
+from datetime import datetime, timezone
 
 # --- Константы ---
 BASE_DIR = Path(__file__).resolve().parent
@@ -45,13 +46,14 @@ def get_db_connection():
     if not DATABASE_URL:
         raise ValueError("DATABASE_URL не установлен!") 
     
-    conn = None # <--- 🛠️ ФИКС: Инициализируем conn как None
+    conn = None 
     
     try:
         conn = psycopg2.connect(DATABASE_URL)
+        
         yield conn.cursor(cursor_factory=RealDictCursor)
     except psycopg2.OperationalError as e:
-        # 🛠️ НОВЫЙ ФИКС: Если соединение упало (OperationalError)
+        # Если соединение упало (OperationalError)
         print(f"!!! POSTGRES CONNECTION ERROR: {e}")
         raise e
     except Exception as e:
@@ -59,7 +61,7 @@ def get_db_connection():
         raise e
     finally:
         # Проверяем, существует ли conn, прежде чем закрыть
-        if conn: # <--- 🛠️ ФИКС: Проверяем перед закрытием
+        if conn:
             conn.commit()
             conn.close()
 
@@ -234,15 +236,29 @@ def delete_category(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred during deletion: {e}")
 
+# Стало:
 def _get_date_for_storage(date_str: str) -> str:
-    # Эта функция идеальна, в ней ничего не меняем
+    """
+    Проверяет 'YYYY-MM-DD' строку. Если это сегодня, возвращает
+    полную метку времени UTC.
+    """
     if not date_str:
         raise HTTPException(status_code=400, detail="Date is required.")
     try:
         selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        
+        # Сравниваем с текущей датой в ЛОКАЛЬНОМ часовом поясе
+        # (Render запустится в UTC, но мы его не трогаем, т.к. фронтенд присылает локальную дату)
         if selected_date == datetime.now().date():
-            return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            # Используем полный timestamp в UTC
+            # 
+            return datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S') # <-- ФИКС
+        
+        # Для прошлых дат (которые приходят как YYYY-MM-DD)
+        # Мы предполагаем, что это полночь в локальном часовом поясе пользователя,
+        # что и так корректно для группировки по дням.
         return date_str
+        
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid date format. YYYY-MM-DD expected.")
 
