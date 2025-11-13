@@ -51,16 +51,20 @@ def get_db_connection():
     try:
         conn = psycopg2.connect(DATABASE_URL)
         
+        # 🛠️ НОВЫЙ ФИКС: Устанавливаем часовой пояс ввода/вывода в 'UTC'
+        # Это заставит Postgres маркировать все TIMESTAMP'ы как UTC.
+        with conn.cursor() as cursor:
+            cursor.execute("SET TIME ZONE 'UTC'") 
+        
         yield conn.cursor(cursor_factory=RealDictCursor)
     except psycopg2.OperationalError as e:
-        # Если соединение упало (OperationalError)
+        # Если соединение упало
         print(f"!!! POSTGRES CONNECTION ERROR: {e}")
         raise e
     except Exception as e:
         # Для любых других ошибок
         raise e
     finally:
-        # Проверяем, существует ли conn, прежде чем закрыть
         if conn:
             conn.commit()
             conn.close()
