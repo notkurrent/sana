@@ -669,37 +669,39 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function handleSaveForm() {
-        const categoryId = DOM.fullForm.categorySelect.value;
-        const amount = parseFloat(DOM.fullForm.amountInput.value);
-        const date = DOM.fullForm.dateInput.value;
-        
-        if (!categoryId || isNaN(amount) || amount <= 0 || !date) {
-            tg.showAlert("Please fill all fields with valid data.");
-            return;
-        }
-        if (!userId) return;
-        
-        DOM.fullForm.saveBtn.disabled = true;
-        
-        const txData = { 
-            user_id: userId, 
-            category_id: parseInt(categoryId), 
-            amount: amount, 
-            date: date 
-        };
-        const txId = currentEditTransaction ? currentEditTransaction.id : null;
-        
-        const savedTransaction = await _saveTransaction(txData, txId);
-        
-        if (savedTransaction) {
-            tg.HapticFeedback.notificationOccurred('success');
-            await loadTransactions(txId ? null : savedTransaction.id); 
-            showScreen('home-screen');
-        }
-        
-        DOM.fullForm.saveBtn.disabled = false;
-        currentEditTransaction = null;
+    const categoryId = DOM.fullForm.categorySelect.value;
+    const amount = parseFloat(DOM.fullForm.amountInput.value);
+    const date = DOM.fullForm.dateInput.value;
+    
+    if (!categoryId || isNaN(amount) || amount <= 0 || !date) {
+        tg.showAlert("Please fill all fields with valid data.");
+        return;
     }
+    if (!userId) return;
+    
+    DOM.fullForm.saveBtn.disabled = true;
+
+    const userIdString = String(userId); // <--- 🛠️ ФИКС 1: Создаем строковый ID
+    
+    const txData = { 
+        user_id: userIdString, // <--- 🛠️ ФИКС 2: Используем строковый ID
+        category_id: parseInt(categoryId), 
+        amount: amount, 
+        date: date 
+    };
+    const txId = currentEditTransaction ? currentEditTransaction.id : null;
+    
+    const savedTransaction = await _saveTransaction(txData, txId);
+    
+    if (savedTransaction) {
+        tg.HapticFeedback.notificationOccurred('success');
+        await loadTransactions(txId ? null : savedTransaction.id); 
+        showScreen('home-screen');
+    }
+    
+    DOM.fullForm.saveBtn.disabled = false;
+    currentEditTransaction = null;
+}
     
     // ---
     // --- Логика "Шторок" (Bottom Sheet)
@@ -766,40 +768,39 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function saveQuickModal() {
-        const amount = parseFloat(DOM.quickModal.amountInput.value);
-        if (!currentQuickCategory) return;
-        
-        const categoryId = currentQuickCategory.id;
+    const amount = parseFloat(DOM.quickModal.amountInput.value);
+    if (!currentQuickCategory) return;
+    
+    const categoryId = currentQuickCategory.id;
+    const date = getLocalDateString(new Date());
 
-        // --- 🛠️ ВОТ ФИКС ЧАСОВОГО ПОЯСА 🛠️ ---
-        const date = getLocalDateString(new Date());
-        // --- 🛠️ КОНЕЦ ФИКСА 🛠️ ---
-
-        if (isNaN(amount) || amount <= 0) {
-            tg.showAlert("Please enter a valid amount."); return;
-        }
-        if (!userId) return;
-        
-        DOM.quickModal.saveBtn.disabled = true;
-        
-        const txData = { 
-            user_id: userId, 
-            category_id: parseInt(categoryId), 
-            amount: amount, 
-            date: date 
-        };
-        
-        const savedTransaction = await _saveTransaction(txData);
-        
-        if (savedTransaction) {
-            tg.HapticFeedback.notificationOccurred('success');
-            closeBottomSheet();
-            await loadTransactions(savedTransaction.id);
-            showScreen('home-screen');
-        }
-        
-        DOM.quickModal.saveBtn.disabled = false;
+    if (isNaN(amount) || amount <= 0) {
+        tg.showAlert("Please enter a valid amount."); return;
     }
+    if (!userId) return;
+    
+    DOM.quickModal.saveBtn.disabled = true;
+    
+    const userIdString = String(userId); // <--- 🛠️ ФИКС 1: Создаем строковый ID
+    
+    const txData = { 
+        user_id: userIdString, // <--- 🛠️ ФИКС 2: Используем строковый ID
+        category_id: parseInt(categoryId), 
+        amount: amount, 
+        date: date 
+    };
+    
+    const savedTransaction = await _saveTransaction(txData);
+    
+    if (savedTransaction) {
+        tg.HapticFeedback.notificationOccurred('success');
+        closeBottomSheet();
+        await loadTransactions(savedTransaction.id);
+        showScreen('home-screen');
+    }
+    
+    DOM.quickModal.saveBtn.disabled = false;
+}
 
     function openDaySheet(date) {
         DOM.daySheet.title.textContent = formatDateForTitle(date);
@@ -1032,7 +1033,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     <span class="amount">-${formatCurrency(item.total)}</span>
                 `;
                 // >>>>> КОНЕЦ ИЗМЕНЕНИЯ <<<<<<
-                
+
                 DOM.analytics.summaryList.appendChild(itemEl);
             });
 
