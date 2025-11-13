@@ -1014,26 +1014,25 @@ document.addEventListener("DOMContentLoaded", () => {
             data.forEach(item => {
                 const itemEl = document.createElement('div');
                 itemEl.className = 'summary-list-item';
-
-                // >>>>> ИЗМЕНЕНИЕ ЗДЕСЬ <<<<<<
-                const { icon, name } = parseCategory(item.category); 
                 
-                // Если нет иконки, проверяем в словаре defaultEmojis
-                let categoryDisplay;
+                const { icon, name } = parseCategory(item.category); 
+                let categoryDisplay; // <-- Вот здесь она определялась!
+                
+                // ⬇️ ЗАМЕНИТЕ ВЕСЬ СТАРЫЙ БЛОК ЛОГИКИ ЭМОДЗИ НА ЭТО:
                 if (icon) {
                     categoryDisplay = `${icon} ${name}`;
-                } else if (defaultEmojis[item.category]) { // Проверяем, есть ли чистое имя в словаре
-                    categoryDisplay = `${defaultEmojis[item.category]} ${item.category}`;
+                } else if (defaultEmojis[name]) { // Если это "Food" и есть в словаре
+                    categoryDisplay = `${defaultEmojis[name]} ${name}`;
                 } else {
-                    categoryDisplay = name; // Если ничего нет, оставляем как есть
+                    // 🚀 ФИНАЛЬНЫЙ ФИКС: Используем новый дефолт (📦 или 💎)
+                    // Поскольку Analytics Summary показывает только Expense, мы берем 'defaultIconExpense'
+                    categoryDisplay = `${defaultIconExpense} ${name}`;
                 }
-                
+
                 itemEl.innerHTML = `
                     <span class="category">${categoryDisplay}</span>
                     <span class="amount">-${formatCurrency(item.total)}</span>
                 `;
-                // >>>>> КОНЕЦ ИЗМЕНЕНИЯ <<<<<<
-
                 DOM.analytics.summaryList.appendChild(itemEl);
             });
 
