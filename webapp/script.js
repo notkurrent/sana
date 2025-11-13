@@ -1307,46 +1307,52 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function handleAddCategory() {
-        const icon = DOM.categories.newIconInput.value.trim();
-        const name = DOM.categories.newNameInput.value.trim();
-        
-        if (!name) {
-            tg.showAlert('Please enter a category name.');
-            return;
-        }
-
-        const fullName = icon ? `${icon} ${name}` : name;
-        
-        tg.HapticFeedback.impactOccurred('light');
-        DOM.categories.addBtn.disabled = true;
-
-        try {
-            const response = await fetch(API_URLS.CATEGORIES, {
-                method: 'POST',
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({
-                    user_id: userId,
-                    name: fullName,
-                    type: currentCategoryManagementType
-                }),
-            });
-            if (!response.ok) {
-                 await handleFetchError(response, "Failed to add category");
-                 throw new Error("Add failed");
-            }
-            
-            DOM.categories.newIconInput.value = "";
-            DOM.categories.newNameInput.value = "";
-            
-            await loadAllCategories(); 
-            loadCategoriesScreen(); 
-            
-        } catch (error) {
-            // Ошибка уже показана
-        } finally {
-            DOM.categories.addBtn.disabled = false;
-        }
+    const icon = DOM.categories.newIconInput.value.trim();
+    const name = DOM.categories.newNameInput.value.trim();
+    
+    if (!name) {
+        tg.showAlert('Please enter a category name.');
+        return;
     }
+
+    const fullName = icon ? `${icon} ${name}` : name;
+    
+    if (!userId) return; // Проверка, что userId существует
+
+    tg.HapticFeedback.impactOccurred('light');
+    DOM.categories.addBtn.disabled = true;
+    
+    // 🛠️ ФИНАЛЬНЫЙ ФИКС ДЛЯ 422 ОШИБКИ: 
+    // Явно приводим userId к строке, чтобы Pydantic его принял.
+    const userIdString = String(userId); 
+
+    try {
+        const response = await fetch(API_URLS.CATEGORIES, {
+            method: 'POST',
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                user_id: userIdString, // <-- Используем строковый ID
+                name: fullName,
+                type: currentCategoryManagementType
+            }),
+        });
+        if (!response.ok) {
+             await handleFetchError(response, "Failed to add category");
+             throw new Error("Add failed");
+        }
+        
+        DOM.categories.newIconInput.value = "";
+        DOM.categories.newNameInput.value = "";
+        
+        await loadAllCategories(); 
+        loadCategoriesScreen(); 
+        
+    } catch (error) {
+        // Ошибка уже показана
+    } finally {
+        DOM.categories.addBtn.disabled = false;
+    }
+}
 
     async function handleDeleteCategory(categoryId) {
         let transactionCount = 0;
