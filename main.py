@@ -43,17 +43,25 @@ else:
 def get_db_connection():
     """Контекстный менеджер для безопасного соединения с БД Postgres."""
     if not DATABASE_URL:
-        # Эта ошибка теперь будет на сервере, если мы забудем .env
         raise ValueError("DATABASE_URL не установлен!") 
     
+    conn = None # <--- 🛠️ ФИКС: Инициализируем conn как None
+    
     try:
-        # 'psycopg2' использует URL напрямую
         conn = psycopg2.connect(DATABASE_URL)
-        # 'RealDictCursor' - это аналог твоего sqlite3.Row
         yield conn.cursor(cursor_factory=RealDictCursor)
+    except psycopg2.OperationalError as e:
+        # 🛠️ НОВЫЙ ФИКС: Если соединение упало (OperationalError)
+        print(f"!!! POSTGRES CONNECTION ERROR: {e}")
+        raise e
+    except Exception as e:
+        # Для любых других ошибок
+        raise e
     finally:
-        conn.commit() # Postgres требует явный коммит
-        conn.close()
+        # Проверяем, существует ли conn, прежде чем закрыть
+        if conn: # <--- 🛠️ ФИКС: Проверяем перед закрытием
+            conn.commit()
+            conn.close()
 
 def get_db():
     """Dependency FastAPI для получения соединения с БД."""
