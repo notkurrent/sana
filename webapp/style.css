@@ -1257,3 +1257,24 @@ body {
   animation: negativeFlash 0.6s ease-out;
 }
 /* --- ⭐ КОНЕЦ: АНИМАЦИЯ БАЛАНСА --- */
+
+/* --- ⭐ ФИКС: ВЫРАВНИВАНИЕ ПЛЕЙСХОЛДЕРА В КАЛЕНДАРЕ --- */
+
+/* Когда календарный контейнер содержит ТОЛЬКО один плейсхолдер */
+#calendar-container:has(> .list-placeholder:only-child) {
+    /* Переключаемся с display: grid на flex */
+    display: flex; 
+    /* Растягиваем его, чтобы занять все пространство */
+    width: 100%;
+    /* Центрируем содержимое (текст Loading...) */
+    justify-content: center; 
+    align-items: center;
+    min-height: 200px; /* Даем ему немного высоты, чтобы было видно центр */
+    padding-top: 30px; /* Отступ сверху */
+}
+
+/* Скрываем заголовки дней, когда показываем плейсхолдер */
+#calendar-container:has(> .list-placeholder:only-child) > .calendar-day-header {
+    display: none;
+}
+/* --- КОНЕЦ ФИКСА ВЫРАВНИВАНИЯ --- */
