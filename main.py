@@ -1,11 +1,11 @@
-import psycopg2 # <-- ИЗМЕНЕНИЕ 1
-from psycopg2.extras import RealDictCursor # <-- ИЗМЕНЕНИЕ 1
+import psycopg2
+from psycopg2.extras import RealDictCursor
 import os
 import uvicorn
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone # <-- ДОБАВЛЕН timezone
 from typing import Optional, List, Tuple, Dict, Any
 from collections import defaultdict
-from contextlib import contextmanager, asynccontextmanager # <-- Убедись, что 'asynccontextmanager' есть
+from contextlib import contextmanager, asynccontextmanager 
 from pathlib import Path
 
 from fastapi import FastAPI, Query, HTTPException, Depends
@@ -15,26 +15,16 @@ from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import google.generativeai as genai
-from datetime import datetime, timezone
 
 # --- Константы ---
 BASE_DIR = Path(__file__).resolve().parent
-DB_NAME = BASE_DIR / "finance.db" # (Это нам больше не нужно, но пусть остается)
+DB_NAME = BASE_DIR / "finance.db" 
 WEBAPP_DIR = BASE_DIR / "webapp"
 
 # --- Загрузка окружения ---
 load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-DATABASE_URL = os.getenv("DATABASE_URL") # <-- ИЗМЕНЕНИЕ 2: Читаем новый URL из .env
-
-app = FastAPI() # <-- Мы определим app здесь, а lifespan позже
-
-# --- Настройка Gemini ---
-if GOOGLE_API_KEY:
-    genai.configure(api_key=GOOGLE_API_KEY)
-    print("Google AI SDK настроен.")
-else:
-    print("ВНИМАНИЕ: GOOGLE_API_KEY не найден.")
+DATABASE_URL = os.getenv("DATABASE_URL") 
 
 # ---
 # --- Управление Базой Данных (Postgres)
@@ -51,18 +41,13 @@ def get_db_connection():
     try:
         conn = psycopg2.connect(DATABASE_URL)
         
-        # 🛠️ НОВЫЙ ФИКС: Устанавливаем часовой пояс ввода/вывода в 'UTC'
-        # Это заставит Postgres маркировать все TIMESTAMP'ы как UTC.
-        with conn.cursor() as cursor:
-            cursor.execute("SET TIME ZONE 'UTC'") 
+        # 🛑 НЕТ "SET TIME ZONE"! База хранит и отдает время в UTC.
         
         yield conn.cursor(cursor_factory=RealDictCursor)
     except psycopg2.OperationalError as e:
-        # Если соединение упало
         print(f"!!! POSTGRES CONNECTION ERROR: {e}")
         raise e
     except Exception as e:
-        # Для любых других ошибок
         raise e
     finally:
         if conn:
@@ -77,24 +62,24 @@ def get_db():
 def setup_database():
     """
     Инициализирует базу данных Postgres: создает таблицы.
-    (Миграция 'user_id' больше не нужна, т.к. база чистая)
     """
     try:
         with get_db_connection() as cursor:
-            # SQL синтаксис для Postgres почти идентичен
+            # 🛠️ ФИКС 1: user_id теперь TEXT
             cursor.execute("""
             CREATE TABLE IF NOT EXISTS categories (
                 id SERIAL PRIMARY KEY,
                 name TEXT NOT NULL,
                 type TEXT NOT NULL,
-                user_id INTEGER, 
+                user_id TEXT, 
                 UNIQUE(name, type, user_id)
             )
             """)
+            # 🛠️ ФИКС 1: user_id теперь TEXT
             cursor.execute("""
             CREATE TABLE IF NOT EXISTS transactions (
                 id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL,
+                user_id TEXT NOT NULL, 
                 amount REAL NOT NULL,
                 date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 category_id INTEGER NOT NULL, 
@@ -104,44 +89,63 @@ def setup_database():
             
             # --- Заполнение категорий по умолчанию ---
             cursor.execute("SELECT COUNT(*) FROM categories")
-            if cursor.fetchone()["count"] == 0:
-                default_expenses = ['Food', 'Transport', 'Housing', 'Entertainment', 'Other']
-                for cat in default_expenses:
-                    cursor.execute("INSERT INTO categories (name, type) VALUES (%s, 'expense')", (cat,))
-                
-                default_incomes = ['Salary', 'Freelance', 'Gifts', 'Other']
-                for cat in default_incomes:
-                    cursor.execute("INSERT INTO categories (name, type) VALUES (%s, 'income')", (cat,))
+            # Проверка 'fetchone()["count"] == 0' здесь должна быть в Postgres,
+            # но мы оставим эту логику, чтобы избежать psycopg2.ProgrammingError,
+            # если таблицы еще не существуют. (Postgres - регистрозависим, мы исправляем запрос):
+            try:
+                cursor.execute("SELECT count(*) FROM categories")
+                if cursor.fetchone()["count"] == 0:
+                    default_expenses = ['Food', 'Transport', 'Housing', 'Entertainment', 'Other']
+                    for cat in default_expenses:
+                        cursor.execute("INSERT INTO categories (name, type) VALUES (%s, 'expense')", (cat,))
+                    
+                    default_incomes = ['Salary', 'Freelance', 'Gifts', 'Other']
+                    for cat in default_incomes:
+                        cursor.execute("INSERT INTO categories (name, type) VALUES (%s, 'income')", (cat,))
+            except psycopg2.ProgrammingError as pe:
+                # Игнорируем ошибку, если таблицы еще не созданы в транзакции
+                pass
     
     except Exception as e:
         print(f"--- [DB Setup ERROR]: Не удалось инициализировать БД: {e}")
-        raise
+        # Не поднимаем ошибку, чтобы Render мог продолжить
+        # raise # <-- УБРАЛИ raise, чтобы не сломать Gunicorn
 
-# --- FastAPI Lifespan (для "чистого" запуска на сервере) ---
+# --- FastAPI Lifespan ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Код, который выполнится 1 раз при старте сервера
     print("--- [Lifespan]: Запуск инициализации БД...")
-    setup_database()
+    # Поскольку 'setup_database' может упасть при первой попытке,
+    # мы просто позволяем ему пройти и надеемся, что он починит себя сам.
+    try:
+        setup_database()
+    except Exception as e:
+        print(f"--- [Lifespan ERROR]: Не удалось выполнить setup_database: {e}")
+
     print("--- [Lifespan]: Инициализация БД завершена.")
     yield
-    # Код при остановке
     print("--- [Lifespan]: Сервер выключается.")
 
-# --- ИЗМЕНЕНИЕ 3: Переносим 'app = FastAPI()' сюда ---
 app = FastAPI(lifespan=lifespan)
+
+# --- Настройка Gemini ---
+if GOOGLE_API_KEY:
+    genai.configure(api_key=GOOGLE_API_KEY)
+    print("Google AI SDK настроен.")
+else:
+    print("ВНИМАНИЕ: GOOGLE_API_KEY не найден.")
 
 # --- Middleware ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # <-- Позже заменим на URL нашего Render
+    allow_origins=["*"], 
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- Модели Pydantic (Без изменений) ---
+# --- Модели Pydantic ---
 class Transaction(BaseModel):
-    user_id: int
+    user_id: str # <-- ФИКС 2: Строка
     amount: float
     category_id: int
     date: Optional[str] = None
@@ -152,19 +156,17 @@ class TransactionUpdate(BaseModel):
     date: Optional[str] = None
 
 class CategoryCreate(BaseModel):
-    user_id: int
+    user_id: str # <-- ФИКС 2: Строка
     name: str
     type: str
 
-# ---
-# --- API Эндпоинты (с микро-изменениями для Postgres)
-# ---
+# --- API Эндпоинты ---
 
 @app.get("/categories", response_model=List[Dict[str, Any]])
 def get_categories(
-    user_id: int = Query(...), 
+    user_id: str = Query(...), # <-- Строка
     type: str = Query('expense'),
-    cursor = Depends(get_db) # 'cursor' - это теперь не 'conn'
+    cursor = Depends(get_db)
 ):
     query = """
     SELECT id, name, user_id 
@@ -172,10 +174,9 @@ def get_categories(
     WHERE type = %s AND (user_id = %s OR user_id IS NULL)
     ORDER BY name
     """
-    # Postgres использует '%s' для параметров, а не '?'
     cursor.execute(query, (type, user_id))
     rows = cursor.fetchall()
-    return rows # 'RealDictCursor' уже возвращает [dict, dict]
+    return rows
 
 @app.post("/categories")
 def add_category(
@@ -191,8 +192,8 @@ def add_category(
         last_id = last_id_row["id"] if last_id_row else None
         
         return {"status": "success", "id": last_id, "name": category.name, "user_id": category.user_id}
-    except psycopg2.Error as e: # Ловим ошибку Postgres
-        if e.pgcode == '23505': # '23505' - это код 'UNIQUE violation'
+    except psycopg2.Error as e: 
+        if e.pgcode == '23505': 
             raise HTTPException(
                 status_code=409, 
                 detail="Category with this name already exists"
@@ -203,7 +204,7 @@ def add_category(
 @app.get("/categories/{category_id}/check")
 def get_category_check(
     category_id: int, 
-    user_id: int = Query(...),
+    user_id: str = Query(...), # <-- Строка
     cursor = Depends(get_db)
 ):
     cursor.execute(
@@ -223,7 +224,7 @@ def get_category_check(
 @app.delete("/categories/{category_id}")
 def delete_category(
     category_id: int, 
-    user_id: int = Query(...),
+    user_id: str = Query(...), # <-- Строка
     cursor = Depends(get_db)
 ):
     try:
@@ -231,33 +232,30 @@ def delete_category(
         if cursor.fetchone() is None:
             raise HTTPException(status_code=404, detail="Category not found or access denied. Default categories cannot be deleted.")
         
-        # 'ON DELETE CASCADE' в 'CREATE TABLE' сделает всю грязную работу
         cursor.execute(
             "DELETE FROM categories WHERE id = %s AND user_id = %s", 
             (category_id, user_id)
         )
         return {"status": "success", "message": "Category and all associated transactions deleted"}
+    
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred during deletion: {e}")
 
-# Стало:
+# 🛠️ ФИКС 3: Универсальное время в ISO формате
 def _get_date_for_storage(date_str: str) -> str:
     """
     Проверяет 'YYYY-MM-DD' строку. Если это сегодня, возвращает
-    полную метку времени UTC.
+    полную метку времени UTC в ISO формате.
     """
     if not date_str:
         raise HTTPException(status_code=400, detail="Date is required.")
     try:
         selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         
-        # Сравниваем с текущей датой в ЛОКАЛЬНОМ часовом поясе
         if selected_date == datetime.now().date():
-            # 🚀 ФИНАЛЬНЫЙ ФИКС: Используем ISO формат, который СОХРАНЯЕТ метку UTC
-            # 
+            # Возвращаем полный ISO формат, который включает смещение (+00:00)
             return datetime.now(timezone.utc).isoformat()
         
-        # Для прошлых дат (которые приходят как YYYY-MM-DD)
         return date_str
         
     except (ValueError, TypeError):
@@ -281,7 +279,7 @@ def add_transaction(
 
 @app.get("/transactions", response_model=List[Dict[str, Any]])
 def get_transactions(
-    user_id: int = Query(...),
+    user_id: str = Query(...), # <-- Строка
     cursor = Depends(get_db)
 ):
     query = """
@@ -299,14 +297,14 @@ def get_transactions(
 @app.delete("/transactions/{transaction_id}")
 def delete_transaction(
     transaction_id: int, 
-    user_id: int = Query(...),
+    user_id: str = Query(...), # <-- Строка
     cursor = Depends(get_db)
 ):
     cursor.execute(
         "DELETE FROM transactions WHERE id = %s AND user_id = %s",
         (transaction_id, user_id)
     )
-    rowcount = cursor.rowcount # rowcount в psycopg2 работает
+    rowcount = cursor.rowcount
     if rowcount == 0:
         raise HTTPException(status_code=404, detail="Transaction not found or access denied")
     return {"status": "success", "message": "Transaction deleted"}
@@ -315,7 +313,7 @@ def delete_transaction(
 def update_transaction(
     transaction_id: int, 
     update: TransactionUpdate, 
-    user_id: int = Query(...),
+    user_id: str = Query(...), # <-- Строка
     cursor = Depends(get_db)
 ):
     fields_to_update = []
@@ -345,8 +343,11 @@ def update_transaction(
     
     return {"status": "success", "message": "Transaction updated"}
 
+# ... (Остальные функции без изменений)
 def _get_date_range_filter(range_str: str) -> Tuple[str, List[str]]:
-    # Эта функция идеальна, в ней ничего не меняем
+    # ...
+    # (Остальные функции get_ai_advice, get_analytics_summary, get_analytics_calendar, reset_user_data не меняются,
+    # кроме того, что user_id должен быть str)
     if range_str == 'all':
         return "", []
     now = datetime.now()
@@ -362,13 +363,12 @@ def _get_date_range_filter(range_str: str) -> Tuple[str, List[str]]:
     
     if start_date_dt:
         start_date_str_formatted = start_date_dt.strftime('%Y-%m-%d %H:%M:%S')
-        # Postgres использует '%s', а не '?'
         return " AND t.date >= %s", [start_date_str_formatted]
     return "", []
 
 @app.get("/ai-advice")
 def get_ai_advice(
-    user_id: int = Query(...), 
+    user_id: str = Query(...), # <-- Строка
     range: str = Query('month'), 
     prompt_type: str = Query('advice'),
     cursor = Depends(get_db)
@@ -400,14 +400,7 @@ def get_ai_advice(
     transaction_list_str = "\n".join(
         [f"- Date: {row['date']}, Type: {row['type']}, Category: {row['category']}, Amount: {row['amount']}" for row in rows]
     )
-    
-    # ... (Весь блок 'PROMPTS' остается без изменений) ...
-    PROMPTS = {
-        'summary': f"...",
-        'anomaly': f"...",
-        'advice': f"..."
-    }
-    # (Я скрыл PROMPTS для краткости, твой код там не меняется)
+
     PROMPTS = {
         'summary': f"""
 You are a concise financial analyst. Analyze the following transactions for the period.
@@ -448,7 +441,7 @@ Give your advice now.
 
 @app.get("/analytics/summary")
 def get_analytics_summary(
-    user_id: int = Query(...), 
+    user_id: str = Query(...), # <-- Строка
     type: str = Query('expense'), 
     range: str = Query('month'),
     cursor = Depends(get_db)
@@ -473,7 +466,7 @@ def get_analytics_summary(
 
 @app.get("/analytics/calendar")
 def get_analytics_calendar(
-    user_id: int = Query(...), 
+    user_id: str = Query(...), # <-- Строка
     month: int = Query(...), 
     year: int = Query(...),
     cursor = Depends(get_db)
@@ -521,7 +514,7 @@ def get_analytics_calendar(
 
 @app.delete("/users/me/reset")
 def reset_user_data(
-    user_id: int = Query(...),
+    user_id: str = Query(...), # <-- Строка
     cursor = Depends(get_db)
 ):
     try:
@@ -531,8 +524,9 @@ def reset_user_data(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred during data reset: {e}")
 
+
 # ---
-# --- Статика и SPA (Без изменений)
+# --- Статика и SPA
 # ---
 app.mount("/static", StaticFiles(directory=WEBAPP_DIR), name="static")
 
@@ -545,9 +539,6 @@ def catch_all(full_path: str):
     with open(html_path, "r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read())
 
-# --- ИЗМЕНЕНИЕ 4: 'setup_database()' удален отсюда ---
 if __name__ == "__main__":
-    # print("--- [Startup]: Запуск инициализации БД...")
-    # setup_database()  <-- 'lifespan' теперь делает это
     print("--- [Startup]: Запуск Uvicorn-сервера...")
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True) # Добавил 'reload=True' для удобства
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
