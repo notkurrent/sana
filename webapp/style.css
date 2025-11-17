@@ -1,5 +1,4 @@
 /* --- ⭐ УБИРАЕМ СКРОЛЛБАРЫ --- */
-/* (Перенесено из index.html) */
 html, body {
     scrollbar-width: none; /* Firefox */
     -ms-overflow-style: none; /* IE/Edge */
@@ -24,7 +23,6 @@ body::-webkit-scrollbar,
     --tg-theme-button-text-color-rgb: 255, 255, 255;
     --tg-theme-tertiary-bg-color-rgb: 255, 255, 255;
     
-    /* --- ИСПРАВЛЕНИЕ БАГА "СЛИЯНИЯ" --- */
     --tg-theme-secondary-bg-color: rgb(var(--tg-theme-secondary-bg-color-rgb));
     --tg-theme-tertiary-bg-color: rgb(var(--tg-theme-tertiary-bg-color-rgb));
     
@@ -135,7 +133,7 @@ body {
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15),
-                inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.15); /* <-- ФИКС ОБВОДКИ */
+                inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.15);
     height: 65px; 
     box-sizing: border-box;
     display: flex; 
@@ -152,7 +150,7 @@ body {
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15),
-                inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.15); /* <-- ФИКС ОБВОДКИ */
+                inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.15);
     margin-bottom: var(--space-lg);
     border: none;
 }
@@ -170,7 +168,7 @@ body {
     background-color: rgba(var(--tg-theme-secondary-bg-color-rgb), 0.75); 
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    box-shadow: inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.15); /* <-- ФИКС ОБВОДКИ */
+    box-shadow: inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.15);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -178,12 +176,12 @@ body {
     #analytics-screen > .segmented-control:first-of-type {
         background-color: rgba(var(--tg-theme-tertiary-bg-color-rgb), 0.75);
         box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3),
-                    inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.2); /* <-- ФИКС ОБВОДКИ (DARK) */
+                    inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.2);
     }
     
     .date-header {
         background-color: rgba(var(--tg-theme-tertiary-bg-color-rgb), 0.75);
-        box-shadow: inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.2); /* <-- ФИКС ОБВОДКИ (DARK) */
+        box-shadow: inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.2);
     }
 }
 
@@ -371,7 +369,7 @@ body {
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15),
-                inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.15); /* <-- ФИКС ОБВОДКИ */
+                inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.15);
     
     border-radius: 30px;
     z-index: 10;
@@ -381,7 +379,7 @@ body {
 @media (prefers-color-scheme: dark) {
     .tab-bar {
         box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3),
-                    inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.2); /* <-- ФИКС ОБВОДКИ (DARK) */
+                    inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.2);
     }
 }
 
@@ -427,7 +425,7 @@ body {
     padding: var(--space-xs);
     box-sizing: border-box;
     margin-bottom: var(--space-lg);
-    border: 1px solid rgba(var(--tg-theme-hint-color-rgb), 0.15); /* <-- ФИКС ОБВОДКИ (ДЛЯ ВСЕХ) */
+    border: 1px solid rgba(var(--tg-theme-hint-color-rgb), 0.15);
 }
 .seg-button {
     flex: 1;
@@ -580,7 +578,6 @@ body {
     margin-right: var(--space-md);
 }
 
-/* ⭐ НАЧАЛО: ПОЧИНЕНО ДЛЯ СТРЕЛОК */
 .month-year-picker select {
     background-color: var(--tg-theme-secondary-bg-color); 
     border: none;
@@ -599,7 +596,6 @@ body {
     background-image: none; 
     width: 100%;
 }
-/* ⭐ КОНЕЦ: ПОЧИНЕНО ДЛЯ СТРЕЛОК */
 
 
 .calendar-summary-container {
@@ -607,12 +603,15 @@ body {
     grid-template-columns: repeat(3, 1fr);
     gap: var(--space-sm);
     margin-top: var(--space-lg);
+    /* ❗️❗️❗️ УДАЛИЛИ: align-items: stretch; */
 }
 .summary-box {
     background-color: var(--tg-theme-secondary-bg-color);
     border-radius: 10px;
     padding: var(--space-md);
     text-align: center;
+    cursor: pointer; /* 👈 ДОБАВИЛИ: Делаем бокс кликабельным */
+    /* ❗️❗️❗️ УДАЛИЛИ: overflow: hidden; */
 }
 .summary-label {
     display: block;
@@ -622,8 +621,9 @@ body {
 }
 .summary-value {
     display: block;
-    font-size: 1.1rem;
+    font-size: 1.1rem; /* 👈 ВЕРНУЛИ: 1.1rem */
     font-weight: 600;
+    /* ❗️❗️❗️ УДАЛИЛИ: white-space, overflow, text-overflow */
 }
 .summary-value.income { color: var(--color-income); }
 .summary-value.expense { color: var(--color-expense); }
@@ -1059,14 +1059,14 @@ body {
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15),
-                inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.15); /* <-- ФИКС ОБВОДКИ */
+                inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.15);
     border-radius: 20px;
 }
 
 @media (prefers-color-scheme: dark) {
     #quick-add-screen .sticky-footer {
         box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3),
-                    inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.2); /* <-- ФИКС ОБВОДКИ (DARK) */
+                    inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.2);
     }
 }
 
@@ -1100,85 +1100,60 @@ body {
     top: calc(env(safe-area-inset-top) + 35px + 50px + 65px + 10px);
 }
 
-/* ⭐ НАЧАЛО: ФИКС СТРЕЛОК (ДЛЯ ВСЕХ SELECT'ОВ) */
-
-/* 1. Контейнер для select + стрелка */
+/* --- ФИКС СТРЕЛОК (ДЛЯ ВСЕХ SELECT'ОВ) --- */
 .custom-select-wrapper {
     position: relative;
-    width: 100%; /* Правильно для Настроек */
+    width: 100%;
 }
-
-/* 2. Заставляем select'ы в календаре делиться местом (60/40) */
 .month-year-picker .custom-select-wrapper:first-child {
-    flex-grow: 3; /* 3 части для месяца */
+    flex-grow: 3;
     width: 0;
 }
 .month-year-picker .custom-select-wrapper:last-child {
-    flex-grow: 2; /* 2 части для года */
+    flex-grow: 2;
     width: 0;
 }
-
-
-/* 3. Убираем родную стрелку у ВСЕХ select, где мы ее заменяем */
 .custom-select-wrapper select {
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
     background-image: none;
-    
-    /* Добавляем место для нашей стрелки */
     padding-right: 35px !important; 
 }
-
-/* 4. Рисуем нашу 'чистую' стрелку */
 .custom-select-arrow {
     position: absolute;
     top: 50%;
-    right: 15px; /* Отступ от края */
+    right: 15px;
     pointer-events: none;
     width: 8px;
     height: 8px;
     transform: translateY(-70%) rotate(45deg);
     border: solid var(--tg-theme-button-color);
-    border-width: 0 2px 2px 0; /* Только правая и нижняя */
+    border-width: 0 2px 2px 0;
 }
-/* ⭐ КОНЕЦ: ФИКС СТРЕЛОК */
 
-/* --- ⭐ НАЧАЛО: ФИКС АНИМАЦИЙ --- */
-
+/* --- АНИМАЦИИ --- */
 @keyframes slideFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
-
 .new-item-animation {
   animation: slideFadeIn 0.4s ease-out;
   animation-fill-mode: forwards;
 }
 
-/* --- ⭐ КОНЕЦ: ФИКС АНИМАЦИЙ --- */
-
-/* --- ⭐ НАЧАЛО: СТИЛИ СКЕЛЕТОНА --- */
-
+/* --- СТИЛИ СКЕЛЕТОНА --- */
 .skeleton-loader {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
   margin-bottom: var(--space-lg);
 }
-
 .skeleton-item {
   background-color: var(--tg-theme-secondary-bg-color);
   position: relative;
   overflow: hidden;
 }
-
 .skeleton-item::after {
   content: '';
   position: absolute;
@@ -1186,37 +1161,23 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(var(--tg-theme-tertiary-bg-color-rgb), 0.5),
-    transparent
-  );
+  background: linear-gradient( 90deg, transparent, rgba(var(--tg-theme-tertiary-bg-color-rgb), 0.5), transparent );
   transform: translateX(-100%);
   animation: shimmer 1.5s infinite;
 }
-
 .skeleton-header {
   height: 37px;
   width: 40%;
   border-radius: 12px;
   margin-top: var(--space-sm);
 }
-
 .skeleton-tx {
   height: 70px;
   border-radius: 10px;
 }
+@keyframes shimmer { 100% { transform: translateX(100%); } }
 
-@keyframes shimmer {
-  100% {
-    transform: translateX(100%);
-  }
-}
-/* --- ⭐ КОНЕЦ: СТИЛИ СКЕЛЕТОНА --- */
-
-/* --- ⭐ НАЧАЛО: СТИЛИ ОШИБОК --- */
-
+/* --- СТИЛИ ОШИБОК --- */
 .list-placeholder .placeholder-btn {
     background-color: var(--tg-theme-secondary-bg-color);
     color: var(--tg-theme-text-color);
@@ -1233,48 +1194,40 @@ body {
 .list-placeholder .placeholder-btn:hover {
     opacity: 0.8;
 }
-/* --- ⭐ КОНЕЦ: СТИЛИ ОШИБОК --- */
 
-/* --- ⭐ НАЧАЛО: АНИМАЦИЯ БАЛАНСА --- */
+/* --- АНИМАЦИЯ БАЛАНСА --- */
+@keyframes positiveFlash { 50% { background-color: #22c55e4D; } }
+@keyframes negativeFlash { 50% { background-color: #ef44444D; } }
+.balance-flash-positive { animation: positiveFlash 0.6s ease-out; }
+.balance-flash-negative { animation: negativeFlash 0.6s ease-out; }
 
-@keyframes positiveFlash {
-  50% {
-    background-color: #22c55e4D; 
-  }
-}
-
-@keyframes negativeFlash {
-  50% {
-    background-color: #ef44444D; 
-  }
-}
-
-.balance-flash-positive {
-  animation: positiveFlash 0.6s ease-out;
-}
-
-.balance-flash-negative {
-  animation: negativeFlash 0.6s ease-out;
-}
-/* --- ⭐ КОНЕЦ: АНИМАЦИЯ БАЛАНСА --- */
-
-/* --- ⭐ ФИКС: ВЫРАВНИВАНИЕ ПЛЕЙСХОЛДЕРА В КАЛЕНДАРЕ --- */
-
-/* Когда календарный контейнер содержит ТОЛЬКО один плейсхолдер */
+/* --- ФИКС: ВЫРАВНИВАНИЕ ПЛЕЙСХОЛДЕРА В КАЛЕНДАРЕ --- */
 #calendar-container:has(> .list-placeholder:only-child) {
-    /* Переключаемся с display: grid на flex */
     display: flex; 
-    /* Растягиваем его, чтобы занять все пространство */
     width: 100%;
-    /* Центрируем содержимое (текст Loading...) */
     justify-content: center; 
     align-items: center;
-    min-height: 200px; /* Даем ему немного высоты, чтобы было видно центр */
-    padding-top: 30px; /* Отступ сверху */
+    min-height: 200px;
+    padding-top: 30px;
 }
-
-/* Скрываем заголовки дней, когда показываем плейсхолдер */
 #calendar-container:has(> .list-placeholder:only-child) > .calendar-day-header {
     display: none;
 }
-/* --- КОНЕЦ ФИКСА ВЫРАВНИВАНИЯ --- */
+
+/* ⬇️ ⬇️ ⬇️ ВОТ НОВЫЙ БЛОК СТИЛЕЙ ⬇️ ⬇️ ⬇️ */
+
+/* Стили для read-only инпута в шторке */
+.quick-add-amount-container input[readonly] {
+    color: var(--tg-theme-text-color);
+    font-size: 2.5rem; /* 👈 Делаем шрифт чуть меньше, чтобы влезло */
+    font-weight: 700;
+    width: 100%;
+    text-align: left;
+    padding: 0;
+    line-height: 1.2;
+}
+
+/* Разный цвет для разных типов */
+#summary-sheet-amount.income { color: var(--color-income); }
+#summary-sheet-amount.expense { color: var(--color-expense); }
+#summary-sheet-amount.net { color: var(--tg-theme-text-color); }

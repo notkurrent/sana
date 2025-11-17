@@ -36,6 +36,9 @@ document.addEventListener("DOMContentLoaded", () => {
     let lastActiveScreen = 'home-screen'; 
     let activeBottomSheet = null; 
     let isInitialLoad = true; 
+    
+    // ⬇️ Новая переменная для хранения точных сумм
+    let currentCalendarSummary = { income: 0, expense: 0, net: 0 };
 
     let swipeStartX = 0;
     let swipeStartY = 0;
@@ -59,13 +62,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const headerDateFormatter = new Intl.DateTimeFormat('en-US', {
         year: 'numeric', month: 'long', day: 'numeric'
     });
+    
+    // ⬇️ Новый форматер для точных сумм (e.g. 3,003,645.00)
+    const preciseNumberFormatter = new Intl.NumberFormat('en-US', {
+        style: 'decimal',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
 
     const formatDateForTitle = (date) => headerDateFormatter.format(date);
     const formatTime = (date) => timeFormatter.format(date);
     // ❗️❗️❗️ КОНЕЦ ВОССТАНОВЛЕННОГО БЛОКА
 
     // ---
-    // --- Кешированные DOM-элементы (без изменений)
+    // --- Кешированные DOM-элементы (Добавлена new summarySheet)
     // ---
     const DOM = {
         screens: document.querySelectorAll(".screen"),
@@ -97,6 +107,10 @@ document.addEventListener("DOMContentLoaded", () => {
             summaryIncome: document.getElementById("calendar-summary-income"),
             summaryExpense: document.getElementById("calendar-summary-expense"),
             summaryNet: document.getElementById("calendar-summary-net"),
+            // ⬇️ Добавлены сами боксы для кликов
+            boxIncome: document.getElementById("calendar-summary-box-income"),
+            boxExpense: document.getElementById("calendar-summary-box-expense"),
+            boxNet: document.getElementById("calendar-summary-box-net"),
         },
         
         ai: {
@@ -169,6 +183,16 @@ document.addEventListener("DOMContentLoaded", () => {
             saveBtn: document.getElementById("quick-modal-save-btn"),
         },
         
+        // ⬇️ Добавлена новая шторка
+        summarySheet: {
+            sheet: document.getElementById("summary-details-sheet"),
+            header: document.querySelector("#summary-details-sheet .sheet-header"),
+            title: document.getElementById("summary-sheet-title"),
+            currency: document.getElementById("summary-sheet-currency"),
+            amountInput: document.getElementById("summary-sheet-amount"),
+            closeBtn: document.getElementById("summary-sheet-close-btn"),
+        },
+        
         tabs: {
             home: document.getElementById("tab-home"),
             analytics: document.getElementById("tab-analytics"),
@@ -231,62 +255,81 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
     
+    // ---
+    // --- ⬇️ ⬇️ ⬇️ ФИНАЛЬНЫЙ ФИКС ФОРМАТИРОВАНИЯ ⬇️ ⬇️ ⬇️
+    // ---
+
+    // 1. ГЛАВНАЯ ФУНКЦИЯ (ВОССТАНОВЛЕНА)
+    // Используется везде, КРОМЕ дашбордов календаря
     function formatCurrency(amount) {
-        if (typeof amount !== 'number') { amount = 0; }
+        if (typeof amount !== 'number') {
+            amount = 0;
+        }
+        // Возвращает "$1296.00" (с копейками, без знака)
         return `${currentCurrencySymbol}${amount.toFixed(2)}`;
     }
 
-    // --- НОВАЯ ФУНКЦИЯ ДЛЯ БОКСОВ КАЛЕНДАРЯ (с 3 знаками) ---
-function formatCurrencyForSummary(amount) {
-    if (typeof amount !== 'number') {
-        amount = 0;
+    // 2. ФУНКЦИЯ ДЛЯ 3-Х БОКСОВ КАЛЕНДАРЯ (с toFixed(2) для M)
+    function formatCurrencyForSummary(amount) {
+        if (typeof amount !== 'number') {
+            amount = 0;
+        }
+
+        const sign = amount < 0 ? "-" : (amount > 0 ? "+" : "");
+        const absAmount = Math.abs(amount);
+        let formattedAmount;
+
+        // ⬇️ Возвращаем 2 знака, как ты просил ⬇️
+        if (absAmount >= 1000000) {
+            formattedAmount = (absAmount / 1000000).toFixed(2) + 'M'; // e.g. +3.00M
+        } else if (absAmount >= 10000) {
+            formattedAmount = (absAmount / 1000).toFixed(0) + 'K'; // e.g. 10K
+        } else if (absAmount >= 1000) {
+            formattedAmount = (absAmount / 1000).toFixed(1) + 'K'; // e.g. 1.3K
+        } else {
+            formattedAmount = absAmount.toFixed(2); // e.g. 776.00
+        }
+
+        if (amount === 0) return `${currentCurrencySymbol}0.00`;
+        return `${sign}${currentCurrencySymbol}${formattedAmount}`;
     }
 
-    const sign = amount < 0 ? "-" : (amount > 0 ? "+" : "");
-    const absAmount = Math.abs(amount);
-    let formattedAmount;
+    // 3. "МИКРО" ФУНКЦИЯ ДЛЯ ЯЧЕЕК КАЛЕНДАРЯ
+    function formatForDayMarker(amount) {
+        if (typeof amount !== 'number' || amount === 0) return '';
+        const absAmount = Math.abs(Math.round(amount)); // Округляем
+        const sign = amount < 0 ? "-" : "+";
 
-    // ⬇️ ФИНАЛЬНЫЙ ФИКС: 3 знака для миллионов ⬇️
-    if (absAmount >= 1000000) {
-        formattedAmount = (absAmount / 1000000).toFixed(3) + 'M'; // e.g. +3.004M
-    } else if (absAmount >= 10000) {
-        formattedAmount = (absAmount / 1000).toFixed(0) + 'K'; // e.g. 10K
-    } else if (absAmount >= 1000) {
-        formattedAmount = (absAmount / 1000).toFixed(1) + 'K'; // e.g. 1.3K
-    } else {
-        formattedAmount = absAmount.toFixed(2); // e.g. 776.00
+        if (absAmount >= 1000000) {
+            return `${sign}${(absAmount / 1000000).toFixed(1)}M`; // +3.0M
+        }
+        if (absAmount >= 1000) {
+            return `${sign}${(absAmount / 1000).toFixed(0)}K`; // +4K
+        }
+        return `${sign}${absAmount}`; // +115
     }
-
-    if (amount === 0) return `${currentCurrencySymbol}0.00`;
-    return `${sign}${currentCurrencySymbol}${formattedAmount}`;
-}
-
-// --- НОВАЯ ФУНКЦИЯ ДЛЯ ЯЧЕЕК КАЛЕНДАРЯ ---
-// (Оставляем 1 знак, т.к. +3.004M не влезет в ячейку)
-function formatForDayMarker(amount) {
-    if (typeof amount !== 'number' || amount === 0) return '';
-    const absAmount = Math.abs(Math.round(amount));
-    const sign = amount < 0 ? "-" : "+";
-
-    if (absAmount >= 1000000) {
-        return `${sign}${(absAmount / 1000000).toFixed(1)}M`; // +3.0M
-    }
-    if (absAmount >= 1000) {
-        return `${sign}${(absAmount / 1000).toFixed(0)}K`; // +4K
-    }
-    return `${sign}${absAmount}`; // +115
-}
     
     function updateBalance() {
+        // ❗️ Эта функция теперь использует formatCurrencyForSummary для Баланса
         const container = DOM.home.balanceAmount.closest('.total-container');
-        const oldBalanceText = DOM.home.balanceAmount.textContent.replace(/[$,]/g, '');
-        const oldBalance = parseFloat(oldBalanceText) || 0;
+        const oldBalanceText = DOM.home.balanceAmount.textContent; // Просто получаем текст
+        
         const newBalance = allTransactions.reduce((acc, tx) => {
             return tx.type === 'income' ? acc + tx.amount : acc - tx.amount;
         }, 0);
-        DOM.home.balanceAmount.textContent = formatCurrency(newBalance);
-        if (newBalance === oldBalance || !container || isInitialLoad) { return; }
+        
+        // ⬇️ Используем сокращенный формат для баланса
+        const newBalanceText = formatCurrencyForSummary(newBalance);
+        DOM.home.balanceAmount.textContent = newBalanceText;
+        
+        if (newBalanceText === oldBalanceText || !container || isInitialLoad) { // Сравниваем текст
+            return;
+        }
+        
+        // ⬇️ Парсим старый текст, чтобы правильно определить анимацию
+        const oldBalance = parseFloat(oldBalanceText.replace(/[^0-9.-]+/g,"")) || 0;
         const classToAdd = newBalance > oldBalance ? 'balance-flash-positive' : 'balance-flash-negative';
+        
         container.classList.remove('balance-flash-positive', 'balance-flash-negative');
         requestAnimationFrame(() => { container.classList.add(classToAdd); });
         container.addEventListener('animationend', () => {
@@ -427,6 +470,7 @@ function formatForDayMarker(amount) {
     }
     
     function createTransactionElement(tx) {
+        // ❗️ Эта функция теперь использует formatCurrency (оригинальную)
         const item = document.createElement("div");
         item.className = "expense-item " + tx.type;
         
@@ -459,7 +503,7 @@ function formatForDayMarker(amount) {
                 </div>
                 <div class="expense-item-details">
                     <span class="tx-amount ${tx.type}">
-                        ${tx.type === 'income' ? '+' : '-'}${formatCurrency(tx.amount)}
+                        ${tx.type === 'income' ? '+' : '-'}${formatCurrency(tx.amount)} 
                     </span>
                     <button class="edit-btn" data-tx-id="${tx.id}">${editIconSvg}</button>
                 </div>
@@ -947,6 +991,40 @@ function formatForDayMarker(amount) {
     }
     
     // ---
+    // --- ⬇️ ⬇️ ⬇️ НОВАЯ ФУНКЦИЯ ДЛЯ ТВОЕЙ ИДЕИ ⬇️ ⬇️ ⬇️
+    // ---
+    function openSummarySheet(type, amount) {
+        let title = "Total";
+        let sign = amount > 0 ? "+" : (amount < 0 ? "-" : "");
+        let cssClass = "net";
+
+        if (type === 'income') {
+            title = "Total Income";
+            cssClass = "income";
+            sign = "+"; // Доход всегда +
+        } else if (type === 'expense') {
+            title = "Total Expense";
+            cssClass = "expense";
+            sign = "-"; // Расход всегда -
+        } else {
+            title = "Net Total";
+            // cssClass и sign уже правильные
+        }
+
+        // Форматируем полное число, e.g. +3,003,645.00
+        const fullAmountText = `${sign}${currentCurrencySymbol}${preciseNumberFormatter.format(Math.abs(amount))}`;
+        
+        DOM.summarySheet.title.textContent = title;
+        DOM.summarySheet.currency.textContent = ""; // Знак и $ уже в тексте
+        DOM.summarySheet.amountInput.value = fullAmountText;
+        DOM.summarySheet.amountInput.className = cssClass; // 'income', 'expense', 'net'
+        
+        // Хаптик!
+        tg.HapticFeedback.impactOccurred('medium');
+        openBottomSheet(DOM.summarySheet.sheet);
+    }
+    
+    // ---
     // --- Логика Свайпов (Swipe-to-Delete)
     // ---
     
@@ -1055,6 +1133,7 @@ function formatForDayMarker(amount) {
     }
 
     async function loadSummaryData() {
+        // ❗️ Эта функция теперь использует formatCurrencyForSummary для списка
         DOM.analytics.summaryList.innerHTML = `<p class="list-placeholder">Loading summary...</p>`;
         if (currentChart) currentChart.destroy();
         DOM.analytics.doughnutChartCanvas.classList.add('hidden');
@@ -1102,7 +1181,7 @@ function formatForDayMarker(amount) {
 
                 itemEl.innerHTML = `
                     <span class="category">${categoryDisplay}</span>
-                    <span class="amount">-${formatCurrency(item.total)}</span>
+                    <span class="amount">${formatCurrencyForSummary(item.total * -1)}</span>
                 `;
                 DOM.analytics.summaryList.appendChild(itemEl);
             });
@@ -1170,6 +1249,7 @@ function formatForDayMarker(amount) {
     }
 
     async function loadCalendarData() {
+        // ❗️ ЭТА ФУНКЦИЯ СИЛЬНО ОБНОВЛЕНА
         if (!tgInitData) return; // 👈 Проверяем tgInitData
 
         const year = currentAnalyticsDate.getFullYear();
@@ -1180,6 +1260,9 @@ function formatForDayMarker(amount) {
         DOM.calendar.summaryExpense.textContent = '...';
         DOM.calendar.summaryNet.textContent = '...';
         DOM.calendar.container.innerHTML = '<p class="list-placeholder">Loading calendar...</p>';
+        
+        // Обнуляем кэш
+        currentCalendarSummary = { income: 0, expense: 0, net: 0 };
 
         try {
             // 🚫 УБРАЛИ: &user_id=${userId}
@@ -1191,9 +1274,14 @@ function formatForDayMarker(amount) {
             if (!response.ok) throw new Error("Failed to load calendar data");
             const data = await response.json();
             
+            // ⬇️ Сохраняем точные числа в кэш
+            currentCalendarSummary = data.month_summary;
+            
+            // ⬇️ Используем formatCurrencyForSummary (с фиксом знака)
             DOM.calendar.summaryIncome.textContent = formatCurrencyForSummary(data.month_summary.income);
             DOM.calendar.summaryExpense.textContent = formatCurrencyForSummary(data.month_summary.expense * -1);
             DOM.calendar.summaryNet.textContent = formatCurrencyForSummary(data.month_summary.net);
+            
             DOM.calendar.summaryNet.style.color = data.month_summary.net >= 0 ? 'var(--color-income)' : 'var(--color-expense)';
 
             DOM.calendar.container.innerHTML = ''; 
@@ -1229,7 +1317,7 @@ function formatForDayMarker(amount) {
 
                 const dayKey = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                 
-                // ⬇️ ИСПОЛЬЗУЕМ formatForDayMarker ⬇️
+                // ⬇️ Используем formatForDayMarker для ячеек
                 let markersHtml = '';
                 if (data.days[dayKey]) {
                     const dayData = data.days[dayKey];
@@ -1494,7 +1582,7 @@ function formatForDayMarker(amount) {
     }
 
     // ---
-    // --- Инициализация и Слушатели событий
+    // --- ⬇️ ⬇️ ⬇️ Инициализация и Слушатели событий (ОБНОВЛЕНО) ⬇️ ⬇️ ⬇️
     // ---
     
     function applyTelegramThemeColors() {
@@ -1543,6 +1631,10 @@ function formatForDayMarker(amount) {
         setupSheetDrag(DOM.daySheet.sheet, DOM.daySheet.header, DOM.daySheet.contentWrapper, closeBottomSheet);
         setupSheetDrag(DOM.quickModal.sheet, DOM.quickModal.header, null, closeBottomSheet);
         
+        // ⬇️ Добавлен драггер и кнопка закрытия для новой шторки
+        setupSheetDrag(DOM.summarySheet.sheet, DOM.summarySheet.header, null, closeBottomSheet);
+        DOM.summarySheet.closeBtn.addEventListener('click', closeBottomSheet);
+        
         // 7. --- Аналитика ---
         DOM.analytics.segBtnSummary.addEventListener('click', () => {
             tg.HapticFeedback.impactOccurred('light');
@@ -1578,6 +1670,19 @@ function formatForDayMarker(amount) {
         DOM.calendar.monthSelect.addEventListener('change', () => { tg.HapticFeedback.impactOccurred('light'); currentAnalyticsDate.setMonth(parseInt(DOM.calendar.monthSelect.value)); loadCalendarData(); });
         DOM.calendar.yearSelect.addEventListener('change', () => { tg.HapticFeedback.impactOccurred('light'); currentAnalyticsDate.setFullYear(parseInt(DOM.calendar.yearSelect.value)); loadCalendarData(); });
         
+        // ⬇️ ⬇️ ⬇️ НОВЫЕ СЛУШАТЕЛИ ДЛЯ ТВОЕЙ ИДЕИ ⬇️ ⬇️ ⬇️
+        DOM.calendar.boxIncome.addEventListener('click', () => {
+            openSummarySheet('income', currentCalendarSummary.income);
+        });
+        DOM.calendar.boxExpense.addEventListener('click', () => {
+            // Отправляем отрицательное число, так как expense хранится как положительное
+            openSummarySheet('expense', currentCalendarSummary.expense * -1); 
+        });
+        DOM.calendar.boxNet.addEventListener('click', () => {
+            openSummarySheet('net', currentCalendarSummary.net);
+        });
+        // ⬆️ ⬆️ ⬆️ КОНЕЦ НОВЫХ СЛУШАТЕЛЕЙ ⬆️ ⬆️ ⬆️
+
         // 8. --- AI Советник ---
         DOM.ai.dateFilter.addEventListener('click', (e) => {
             const target = e.target.closest('.seg-button');
