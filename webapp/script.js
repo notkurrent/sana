@@ -319,8 +319,11 @@ document.addEventListener("DOMContentLoaded", () => {
             return tx.type === 'income' ? acc + tx.amount : acc - tx.amount;
         }, 0);
         
-        // ⬇️ ИСПОЛЬЗУЕМ ТОЧНЫЙ ФОРМАТ (с копейками и знаком)
-        const sign = newBalance < 0 ? "-" : (newBalance > 0 ? "+" : "");
+        // ⬇️ ⬇️ ⬇️ ВОТ ИСПРАВЛЕНИЕ: ⬇️ ⬇️ ⬇️
+        // Убираем "+" для положительного баланса, оставляем только "-" для отрицательного
+        const sign = newBalance < 0 ? "-" : ""; 
+        // ⬆️ ⬆️ ⬆️ КОНЕЦ ИСПРАВЛЕНИЯ ⬆️ ⬆️ ⬆️
+        
         const newBalanceText = `${sign}${formatCurrency(Math.abs(newBalance))}`;
         DOM.home.balanceAmount.textContent = newBalanceText;
         
