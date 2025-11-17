@@ -231,46 +231,39 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
     
-    // --- ⬇️ НОВАЯ ФУНКЦИЯ (с аббревиатурой) ⬇️ ---
-function formatCurrency(amount) {
+    function formatCurrency(amount) {
+        if (typeof amount !== 'number') { amount = 0; }
+        return `${currentCurrencySymbol}${amount.toFixed(2)}`;
+    }
+
+    // --- 1.2. ДОБАВЛЯЕМ НОВУЮ ФУНКЦИЮ ТОЛЬКО ДЛЯ КАЛЕНДАРЯ ---
+function formatCurrencyForSummary(amount) {
     if (typeof amount !== 'number') {
         amount = 0;
     }
 
-    // Сохраняем знак (плюс/минус)
+    // Эта функция сама добавляет знак
     const sign = amount < 0 ? "-" : (amount > 0 ? "+" : "");
     const absAmount = Math.abs(amount);
-
     let formattedAmount;
 
-    // Решаем, как форматировать, в зависимости от величины
+    // Решаем, как форматировать
     if (absAmount >= 1000000) {
-        // Миллионы
-        formattedAmount = (absAmount / 1000000).toFixed(1) + 'M';
+        formattedAmount = (absAmount / 1000000).toFixed(1) + 'M'; // 1.0M
     } else if (absAmount >= 10000) {
-        // Десятки тысяч (без .0, просто 10K, 25K)
-        formattedAmount = (absAmount / 1000).toFixed(0) + 'K';
+        formattedAmount = (absAmount / 1000).toFixed(0) + 'K'; // 10K
     } else if (absAmount >= 1000) {
-        // Тысячи (с .0, например 1.3K, 9.9K)
-        formattedAmount = (absAmount / 1000).toFixed(1) + 'K';
-    } else if (absAmount < 1) {
-        // Меньше 1 (0.50)
-        formattedAmount = absAmount.toFixed(2);
+        formattedAmount = (absAmount / 1000).toFixed(1) + 'K'; // 1.3K, 3.6K
     } else {
-        // Обычные числа (1.00, 13.00, 220.00, 999.00)
-        formattedAmount = absAmount.toFixed(0); 
+        // Суммы меньше 1000 (как в Ноябре) показываем с копейками
+        formattedAmount = absAmount.toFixed(2); // 776.00
     }
 
-    // Собираем обратно
-    // (Не добавляем знак $, если это 0)
     if (amount === 0) {
-        return `${currentCurrencySymbol}0`; // Просто $0
+        return `${currentCurrencySymbol}0.00`;
     }
     
-    // Для Income/Expense в календаре:
-    // +$3.6K
-    // -$1.3K
-    // +$556
+    // Собираем обратно: +$3.6K или -$1.3K или +$776.00
     return `${sign}${currentCurrencySymbol}${formattedAmount}`;
 }
     
@@ -1188,9 +1181,9 @@ function formatCurrency(amount) {
             if (!response.ok) throw new Error("Failed to load calendar data");
             const data = await response.json();
             
-            DOM.calendar.summaryIncome.textContent = `+${formatCurrency(data.month_summary.income)}`;
-            DOM.calendar.summaryExpense.textContent = `-${formatCurrency(data.month_summary.expense)}`;
-            DOM.calendar.summaryNet.textContent = `${data.month_summary.net >= 0 ? '+' : '-'}${formatCurrency(Math.abs(data.month_summary.net))}`;
+            DOM.calendar.summaryIncome.textContent = formatCurrencyForSummary(data.month_summary.income);
+            DOM.calendar.summaryExpense.textContent = formatCurrencyForSummary(data.month_summary.expense);
+            DOM.calendar.summaryNet.textContent = formatCurrencyForSummary(data.month_summary.net);
             DOM.calendar.summaryNet.style.color = data.month_summary.net >= 0 ? 'var(--color-income)' : 'var(--color-expense)';
 
             DOM.calendar.container.innerHTML = ''; 
