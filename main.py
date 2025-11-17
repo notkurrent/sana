@@ -164,25 +164,8 @@ if ptb_app:
 else:
     logger.warning("Обработчик /start НЕ добавлен, так как ptb_app не инициализирован.")
 
-# --- Функция установки Webhook ---
-async def set_webhook_url(base_url: str, bot_app: Application):
-    """Устанавливает URL Webhook на серверах Telegram."""
-    if not bot_app or not BOT_TOKEN:
-        return False
-        
-    webhook_url = f"{base_url}/{BOT_TOKEN}"
-    
-    success = await bot_app.bot.set_webhook(url=webhook_url)
-    
-    if success:
-        logger.info(f"✅ Webhook успешно установлен на: {webhook_url}")
-    else:
-        logger.error(f"❌ НЕ УДАЛОСЬ установить Webhook.")
-        
-    return success
-
 # ---
-# --- 🚀 ОБЪЕДИНЕННЫЙ FastAPI Lifespan (main.py + bot.py)
+# --- 🚀 ОБЪЕДИНЕННЫЙ FastAPI Lifespan (УПРОЩЕННЫЙ)
 # ---
 
 @asynccontextmanager
@@ -195,14 +178,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"--- [Lifespan ERROR]: Не удалось выполнить setup_database: {e}")
 
-    # --- 2. Bot Lifespan (из bot.py) ---
-    if ptb_app and RENDER_EXTERNAL_URL:
-        print("--- [Lifespan]: Инициализация Telegram Bot...")
+    # --- 2. Bot Lifespan (БЕЗ УСТАНОВКИ WEBHOOK) ---
+    # Webhook теперь устанавливается на этапе СБОРКИ (Build Command)
+    if ptb_app:
+        print("--- [Lifespan]: Инициализация Telegram Bot (Application.initialize)...")
         await ptb_app.initialize() 
-        await set_webhook_url(RENDER_EXTERNAL_URL, ptb_app) # Передаем ptb_app
         print("--- [Lifespan]: Telegram Bot инициализирован.")
     else:
-        logger.warning("--- [Lifespan]: Пропуск инициализации Bot (отсутствуют RENDER_EXTERNAL_URL или BOT_TOKEN).")
+        logger.warning("--- [Lifespan]: Пропуск инициализации Bot (ptb_app не найден).")
 
     yield
     
