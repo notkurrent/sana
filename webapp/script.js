@@ -311,23 +311,23 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     
     function updateBalance() {
-        // ❗️ Эта функция теперь использует formatCurrencyForSummary для Баланса
+        // ❗️ Эта функция теперь использует ТОЧНЫЙ формат
         const container = DOM.home.balanceAmount.closest('.total-container');
-        const oldBalanceText = DOM.home.balanceAmount.textContent; // Просто получаем текст
+        const oldBalanceText = DOM.home.balanceAmount.textContent;
         
         const newBalance = allTransactions.reduce((acc, tx) => {
             return tx.type === 'income' ? acc + tx.amount : acc - tx.amount;
         }, 0);
         
-        // ⬇️ Используем сокращенный формат для баланса
-        const newBalanceText = formatCurrencyForSummary(newBalance);
+        // ⬇️ ИСПОЛЬЗУЕМ ТОЧНЫЙ ФОРМАТ (с копейками и знаком)
+        const sign = newBalance < 0 ? "-" : (newBalance > 0 ? "+" : "");
+        const newBalanceText = `${sign}${formatCurrency(Math.abs(newBalance))}`;
         DOM.home.balanceAmount.textContent = newBalanceText;
         
-        if (newBalanceText === oldBalanceText || !container || isInitialLoad) { // Сравниваем текст
+        if (newBalanceText === oldBalanceText || !container || isInitialLoad) {
             return;
         }
-        
-        // ⬇️ Парсим старый текст, чтобы правильно определить анимацию
+
         const oldBalance = parseFloat(oldBalanceText.replace(/[^0-9.-]+/g,"")) || 0;
         const classToAdd = newBalance > oldBalance ? 'balance-flash-positive' : 'balance-flash-negative';
         
@@ -1009,7 +1009,7 @@ document.addEventListener("DOMContentLoaded", () => {
             sign = "-"; // Расход всегда -
         } else {
             title = "Net Total";
-            cssClass = amount >= 0 ? "net positive" : "net negative"; // Класс для Net
+            cssClass = amount >= 0 ? "net positive" : "net negative"; // 👈 ФИКС: Класс для Net
         }
 
         // Форматируем полное число, e.g. +3,003,645.00
@@ -1134,7 +1134,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function loadSummaryData() {
-        // ❗️ Эта функция теперь использует formatCurrencyForSummary для списка
+        // ❗️ Эта функция теперь использует ПОЛНЫЙ формат
         DOM.analytics.summaryList.innerHTML = `<p class="list-placeholder">Loading summary...</p>`;
         if (currentChart) currentChart.destroy();
         DOM.analytics.doughnutChartCanvas.classList.add('hidden');
@@ -1182,7 +1182,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 itemEl.innerHTML = `
                     <span class="category">${categoryDisplay}</span>
-                    <span class="amount">${formatCurrencyForSummary(item.total * -1)}</span>
+                    <span class="amount">-${formatCurrency(item.total)}</span>
                 `;
                 DOM.analytics.summaryList.appendChild(itemEl);
             });
