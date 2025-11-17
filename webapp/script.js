@@ -190,7 +190,8 @@ document.addEventListener("DOMContentLoaded", () => {
             title: document.getElementById("summary-sheet-title"),
             currency: document.getElementById("summary-sheet-currency"),
             amountInput: document.getElementById("summary-sheet-amount"),
-            closeBtn: document.getElementById("summary-sheet-close-btn"),
+            // ⬇️ Кнопка "ОК" удалена
+            // closeBtn: document.getElementById("summary-sheet-close-btn"), 
         },
         
         tabs: {
@@ -1008,7 +1009,7 @@ document.addEventListener("DOMContentLoaded", () => {
             sign = "-"; // Расход всегда -
         } else {
             title = "Net Total";
-            // cssClass и sign уже правильные
+            cssClass = amount >= 0 ? "net positive" : "net negative"; // Класс для Net
         }
 
         // Форматируем полное число, e.g. +3,003,645.00
@@ -1017,7 +1018,7 @@ document.addEventListener("DOMContentLoaded", () => {
         DOM.summarySheet.title.textContent = title;
         DOM.summarySheet.currency.textContent = ""; // Знак и $ уже в тексте
         DOM.summarySheet.amountInput.value = fullAmountText;
-        DOM.summarySheet.amountInput.className = cssClass; // 'income', 'expense', 'net'
+        DOM.summarySheet.amountInput.className = cssClass; // 'income', 'expense', 'net positive'
         
         // Хаптик!
         tg.HapticFeedback.impactOccurred('medium');
@@ -1279,7 +1280,7 @@ document.addEventListener("DOMContentLoaded", () => {
             
             // ⬇️ Используем formatCurrencyForSummary (с фиксом знака)
             DOM.calendar.summaryIncome.textContent = formatCurrencyForSummary(data.month_summary.income);
-            DOM.calendar.summaryExpense.textContent = formatCurrencyForSummary(data.month_summary.expense * -1);
+            DOM.calendar.summaryExpense.textContent = formatCurrencyForSummary(data.month_summary.expense * -1); // 👈 ФИКС ЗНАКА
             DOM.calendar.summaryNet.textContent = formatCurrencyForSummary(data.month_summary.net);
             
             DOM.calendar.summaryNet.style.color = data.month_summary.net >= 0 ? 'var(--color-income)' : 'var(--color-expense)';
@@ -1631,9 +1632,9 @@ document.addEventListener("DOMContentLoaded", () => {
         setupSheetDrag(DOM.daySheet.sheet, DOM.daySheet.header, DOM.daySheet.contentWrapper, closeBottomSheet);
         setupSheetDrag(DOM.quickModal.sheet, DOM.quickModal.header, null, closeBottomSheet);
         
-        // ⬇️ Добавлен драггер и кнопка закрытия для новой шторки
+        // ⬇️ Добавлен драггер для новой шторки (кнопка "ОК" удалена)
         setupSheetDrag(DOM.summarySheet.sheet, DOM.summarySheet.header, null, closeBottomSheet);
-        DOM.summarySheet.closeBtn.addEventListener('click', closeBottomSheet);
+        // DOM.summarySheet.closeBtn.addEventListener('click', closeBottomSheet); // 👈 УДАЛЕНО
         
         // 7. --- Аналитика ---
         DOM.analytics.segBtnSummary.addEventListener('click', () => {
