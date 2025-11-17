@@ -45,7 +45,6 @@ logger = logging.getLogger(__name__)
 # ---
 # --- Управление Базой Данных (Postgres)
 # ---
-# ... (Весь твой код get_db_connection, get_db, setup_database остается БЕЗ ИЗМЕНЕНИЙ) ...
 @contextmanager
 def get_db_connection():
     """Контекстный менеджер для безопасного соединения с БД Postgres."""
@@ -217,7 +216,6 @@ app.add_middleware(
 )
 
 # --- Модели Pydantic ---
-# ... (Весь твой код class Transaction, TransactionUpdate, CategoryCreate остается БЕЗ ИЗМЕНЕНИЙ) ...
 class Transaction(BaseModel):
     user_id: str 
     amount: float
@@ -235,8 +233,6 @@ class CategoryCreate(BaseModel):
     type: str
 
 # --- API Эндпоинты ---
-# ... (Все твои эндпоинты: /categories, /transactions, /analytics, /ai-advice и т.д.
-# ...  остаются здесь БЕЗ ИЗМЕНЕНИЙ) ...
 @app.get("/categories", response_model=List[Dict[str, Any]])
 def get_categories(
     user_id: str = Query(...), # <-- Строка
@@ -594,12 +590,10 @@ def reset_user_data(
 # --- 🚀 Telegram Webhook Эндпоинты (ИЗ bot.py)
 # ---
 
-# Health Check эндпоинт (чтобы Render мог проверить, что сервис жив)
-# ❗️ Важно: Он должен быть привязан к `app`, а не к `webhook_app`
-@app.get("/")
-async def root():
-    """Проверка доступности (Render Health Check)"""
-    return {"status": "ok", "service": "Sana Consolidated API/Bot Service"}
+# ❗️❗️❗️ ИСПРАВЛЕНИЕ: Мы УДАЛИЛИ @app.get("/") отсюда,
+# потому что он "перехватывал" запросы к Web App.
+# Теперь эндпоинт "/{full_path:path}" (внизу) будет 
+# корректно обрабатывать "/" и отдавать index.html.
 
 # Сам Webhook-эндпоинт
 if BOT_TOKEN and ptb_app:
@@ -625,6 +619,12 @@ app.mount("/static", StaticFiles(directory=WEBAPP_DIR), name="static")
 
 @app.get("/{full_path:path}", response_class=HTMLResponse)
 def catch_all(full_path: str):
+    """
+    Этот эндпоинт отдает index.html на ЛЮБОЙ запрос,
+    который не был пойман /static, /transactions, /categories и т.д.
+    Именно он теперь будет обрабатывать "/" для Web App
+    и для Health Check'а Render.
+    """
     html_path = WEBAPP_DIR / "index.html"
     if not html_path.exists():
         raise HTTPException(status_code=404, detail="index.html not found")
