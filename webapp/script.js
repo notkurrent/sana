@@ -236,35 +236,45 @@ document.addEventListener("DOMContentLoaded", () => {
         return `${currentCurrencySymbol}${amount.toFixed(2)}`;
     }
 
-    // --- 1.2. ДОБАВЛЯЕМ НОВУЮ ФУНКЦИЮ ТОЛЬКО ДЛЯ КАЛЕНДАРЯ ---
+    // --- НОВАЯ ФУНКЦИЯ ДЛЯ БОКСОВ КАЛЕНДАРЯ (с 3 знаками) ---
 function formatCurrencyForSummary(amount) {
     if (typeof amount !== 'number') {
         amount = 0;
     }
 
-    // Эта функция сама добавляет знак
     const sign = amount < 0 ? "-" : (amount > 0 ? "+" : "");
     const absAmount = Math.abs(amount);
     let formattedAmount;
 
-    // Решаем, как форматировать
+    // ⬇️ ФИНАЛЬНЫЙ ФИКС: 3 знака для миллионов ⬇️
     if (absAmount >= 1000000) {
-        formattedAmount = (absAmount / 1000000).toFixed(1) + 'M'; // 1.0M
+        formattedAmount = (absAmount / 1000000).toFixed(3) + 'M'; // e.g. +3.004M
     } else if (absAmount >= 10000) {
-        formattedAmount = (absAmount / 1000).toFixed(0) + 'K'; // 10K
+        formattedAmount = (absAmount / 1000).toFixed(0) + 'K'; // e.g. 10K
     } else if (absAmount >= 1000) {
-        formattedAmount = (absAmount / 1000).toFixed(1) + 'K'; // 1.3K, 3.6K
+        formattedAmount = (absAmount / 1000).toFixed(1) + 'K'; // e.g. 1.3K
     } else {
-        // Суммы меньше 1000 (как в Ноябре) показываем с копейками
-        formattedAmount = absAmount.toFixed(2); // 776.00
+        formattedAmount = absAmount.toFixed(2); // e.g. 776.00
     }
 
-    if (amount === 0) {
-        return `${currentCurrencySymbol}0.00`;
-    }
-    
-    // Собираем обратно: +$3.6K или -$1.3K или +$776.00
+    if (amount === 0) return `${currentCurrencySymbol}0.00`;
     return `${sign}${currentCurrencySymbol}${formattedAmount}`;
+}
+
+// --- НОВАЯ ФУНКЦИЯ ДЛЯ ЯЧЕЕК КАЛЕНДАРЯ ---
+// (Оставляем 1 знак, т.к. +3.004M не влезет в ячейку)
+function formatForDayMarker(amount) {
+    if (typeof amount !== 'number' || amount === 0) return '';
+    const absAmount = Math.abs(Math.round(amount));
+    const sign = amount < 0 ? "-" : "+";
+
+    if (absAmount >= 1000000) {
+        return `${sign}${(absAmount / 1000000).toFixed(1)}M`; // +3.0M
+    }
+    if (absAmount >= 1000) {
+        return `${sign}${(absAmount / 1000).toFixed(0)}K`; // +4K
+    }
+    return `${sign}${absAmount}`; // +115
 }
     
     function updateBalance() {
@@ -1182,7 +1192,7 @@ function formatCurrencyForSummary(amount) {
             const data = await response.json();
             
             DOM.calendar.summaryIncome.textContent = formatCurrencyForSummary(data.month_summary.income);
-            DOM.calendar.summaryExpense.textContent = formatCurrencyForSummary(data.month_summary.expense);
+            DOM.calendar.summaryExpense.textContent = formatCurrencyForSummary(data.month_summary.expense * -1);
             DOM.calendar.summaryNet.textContent = formatCurrencyForSummary(data.month_summary.net);
             DOM.calendar.summaryNet.style.color = data.month_summary.net >= 0 ? 'var(--color-income)' : 'var(--color-expense)';
 
@@ -1218,11 +1228,13 @@ function formatCurrencyForSummary(amount) {
                 }
 
                 const dayKey = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                
+                // ⬇️ ИСПОЛЬЗУЕМ formatForDayMarker ⬇️
                 let markersHtml = '';
                 if (data.days[dayKey]) {
                     const dayData = data.days[dayKey];
-                    if (dayData.income > 0) markersHtml += `<span class="income">+${dayData.income.toFixed(0)}</span>`;
-                    if (dayData.expense > 0) markersHtml += `<span class="expense">-${dayData.expense.toFixed(0)}</span>`;
+                    if (dayData.income > 0) markersHtml += `<span class="income">${formatForDayMarker(dayData.income)}</span>`;
+                    if (dayData.expense > 0) markersHtml += `<span class="expense">${formatForDayMarker(dayData.expense)}</span>`;
                 }
 
                 dayEl.innerHTML = `
