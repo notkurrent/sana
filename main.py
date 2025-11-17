@@ -495,7 +495,7 @@ def get_ai_advice(
     range: str = Query('month'), 
     prompt_type: str = Query('advice'),
     cursor = Depends(get_db),
-    user_id: str = Depends(get_validated_user_id) # ✅ ОБНОВЛЕНО
+    user_id: str = Depends(get_validated_user_id) # ✅ ОБНОВЛЕНО (Безопасность)
 ):
     if not GOOGLE_API_KEY:
         raise HTTPException(status_code=500, detail="AI service is not configured.")
@@ -525,11 +525,42 @@ def get_ai_advice(
         [f"- Date: {row['date']}, Type: {row['type']}, Category: {row['category']}, Amount: {row['amount']}" for row in rows]
     )
 
+    # ---
+    # --- ⬇️ ВОТ ВОССТАНОВЛЕННЫЙ БЛОК ⬇️ ---
+    # ---
     PROMPTS = {
-        'summary': f"""... (PROMPT) ...""",
-        'anomaly': f"""... (PROMPT) ...""",
-        'advice': f"""... (PROMPT) ..."""
+        'summary': f"""
+You are a concise financial analyst. Analyze the following transactions for the period.
+Write a very short (2-3 sentences) summary.
+Start with the total expenses and total income.
+Then, list the top 2-3 EXPENSE categories and their totals.
+Use the user's currency symbol where appropriate (e.g., $, ₸, €, etc. if you see it in the amounts). If no symbol is obvious, just use numbers.
+Transactions:
+{transaction_list_str}
+Give your summary now.
+""",
+        'anomaly': f"""
+You are a data analyst. Find the single largest EXPENSE transaction from the following list.
+Report what the category was, the date, and the amount in 1-2 sentences.
+Start directly with 'Your largest single expense this {range} was...'.
+Use the user's currency symbol where appropriate.
+Transactions:
+{transaction_list_str}
+Give your finding now.
+""",
+        'advice': f"""
+You are a friendly financial advisor. A user provided their recent transactions for this {range}.
+Analyze them and give one short (under 50 words), simple, actionable piece of advice.
+Start directly with the advice. Do not be generic; base it on the provided data.
+Transactions:
+{transaction_list_str}
+Give your advice now.
+"""
     }
+    # ---
+    # --- ⬆️ КОНЕЦ ВОССТАНОВЛЕННОГО БЛОКА ⬆️ ---
+    # ---
+    
     prompt = PROMPTS.get(prompt_type, PROMPTS['advice'])
         
     try:
