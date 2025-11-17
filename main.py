@@ -178,11 +178,34 @@ else:
     print("ВНИМАНИЕ: GOOGLE_API_KEY не найден.")
 
 # --- Middleware ---
+
+# ❗️ ВАЖНО: Убедись, что эта переменная загружается из .env
+RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL")
+
+# Список разрешенных "хостов", которые могут делать запросы к твоему API
+origins = [
+    # 1. Твой собственный сервис на Render.
+    #    (Убедись, что RENDER_EXTERNAL_URL в .env без / на конце)
+    RENDER_EXTERNAL_URL,
+    
+    # 2. "Дикая карта" для всех официальных Web App Telegram
+    #    (на случай, если Telegram будет вызывать API напрямую)
+    "https://*.telegram-web-app.com",
+    "https://*.web.telegram.org" # Добавим и веб-версию
+]
+
+# Если RENDER_EXTERNAL_URL не найден, НЕ запускаем сервер
+if not RENDER_EXTERNAL_URL:
+    logger.critical("КРИТИЧЕСКАЯ ОШИБКА: RENDER_EXTERNAL_URL не найден!")
+    # В реальном проде можно было бы остановить запуск,
+    # но для Render.com безопаснее просто добавить звездочку
+    # origins.append("*") 
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # ❗️ Позже заменишь на свой URL
+    allow_origins=origins, # <-- ✅ ЗАМЕНИЛИ "*" на твой список
+    allow_credentials=True, # <-- (Хорошая практика)
     allow_methods=["*"],
-    # ⬇️ ДОБАВЛЕНО: 'X-Telegram-InitData'
     allow_headers=["*", "X-Telegram-InitData"],
 )
 
