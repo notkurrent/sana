@@ -231,10 +231,48 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
     
-    function formatCurrency(amount) {
-        if (typeof amount !== 'number') { amount = 0; }
-        return `${currentCurrencySymbol}${amount.toFixed(2)}`;
+    // --- ⬇️ НОВАЯ ФУНКЦИЯ (с аббревиатурой) ⬇️ ---
+function formatCurrency(amount) {
+    if (typeof amount !== 'number') {
+        amount = 0;
     }
+
+    // Сохраняем знак (плюс/минус)
+    const sign = amount < 0 ? "-" : (amount > 0 ? "+" : "");
+    const absAmount = Math.abs(amount);
+
+    let formattedAmount;
+
+    // Решаем, как форматировать, в зависимости от величины
+    if (absAmount >= 1000000) {
+        // Миллионы
+        formattedAmount = (absAmount / 1000000).toFixed(1) + 'M';
+    } else if (absAmount >= 10000) {
+        // Десятки тысяч (без .0, просто 10K, 25K)
+        formattedAmount = (absAmount / 1000).toFixed(0) + 'K';
+    } else if (absAmount >= 1000) {
+        // Тысячи (с .0, например 1.3K, 9.9K)
+        formattedAmount = (absAmount / 1000).toFixed(1) + 'K';
+    } else if (absAmount < 1) {
+        // Меньше 1 (0.50)
+        formattedAmount = absAmount.toFixed(2);
+    } else {
+        // Обычные числа (1.00, 13.00, 220.00, 999.00)
+        formattedAmount = absAmount.toFixed(0); 
+    }
+
+    // Собираем обратно
+    // (Не добавляем знак $, если это 0)
+    if (amount === 0) {
+        return `${currentCurrencySymbol}0`; // Просто $0
+    }
+    
+    // Для Income/Expense в календаре:
+    // +$3.6K
+    // -$1.3K
+    // +$556
+    return `${sign}${currentCurrencySymbol}${formattedAmount}`;
+}
     
     function updateBalance() {
         const container = DOM.home.balanceAmount.closest('.total-container');
