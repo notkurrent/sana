@@ -2,19 +2,25 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
 import uvicorn
-from datetime import datetime, timedelta, timezone # <-- ДОБАВЛЕН timezone
+import logging # <-- ДОБАВЛЕНО ИЗ bot.py
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Tuple, Dict, Any
 from collections import defaultdict
 from contextlib import contextmanager, asynccontextmanager 
 from pathlib import Path
 
-from fastapi import FastAPI, Query, HTTPException, Depends
+from fastapi import FastAPI, Query, HTTPException, Depends, Request # <-- ДОБАВЛЕНО Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import google.generativeai as genai
+
+# --- ДОБАВЛЕНО ИЗ bot.py ---
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes
+# --- КОНЕЦ ДОБАВЛЕНИЙ ИЗ bot.py ---
 
 # --- Константы ---
 BASE_DIR = Path(__file__).resolve().parent
@@ -26,10 +32,20 @@ load_dotenv()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 DATABASE_URL = os.getenv("DATABASE_URL") 
 
+# --- ДОБАВЛЕНЫ ПЕРЕМЕННЫЕ ИЗ bot.py ---
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+WEB_APP_URL = os.getenv("WEB_APP_URL") 
+RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL")
+# --- КОНЕЦ ДОБАВЛЕНИЙ ---
+
+# --- Логирование (ИЗ bot.py) ---
+logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # ---
 # --- Управление Базой Данных (Postgres)
 # ---
-
+# ... (Весь твой код get_db_connection, get_db, setup_database остается БЕЗ ИЗМЕНЕНИЙ) ...
 @contextmanager
 def get_db_connection():
     """Контекстный менеджер для безопасного соединения с БД Postgres."""
@@ -40,9 +56,6 @@ def get_db_connection():
     
     try:
         conn = psycopg2.connect(DATABASE_URL)
-        
-        # 🛑 НЕТ "SET TIME ZONE"! База хранит и отдает время в UTC.
-        
         yield conn.cursor(cursor_factory=RealDictCursor)
     except psycopg2.OperationalError as e:
         print(f"!!! POSTGRES CONNECTION ERROR: {e}")
@@ -89,9 +102,6 @@ def setup_database():
             
             # --- Заполнение категорий по умолчанию ---
             cursor.execute("SELECT COUNT(*) FROM categories")
-            # Проверка 'fetchone()["count"] == 0' здесь должна быть в Postgres,
-            # но мы оставим эту логику, чтобы избежать psycopg2.ProgrammingError,
-            # если таблицы еще не существуют. (Postgres - регистрозависим, мы исправляем запрос):
             try:
                 cursor.execute("SELECT count(*) FROM categories")
                 if cursor.fetchone()["count"] == 0:
@@ -103,29 +113,109 @@ def setup_database():
                     for cat in default_incomes:
                         cursor.execute("INSERT INTO categories (name, type) VALUES (%s, 'income')", (cat,))
             except psycopg2.ProgrammingError as pe:
-                # Игнорируем ошибку, если таблицы еще не созданы в транзакции
                 pass
     
     except Exception as e:
         print(f"--- [DB Setup ERROR]: Не удалось инициализировать БД: {e}")
-        # Не поднимаем ошибку, чтобы Render мог продолжить
-        # raise # <-- УБРАЛИ raise, чтобы не сломать Gunicorn
 
-# --- FastAPI Lifespan ---
+# ---
+# --- Логика Telegram Bot (ИЗ bot.py)
+# ---
+
+# --- Инициализация Telegram Application ---
+if not BOT_TOKEN:
+    logger.warning("ВНИМАНИЕ: BOT_TOKEN не найден. Bot-часть не будет инициализирована.")
+    ptb_app = None # ptb_app = Python Telegram Bot Application
+else:
+    try:
+        # ❗️ Важно: .build() здесь, а .initialize() в lifespan
+        ptb_app = Application.builder().token(BOT_TOKEN).build()
+    except Exception as e:
+        logger.critical(f"Не удалось инициализировать Telegram Application: {e}")
+        ptb_app = None
+
+# --- Хендлеры ---
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработка команды /start."""
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo 
+    
+    if not update.effective_user:
+        return
+        
+    user_name = update.effective_user.first_name
+    welcome_text = (
+        f"Hello, {user_name}! 🚀\n\n"
+        "Welcome to Sana — your personal finance assistant in Telegram."
+    )
+    
+    # Убедимся, что WEB_APP_URL существует
+    if not WEB_APP_URL:
+        logger.error("WEB_APP_URL не установлен! Кнопка не будет работать.")
+        await update.message.reply_text(f"Hello, {user_name}! Ошибка конфигурации: WEB_APP_URL не найден.")
+        return
+
+    keyboard = [[InlineKeyboardButton("✨ Open Sana", web_app=WebAppInfo(url=WEB_APP_URL))]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.message.reply_text(welcome_text, reply_markup=reply_markup)
+
+if ptb_app:
+    ptb_app.add_handler(CommandHandler("start", start))
+else:
+    logger.warning("Обработчик /start НЕ добавлен, так как ptb_app не инициализирован.")
+
+# --- Функция установки Webhook ---
+async def set_webhook_url(base_url: str, bot_app: Application):
+    """Устанавливает URL Webhook на серверах Telegram."""
+    if not bot_app or not BOT_TOKEN:
+        return False
+        
+    webhook_url = f"{base_url}/{BOT_TOKEN}"
+    
+    success = await bot_app.bot.set_webhook(url=webhook_url)
+    
+    if success:
+        logger.info(f"✅ Webhook успешно установлен на: {webhook_url}")
+    else:
+        logger.error(f"❌ НЕ УДАЛОСЬ установить Webhook.")
+        
+    return success
+
+# ---
+# --- 🚀 ОБЪЕДИНЕННЫЙ FastAPI Lifespan (main.py + bot.py)
+# ---
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # --- 1. DB Lifespan (из main.py) ---
     print("--- [Lifespan]: Запуск инициализации БД...")
-    # Поскольку 'setup_database' может упасть при первой попытке,
-    # мы просто позволяем ему пройти и надеемся, что он починит себя сам.
     try:
         setup_database()
+        print("--- [Lifespan]: Инициализация БД завершена.")
     except Exception as e:
         print(f"--- [Lifespan ERROR]: Не удалось выполнить setup_database: {e}")
 
-    print("--- [Lifespan]: Инициализация БД завершена.")
+    # --- 2. Bot Lifespan (из bot.py) ---
+    if ptb_app and RENDER_EXTERNAL_URL:
+        print("--- [Lifespan]: Инициализация Telegram Bot...")
+        await ptb_app.initialize() 
+        await set_webhook_url(RENDER_EXTERNAL_URL, ptb_app) # Передаем ptb_app
+        print("--- [Lifespan]: Telegram Bot инициализирован.")
+    else:
+        logger.warning("--- [Lifespan]: Пропуск инициализации Bot (отсутствуют RENDER_EXTERNAL_URL или BOT_TOKEN).")
+
     yield
+    
+    # --- 3. Shutdown ---
+    if ptb_app:
+        print("--- [Lifespan]: Завершение работы Telegram Bot...")
+        await ptb_app.shutdown()
+        
     print("--- [Lifespan]: Сервер выключается.")
 
+# ---
+# --- 🚀 Инициализация ЕДИНОГО FastAPI App
+# ---
 app = FastAPI(lifespan=lifespan)
 
 # --- Настройка Gemini ---
@@ -138,14 +228,15 @@ else:
 # --- Middleware ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=["*"], # Позже заменишь на свой URL
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # --- Модели Pydantic ---
+# ... (Весь твой код class Transaction, TransactionUpdate, CategoryCreate остается БЕЗ ИЗМЕНЕНИЙ) ...
 class Transaction(BaseModel):
-    user_id: str # <-- ФИКС 2: Строка
+    user_id: str 
     amount: float
     category_id: int
     date: Optional[str] = None
@@ -156,12 +247,13 @@ class TransactionUpdate(BaseModel):
     date: Optional[str] = None
 
 class CategoryCreate(BaseModel):
-    user_id: str # <-- ФИКС 2: Строка
+    user_id: str 
     name: str
     type: str
 
 # --- API Эндпоинты ---
-
+# ... (Все твои эндпоинты: /categories, /transactions, /analytics, /ai-advice и т.д.
+# ...  остаются здесь БЕЗ ИЗМЕНЕНИЙ) ...
 @app.get("/categories", response_model=List[Dict[str, Any]])
 def get_categories(
     user_id: str = Query(...), # <-- Строка
@@ -241,19 +333,13 @@ def delete_category(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred during deletion: {e}")
 
-# 🛠️ ФИКС 3: Универсальное время в ISO формате
 def _get_date_for_storage(date_str: str) -> str:
-    """
-    Проверяет 'YYYY-MM-DD' строку. Если это сегодня, возвращает
-    полную метку времени UTC в ISO формате.
-    """
     if not date_str:
         raise HTTPException(status_code=400, detail="Date is required.")
     try:
         selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         
         if selected_date == datetime.now().date():
-            # Возвращаем полный ISO формат, который включает смещение (+00:00)
             return datetime.now(timezone.utc).isoformat()
         
         return date_str
@@ -343,11 +429,7 @@ def update_transaction(
     
     return {"status": "success", "message": "Transaction updated"}
 
-# ... (Остальные функции без изменений)
 def _get_date_range_filter(range_str: str) -> Tuple[str, List[str]]:
-    # ...
-    # (Остальные функции get_ai_advice, get_analytics_summary, get_analytics_calendar, reset_user_data не меняются,
-    # кроме того, что user_id должен быть str)
     if range_str == 'all':
         return "", []
     now = datetime.now()
@@ -526,6 +608,34 @@ def reset_user_data(
 
 
 # ---
+# --- 🚀 Telegram Webhook Эндпоинты (ИЗ bot.py)
+# ---
+
+# Health Check эндпоинт (чтобы Render мог проверить, что сервис жив)
+# ❗️ Важно: Он должен быть привязан к `app`, а не к `webhook_app`
+@app.get("/")
+async def root():
+    """Проверка доступности (Render Health Check)"""
+    return {"status": "ok", "service": "Sana Consolidated API/Bot Service"}
+
+# Сам Webhook-эндпоинт
+if BOT_TOKEN and ptb_app:
+    @app.post(f"/{BOT_TOKEN}")
+    async def telegram_webhook(request: Request):
+        """Основной эндпоинт для приема Webhook."""
+        try:
+            update_json = await request.json()
+            update = Update.de_json(update_json, ptb_app.bot)
+            await ptb_app.process_update(update) 
+            return {"message": "ok"}
+        except Exception as e:
+            logger.error(f"Ошибка обработки Webhook: {e}")
+            return {"message": "error"}, 500
+else:
+    logger.warning("Эндпоинт Webhook'а НЕ будет создан (BOT_TOKEN или ptb_app отсутствуют).")
+
+
+# ---
 # --- Статика и SPA
 # ---
 app.mount("/static", StaticFiles(directory=WEBAPP_DIR), name="static")
@@ -540,5 +650,7 @@ def catch_all(full_path: str):
         return HTMLResponse(content=f.read())
 
 if __name__ == "__main__":
-    print("--- [Startup]: Запуск Uvicorn-сервера...")
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    print("--- [Startup]: Запуск Uvicorn-сервера (консолидированного)...")
+    # ❗️ Важно: Используем PORT из окружения, как это делает Render
+    port = int(os.environ.get("PORT", "8000"))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
