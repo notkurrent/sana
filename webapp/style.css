@@ -1263,3 +1263,11 @@ body {
     margin-top: var(--space-sm);
     margin-bottom: 0;
 }
+
+/* ⬇️ ⬇️ ⬇️ ФИНАЛЬНЫЙ ФИКС ШТОРКИ (УБИРАЕМ ЛИНИЮ) ⬇️ ⬇️ ⬇️ */
+
+#summary-details-sheet .quick-add-amount-container {
+    margin-bottom: 0;
+    border-bottom: none;
+    padding-bottom: 0;
+}
