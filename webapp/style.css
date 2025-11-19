@@ -1278,11 +1278,10 @@ a.settings-btn {
     text-decoration: none;
     font-weight: 500;
     
-    /* ⭐ ФИКС ВЫРАВНИВАНИЯ ⭐ */
-    display: flex !important;       /* Принудительно Flex */
-    align-items: center !important; /* Строго по центру по вертикали */
-    line-height: 1 !important;      /* Убираем влияние высоты строки */
-    gap: 12px;                      /* Отступ между иконкой и текстом */
+    /* ⭐ ГЛАВНЫЙ ФИКС ВЫРАВНИВАНИЯ ⭐ */
+    display: flex !important;
+    align-items: center !important;     /* Строгий центр по вертикали */
+    justify-content: space-between;     /* Текст слева, Иконка справа (у края) */
     
     transition: opacity 0.2s ease, background-color 0.2s ease;
 }
@@ -1293,11 +1292,12 @@ a.settings-btn {
 }
 
 .btn-icon {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     flex-shrink: 0;
-    display: block; /* Убираем скрытые отступы SVG */
-    margin-top: -2px; /* ⭐ МИКРО-ФИКС: Оптически поднимаем иконку на 2px, чтобы она была идеально ровно с текстом */
+    display: block;
+    margin: 0; /* Убираем любые ручные сдвиги */
+    transform: rotate(0deg); /* На всякий случай */
 }
 
 .support-btn svg {
