@@ -1272,29 +1272,34 @@ a.settings-btn {
     padding-bottom: 0;
 }
 
-/* --- ⬇️ НОВЫЕ СТИЛИ ДЛЯ КНОПКИ ПОДДЕРЖКИ (Вариант Б) ⬇️ --- */
+/* --- Стили для кнопки поддержки --- */
 .support-btn {
-    color: var(--tg-theme-button-color); /* Синий цвет Telegram */
+    color: var(--tg-theme-button-color);
     text-decoration: none;
-    gap: var(--space-sm);               /* Отступ между иконкой и текстом: 8px */
     font-weight: 500;
+    
+    /* ⭐ ФИКС ВЫРАВНИВАНИЯ ⭐ */
+    display: flex !important;       /* Принудительно Flex */
+    align-items: center !important; /* Строго по центру по вертикали */
+    line-height: 1 !important;      /* Убираем влияние высоты строки */
+    gap: 12px;                      /* Отступ между иконкой и текстом */
+    
     transition: opacity 0.2s ease, background-color 0.2s ease;
 }
 
 .support-btn:active {
     opacity: 0.7;
-    background-color: var(--tg-theme-tertiary-bg-color); /* Легкое затемнение фона */
+    background-color: var(--tg-theme-tertiary-bg-color);
 }
 
 .btn-icon {
-    width: 20px; /* Размер иконки */
-    height: 20px;
+    width: 22px;
+    height: 22px;
     flex-shrink: 0;
-    opacity: 0.9; /* Слегка приглушим иконку */
+    display: block; /* Убираем скрытые отступы SVG */
+    margin-top: -2px; /* ⭐ МИКРО-ФИКС: Оптически поднимаем иконку на 2px, чтобы она была идеально ровно с текстом */
 }
 
-/* Убедимся, что SVG наследует синий цвет */
 .support-btn svg {
     fill: currentColor;
 }
-/* --- ⬆️ КОНЕЦ НОВЫХ СТИЛЕЙ ⬆️ --- */
