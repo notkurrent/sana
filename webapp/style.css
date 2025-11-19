@@ -609,7 +609,7 @@ body {
     border-radius: 10px;
     padding: var(--space-md);
     text-align: center;
-    cursor: pointer; /* 👈 Делаем бокс кликабельным */
+    cursor: pointer; 
     transition: background-color 0.2s ease;
 }
 .summary-box:active {
@@ -624,13 +624,12 @@ body {
 }
 .summary-value {
     display: block;
-    font-size: 1.1rem; /* 👈 ВЕРНУЛИ: 1.1rem */
+    font-size: 1.1rem;
     font-weight: 600;
 }
 .summary-value.income { color: var(--color-income); }
 .summary-value.expense { color: var(--color-expense); }
 
-/* ⬇️ ⬇️ ⬇️ НОВЫЙ СТИЛЬ ДЛЯ ПОДСКАЗКИ ⬇️ ⬇️ ⬇️ */
 .summary-tap-hint {
     font-size: 0.8rem;
     color: var(--tg-theme-hint-color);
@@ -638,7 +637,6 @@ body {
     margin-top: var(--space-sm);
     margin-bottom: 0;
 }
-/* ⬆️ ⬆️ ⬆️ КОНЕЦ НОВОГО СТИЛЯ ⬆️ ⬆️ ⬆️ */
 
 
 #calendar-container {
@@ -720,9 +718,17 @@ body {
     text-align: left;
     width: 100%;
 }
+
+/* --- ⬇️ ФИКС: Чтобы <a> выглядел как кнопка --- */
+a.settings-btn {
+    text-decoration: none;
+    display: block;
+    box-sizing: border-box;
+}
+/* --- ⬆️ КОНЕЦ ФИКСА --- */
+
 .reset-btn { color: var(--color-expense); }
 
-/* ФИКС: Убираем двойной отступ в настройках */
 .settings-group .segmented-control {
     margin-bottom: 0;
 }
@@ -1232,7 +1238,7 @@ body {
 /* Стили для read-only инпута в шторке */
 .quick-add-amount-container input[readonly] {
     color: var(--tg-theme-text-color);
-    font-size: 2.5rem; /* 👈 Делаем шрифт чуть меньше, чтобы влезло */
+    font-size: 2.5rem;
     font-weight: 700;
     width: 100%;
     text-align: left;
@@ -1245,26 +1251,6 @@ body {
 #summary-sheet-amount.expense { color: var(--color-expense); }
 #summary-sheet-amount.net.positive { color: var(--color-income); }
 #summary-sheet-amount.net.negative { color: var(--color-expense); }
-
-/* Стили для кнопки "ОК", которую мы УДАЛИЛИ, но оставим (на всякий)
-#summary-sheet-close-btn {
-    margin-top: 0;
-    background-color: var(--tg-theme-secondary-bg-color);
-    color: var(--tg-theme-text-color);
-    font-weight: 500;
-}
-*/
-
-/* ⬇️ ⬇️ ⬇️ СТИЛЬ ДЛЯ ТЕКСТА-ПОДСКАЗКИ ⬇️ ⬇️ ⬇️ */
-.summary-tap-hint {
-    font-size: 0.8rem;
-    color: var(--tg-theme-hint-color);
-    text-align: center;
-    margin-top: var(--space-sm);
-    margin-bottom: 0;
-}
-
-/* ⬇️ ⬇️ ⬇️ ФИНАЛЬНЫЙ ФИКС ШТОРКИ (УБИРАЕМ ЛИНИЮ) ⬇️ ⬇️ ⬇️ */
 
 #summary-details-sheet .quick-add-amount-container {
     margin-bottom: 0;
