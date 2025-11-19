@@ -61,8 +61,8 @@ Sana-Project/
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/YOUR_USERNAME/sana-project.git](https://github.com/YOUR_USERNAME/sana-project.git)
-    cd sana-project
+    git clone git clone https://github.com/notkurrent/sana.git
+    cd sana
     ```
 
 2.  **Install dependencies:**
