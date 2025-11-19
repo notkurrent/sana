@@ -719,13 +719,12 @@ body {
     width: 100%;
 }
 
-/* --- ⬇️ ФИКС: Чтобы <a> выглядел как кнопка --- */
+/* ФИКС: Чтобы <a> выглядел как кнопка */
 a.settings-btn {
     text-decoration: none;
     display: block;
     box-sizing: border-box;
 }
-/* --- ⬆️ КОНЕЦ ФИКСА --- */
 
 .reset-btn { color: var(--color-expense); }
 
@@ -1233,9 +1232,7 @@ a.settings-btn {
     display: none;
 }
 
-/* ⬇️ ⬇️ ⬇️ НОВЫЕ СТИЛИ ⬇️ ⬇️ ⬇️ */
-
-/* Стили для read-only инпута в шторке */
+/* --- Стили для read-only инпута в шторке --- */
 .quick-add-amount-container input[readonly] {
     color: var(--tg-theme-text-color);
     font-size: 2.5rem;
@@ -1257,3 +1254,31 @@ a.settings-btn {
     border-bottom: none;
     padding-bottom: 0;
 }
+
+/* --- ⬇️ НОВЫЕ СТИЛИ ДЛЯ КНОПКИ ПОДДЕРЖКИ (Вариант Б) ⬇️ --- */
+.support-btn {
+    color: var(--tg-theme-button-color); /* Синий цвет Telegram */
+    text-decoration: none;
+    display: flex;           /* Чтобы иконка и текст встали в ряд */
+    align-items: center;     /* Выравнивание по центру по вертикали */
+    gap: 10px;               /* Отступ между иконкой и текстом */
+    font-weight: 500;
+    transition: opacity 0.2s ease;
+}
+
+.support-btn:active {
+    opacity: 0.6; /* Эффект нажатия */
+    background-color: var(--tg-theme-secondary-bg-color); /* Чтобы фон не менялся странно */
+}
+
+.btn-icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+}
+
+/* Убедимся, что SVG наследует синий цвет */
+.support-btn svg {
+    fill: currentColor;
+}
+/* --- ⬆️ КОНЕЦ НОВЫХ СТИЛЕЙ ⬆️ --- */
