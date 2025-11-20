@@ -1225,7 +1225,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (data.days[dayKey]) {
                     const dayData = data.days[dayKey];
                     if (dayData.income > 0) markersHtml += `<span class="income">${formatForDayMarker(dayData.income)}</span>`;
-                    if (dayData.expense > 0) markersHtml += `<span class="expense">${formatForDayMarker(dayData.expense)}</span>`;
+                    if (dayData.expense > 0) markersHtml += `<span class="expense">${formatForDayMarker(dayData.expense * -1)}</span>`;
                 }
 
                 dayEl.innerHTML = `
