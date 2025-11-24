@@ -360,7 +360,11 @@ body {
 .expense-item.deleting .expense-item-content { transform: translateX(-100%); }
 
 
-/* Таб-бар (Навигация) - EXACT ORIGINAL STYLE + PILL SHAPE */
+/* ========================================= */
+/* НАВИГАЦИЯ (ORIGINAL GLASS + FLAT STATIC PLUS) */
+/* ========================================= */
+
+/* Таб-бар */
 .tab-bar {
     position: fixed;
     bottom: calc(20px + env(safe-area-inset-bottom));
@@ -375,31 +379,28 @@ body {
     grid-template-columns: repeat(5, 1fr);
     align-items: center;
     
-    /* 👇 1. ОРИГИНАЛЬНАЯ ПРОЗРАЧНОСТЬ (0.75) */
+    /* Параметры стекла (Оригинал) */
     background-color: rgba(var(--tg-theme-secondary-bg-color-rgb), 0.75);
-    
-    /* 👇 2. ОРИГИНАЛЬНЫЙ БЛЮР (10px) */
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     
-    /* 👇 3. ОРИГИНАЛЬНАЯ ОБВОДКА (hint-color, 0.15 opacity) */
+    /* Обводка (Оригинал) */
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15),
                 inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.15);
     
-    border-radius: 100px; /* Единственное изменение - форма таблетки */
+    border-radius: 100px;
     z-index: 10;
     transition: background-color 0.3s ease;
 }
 
 @media (prefers-color-scheme: dark) {
     .tab-bar {
-        /* 👇 ОРИГИНАЛЬНЫЕ ПАРАМЕТРЫ ДЛЯ ТЕМНОЙ ТЕМЫ */
         box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3),
                     inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.2);
     }
 }
 
-/* Кнопки (без изменений, но для порядка) */
+/* Кнопки вкладок */
 .tab-button {
     background: none; border: none;
     color: var(--tg-theme-hint-color);
@@ -424,7 +425,7 @@ body {
     color: var(--tg-theme-button-color); 
 }
 
-/* Кнопка Плюс (С тенью) */
+/* Центральная кнопка (+) - ПЛОСКАЯ И СТАТИЧНАЯ */
 .tab-button-add {
     background-color: var(--tg-theme-button-color);
     color: var(--tg-theme-button-text-color);
@@ -435,12 +436,16 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); /* Тень чуть сильнее для контраста */
+    
+    /* Без тени */
+    box-shadow: none;
+    
     cursor: pointer;
-    transition: filter 0.2s ease, transform 0.1s ease;
+    /* Только яркость при наведении */
+    transition: filter 0.2s ease; 
     margin: 0 auto; 
 }
-.tab-button-add:active { transform: scale(0.95); }
+
 .tab-button-add:hover { filter: brightness(1.1); }
 .tab-button-add svg { width: 24px; height: 24px; }
 
