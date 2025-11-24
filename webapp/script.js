@@ -719,7 +719,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function handleSaveForm() {
         const categoryId = DOM.fullForm.categorySelect.value;
-        const amount = parseFloat(DOM.fullForm.amountInput.value);
+        
+        // --- ⭐ ИЗМЕНЕНИЕ: Меняем запятую на точку ---
+        const amountStr = DOM.fullForm.amountInput.value.replace(',', '.');
+        const amount = parseFloat(amountStr);
+        // ------------------------------------------
+        
         const date = DOM.fullForm.dateInput.value;
         
         if (!categoryId || isNaN(amount) || amount <= 0 || !date) {
@@ -735,6 +740,7 @@ document.addEventListener("DOMContentLoaded", () => {
             amount: amount, 
             date: date 
         };
+
         const txId = state.editTransaction ? state.editTransaction.id : null;
         
         const savedTransaction = await _saveTransaction(txData, txId);
@@ -812,7 +818,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function saveQuickModal() {
-        const amount = parseFloat(DOM.quickModal.amountInput.value);
+        // --- ⭐ ИЗМЕНЕНИЕ: Меняем запятую на точку ---
+        const amountStr = DOM.quickModal.amountInput.value.replace(',', '.');
+        const amount = parseFloat(amountStr);
+        // ------------------------------------------
+
         if (!state.quickCategory) return;
         
         const categoryId = state.quickCategory.id;
