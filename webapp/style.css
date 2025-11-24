@@ -360,15 +360,14 @@ body {
 .expense-item.deleting .expense-item-content { transform: translateX(-100%); }
 
 
-/* Таб-бар (Навигация) - CLEAN PILL STYLE */
+/* Таб-бар (Навигация) - FINAL GLASS PILL STYLE */
 .tab-bar {
     position: fixed;
-    /* Отступы снизу и по бокам для симметрии */
     bottom: calc(20px + env(safe-area-inset-bottom));
-    left: 25px;  /* 25px - компактнее и аккуратнее */
-    right: 25px; /* 25px */
+    left: 25px;
+    right: 25px;
     
-    max-width: 400px; /* Ограничиваем ширину на больших экранах */
+    max-width: 400px;
     margin: 0 auto;
     height: 65px;
     
@@ -376,24 +375,29 @@ body {
     grid-template-columns: repeat(5, 1fr);
     align-items: center;
     
-    /* Фон */
-    background-color: rgba(var(--tg-theme-secondary-bg-color-rgb), 0.85);
+    /* 👇 1. ВОЗВРАЩАЕМ ПРОЗРАЧНОСТЬ (Было 0.85 -> Стало 0.75) */
+    background-color: rgba(var(--tg-theme-secondary-bg-color-rgb), 0.75);
+    
+    /* Блюр остается сильным */
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     
-    /* Тени (без цвета, просто объем) */
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1),
-                0 0 0 0.5px rgba(0, 0, 0, 0.05);
+    /* 👇 2. ВОЗВРАЩАЕМ "ОБВОДКУ" (Стеклянный край) */
+    /* Первая тень - падающая (мягкая). Вторая тень (inset) - это белая обводка внутри */
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.2); 
     
-    border-radius: 100px; /* Таблетка */
+    border-radius: 100px;
     z-index: 10;
     transition: background-color 0.3s ease;
 }
 
+/* Для темной темы - своя обводка */
 @media (prefers-color-scheme: dark) {
     .tab-bar {
+        /* В темной теме обводка должна быть светлой, но очень прозрачной */
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4),
-                    inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+                    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
     }
 }
 
