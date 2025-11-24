@@ -447,6 +447,9 @@ body {
 }
 
 .tab-button-add:hover { filter: brightness(1.1); }
+.tab-button-add:active {
+    transform: none !important;
+}
 .tab-button-add svg { width: 24px; height: 24px; }
 
 /* Общие компоненты (Segmented Control) */
