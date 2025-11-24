@@ -425,7 +425,7 @@ body {
     color: var(--tg-theme-button-color); 
 }
 
-/* Центральная кнопка (+) - ПЛОСКАЯ И СТАТИЧНАЯ */
+/* Центральная кнопка (+) - ЖЕЛЕЗОБЕТОННО СТАТИЧНАЯ */
 .tab-button-add {
     background-color: var(--tg-theme-button-color);
     color: var(--tg-theme-button-text-color);
@@ -433,24 +433,47 @@ body {
     height: 44px;
     border-radius: 50%;
     border: none;
+    
+    /* ⭐ ФИКС 1: Flexbox + обнуление отступов */
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 0;
+    margin: 0 auto;
     
     /* Без тени */
     box-shadow: none;
-    
     cursor: pointer;
-    /* Только яркость при наведении */
+    
+    /* ⭐ ФИКС 2: Оптимизация для тач-экранов iOS */
+    -webkit-tap-highlight-color: transparent; /* Убирает серый квадрат при нажатии */
+    touch-action: manipulation; /* Убирает задержки и лишние жесты */
+    -webkit-user-select: none;  /* Запрещает выделение */
+    user-select: none;
+    
+    /* Анимация только яркости */
     transition: filter 0.2s ease; 
-    margin: 0 auto; 
+    
+    /* Гарантия отсутствия трансформаций */
+    transform: translateZ(0); /* Включает аппаратное ускорение, чтобы не мылило */
 }
 
 .tab-button-add:hover { filter: brightness(1.1); }
+
+/* ⭐ ФИКС 3: Полный запрет движения при нажатии */
 .tab-button-add:active {
     transform: none !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
 }
-.tab-button-add svg { width: 24px; height: 24px; }
+
+/* ⭐ ФИКС 4: Блокировка иконки */
+.tab-button-add svg { 
+    width: 24px; 
+    height: 24px; 
+    display: block; /* Убирает текстовые отступы */
+    pointer-events: none; /* Иконка прозрачна для кликов, клик идет сразу в кнопку */
+}
 
 /* Общие компоненты (Segmented Control) */
 .segmented-control {
