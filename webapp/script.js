@@ -21,27 +21,20 @@ document.addEventListener("DOMContentLoaded", () => {
         transactions: [],
         categories: [],
         currencySymbol: "$",
-        
-        // UI States
         editTransaction: null,
         quickCategory: null,
         activeBottomSheet: null,
         lastActiveScreen: 'home-screen',
         isInitialLoad: true,
         chart: null,
-        
-        // Analytics & Filters
         analyticsDate: new Date(),
         summaryRange: 'month',
         summaryType: 'expense', 
         categoryType: 'expense',
         aiRange: 'month',
-        
-        // Cache
         calendarSummary: { income: 0, expense: 0, net: 0 }
     };
 
-    // Свайпы
     let swipeStartX = 0;
     let swipeStartY = 0;
     let currentSwipeElement = null;
@@ -57,7 +50,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const defaultIconExpense = '📦';
     const defaultIconIncome = '💎';
 
-    // Форматеры
     const timeFormatter = new Intl.DateTimeFormat('en-US', {
         hour: 'numeric', minute: '2-digit', hour12: true
     });
@@ -71,31 +63,25 @@ document.addEventListener("DOMContentLoaded", () => {
     const formatDateForTitle = (date) => headerDateFormatter.format(date);
     const formatTime = (date) => timeFormatter.format(date);
 
-    // --- DOM Elements ---
     const DOM = {
         screens: document.querySelectorAll(".screen"),
         backdrop: document.getElementById("backdrop"),
-        
         home: {
             screen: document.getElementById("home-screen"),
             balanceAmount: document.getElementById("balance-amount"),
             listContainer: document.getElementById("transactions-list"),
         },
-        
         analytics: {
             screen: document.getElementById("analytics-screen"),
             segBtnSummary: document.getElementById("seg-btn-summary"),
             segBtnCalendar: document.getElementById("seg-btn-calendar"),
             summaryPane: document.getElementById("summary-pane"),
             calendarPane: document.getElementById("calendar-pane"),
-            
             summaryTypeFilter: document.getElementById("summary-type-filter"),
-            
             summaryRangeFilter: document.getElementById("summary-range-filter"),
             doughnutChartCanvas: document.getElementById("doughnut-chart"),
             summaryList: document.getElementById("summary-list"),
         },
-        
         calendar: {
             container: document.getElementById("calendar-container"),
             prevMonthBtn: document.getElementById("prev-month-btn"),
@@ -109,7 +95,6 @@ document.addEventListener("DOMContentLoaded", () => {
             boxExpense: document.getElementById("calendar-summary-box-expense"),
             boxNet: document.getElementById("calendar-summary-box-net"),
         },
-        
         ai: {
             screen: document.getElementById("ai-screen"),
             dateFilter: document.getElementById("ai-date-filter"),
@@ -122,13 +107,11 @@ document.addEventListener("DOMContentLoaded", () => {
             resultBody: document.getElementById("ai-result-body"),
             resultBackBtn: document.getElementById("ai-result-back-btn"),
         },
-
         settings: {
             screen: document.getElementById("settings-screen"),
             currencySelect: document.getElementById("currency-select"),
             resetDataBtn: document.getElementById("reset-data-btn"), 
         },
-        
         categories: {
             screen: document.getElementById("categories-screen"),
             backBtn: document.getElementById("categories-back-btn"),
@@ -139,7 +122,6 @@ document.addEventListener("DOMContentLoaded", () => {
             addBtn: document.getElementById("add-category-btn"),
             list: document.getElementById("categories-list"),
         },
-        
         fullForm: {
             screen: document.getElementById("full-form-screen"),
             title: document.getElementById("form-title"),
@@ -153,7 +135,6 @@ document.addEventListener("DOMContentLoaded", () => {
             cancelBtn: document.getElementById("cancel-btn"),
             deleteBtn: document.getElementById("delete-btn"),
         },
-        
         quickAdd: {
             screen: document.getElementById("quick-add-screen"),
             manageBtn: document.getElementById("quick-add-manage-categories-btn"), 
@@ -162,7 +143,6 @@ document.addEventListener("DOMContentLoaded", () => {
             manualExpense: document.getElementById("quick-manual-expense"),
             manualIncome: document.getElementById("quick-manual-income"),
         },
-        
         daySheet: {
             sheet: document.getElementById("day-details-sheet"),
             header: document.querySelector("#day-details-sheet .sheet-header"),
@@ -170,7 +150,6 @@ document.addEventListener("DOMContentLoaded", () => {
             title: document.getElementById("sheet-date-title"),
             list: document.getElementById("sheet-transactions-list"),
         },
-        
         quickModal: {
             sheet: document.getElementById("quick-add-modal-sheet"),
             header: document.querySelector("#quick-add-modal-sheet .sheet-header"),
@@ -179,7 +158,6 @@ document.addEventListener("DOMContentLoaded", () => {
             amountInput: document.getElementById("quick-modal-amount"),
             saveBtn: document.getElementById("quick-modal-save-btn"),
         },
-        
         summarySheet: {
             sheet: document.getElementById("summary-details-sheet"),
             header: document.querySelector("#summary-details-sheet .sheet-header"),
@@ -187,7 +165,6 @@ document.addEventListener("DOMContentLoaded", () => {
             currency: document.getElementById("summary-sheet-currency"),
             amountInput: document.getElementById("summary-sheet-amount"),
         },
-        
         tabs: {
             home: document.getElementById("tab-home"),
             analytics: document.getElementById("tab-analytics"),
@@ -197,7 +174,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
     
-    // --- Headers Auth ---
     function getAuthHeaders(isJson = true) {
         if (!tgInitData) {
             console.error("CRITICAL: tgInitData is missing.");
@@ -213,7 +189,6 @@ document.addEventListener("DOMContentLoaded", () => {
         return headers;
     }
 
-    // --- Helpers ---
     function getLocalDateString(date) {
         const year = date.getFullYear();
         const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -234,7 +209,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
     
-    // --- Formatters ---
     function formatCurrency(amount) {
         if (typeof amount !== 'number') amount = 0;
         return `${state.currencySymbol}${amount.toFixed(2)}`;
@@ -1070,17 +1044,22 @@ document.addEventListener("DOMContentLoaded", () => {
             
             // 3. Подготовка данных для центра
             const totalSum = totals.reduce((a, b) => a + b, 0);
-            // Форматируем абсолютное значение
+            const formattedTotal = formatCurrencyForSummary(totalSum);
+            
+            const totalLabel = isExpense ? "Expenses" : "Income";
+            const totalSign = isExpense ? "-" : "+";
+            const totalColor = isExpense ? "#ef4444" : "#22c55e"; 
+            
+            // ⭐ УБРАЛИ ЛИШНИЙ ЗНАК
+            // formatCurrencyForSummary уже возвращает знак, если сумма отрицательная.
+            // Но для центра мы хотим контролировать знак вручную.
+            // Поэтому берем абсолютное значение и добавляем знак.
             const absTotal = Math.abs(totalSum);
             let compactTotal;
             if (absTotal >= 1000000) compactTotal = (absTotal / 1000000).toFixed(2) + 'M';
             else if (absTotal >= 10000) compactTotal = (absTotal / 1000).toFixed(0) + 'K';
             else if (absTotal >= 1000) compactTotal = (absTotal / 1000).toFixed(1) + 'K';
             else compactTotal = absTotal.toFixed(2);
-
-            const totalLabel = isExpense ? "Expenses" : "Income";
-            const totalSign = isExpense ? "-" : "+";
-            const totalColor = isExpense ? "#ef4444" : "#22c55e"; 
             
             const formattedCenterText = `${totalSign}${state.currencySymbol}${compactTotal}`;
 
@@ -1118,26 +1097,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
                     ctx.restore();
                     
-                    // ⭐ 1. Лейбл (ОЧЕНЬ МЕЛКИЙ - 220)
-                    const fontSizeLabel = (height / 220).toFixed(2);
+                    // ⭐ ЛЕЙБЛ: УМЕНЬШИЛИ (300 - очень мелко)
+                    const fontSizeLabel = (height / 300).toFixed(2);
                     ctx.font = `500 ${fontSizeLabel}em sans-serif`;
                     ctx.textBaseline = "middle";
                     ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--tg-theme-hint-color');
 
                     const textLabel = totalLabel;
                     const textXLabel = Math.round((width - ctx.measureText(textLabel).width) / 2);
-                    const textYLabel = height / 2 - (height * 0.08); 
+                    const textYLabel = height / 2 - (height * 0.05); // Сблизили
 
                     ctx.fillText(textLabel, textXLabel, textYLabel);
 
-                    // ⭐ 2. Сумма (МЕЛКАЯ - 150)
-                    const fontSizeValue = (height / 150).toFixed(2);
+                    // ⭐ СУММА: УМЕНЬШИЛИ (240 - очень мелко)
+                    const fontSizeValue = (height / 240).toFixed(2);
                     ctx.font = `bold ${fontSizeValue}em sans-serif`;
                     ctx.fillStyle = totalColor; 
 
                     const textValue = formattedCenterText;
                     const textXValue = Math.round((width - ctx.measureText(textValue).width) / 2);
-                    const textYValue = height / 2 + (height * 0.08); 
+                    const textYValue = height / 2 + (height * 0.07); // Сблизили
 
                     ctx.fillText(textValue, textXValue, textYValue);
                     
@@ -1158,17 +1137,17 @@ document.addEventListener("DOMContentLoaded", () => {
                 },
                 options: {
                     responsive: true,
-                    // ⭐ ЖИРНЫЙ БУБЛИК (50%)
-                    cutout: '50%', 
+                    cutout: '50%', // Жирный бублик
                     plugins: {
-                        // ⭐ ЛЕГЕНДА ВКЛЮЧЕНА (Квадратики)
+                        // ⭐ ВЕРНУЛИ ЛЕГЕНДУ С МЯГКИМИ КВАДРАТАМИ (rectRounded)
                         legend: { 
                             display: true, 
                             position: 'bottom',
                             labels: {
                                 boxWidth: 12,
                                 padding: 15,
-                                usePointStyle: true, // Кружочки
+                                usePointStyle: true,
+                                pointStyle: 'rectRounded', // Мягкие квадраты
                                 color: getComputedStyle(document.body).getPropertyValue('--tg-theme-text-color')
                             }
                         }
