@@ -1044,22 +1044,16 @@ document.addEventListener("DOMContentLoaded", () => {
             
             // 3. Подготовка данных для центра
             const totalSum = totals.reduce((a, b) => a + b, 0);
-            const formattedTotal = formatCurrencyForSummary(totalSum);
-            
-            const totalLabel = isExpense ? "Expenses" : "Income";
-            const totalSign = isExpense ? "-" : "+";
-            const totalColor = isExpense ? "#ef4444" : "#22c55e"; 
-            
-            // ⭐ УБРАЛИ ЛИШНИЙ ЗНАК
-            // formatCurrencyForSummary уже возвращает знак, если сумма отрицательная.
-            // Но для центра мы хотим контролировать знак вручную.
-            // Поэтому берем абсолютное значение и добавляем знак.
             const absTotal = Math.abs(totalSum);
             let compactTotal;
             if (absTotal >= 1000000) compactTotal = (absTotal / 1000000).toFixed(2) + 'M';
             else if (absTotal >= 10000) compactTotal = (absTotal / 1000).toFixed(0) + 'K';
             else if (absTotal >= 1000) compactTotal = (absTotal / 1000).toFixed(1) + 'K';
             else compactTotal = absTotal.toFixed(2);
+
+            const totalLabel = isExpense ? "Expenses" : "Income";
+            const totalSign = isExpense ? "-" : "+";
+            const totalColor = isExpense ? "#ef4444" : "#22c55e"; 
             
             const formattedCenterText = `${totalSign}${state.currencySymbol}${compactTotal}`;
 
@@ -1091,32 +1085,37 @@ document.addEventListener("DOMContentLoaded", () => {
             const centerTextPlugin = {
                 id: 'centerText',
                 beforeDraw: function(chart) {
-                    const width = chart.width;
-                    const height = chart.height;
-                    const ctx = chart.ctx;
+                    // ⭐ ИСПРАВЛЕНИЕ: Используем chartArea для расчета центра
+                    // Это гарантирует, что текст будет в центре БУБЛИКА, даже если легенда сдвинула график
+                    const { ctx, chartArea: { top, bottom, left, right } } = chart;
+                    
+                    if (!top) return; // Защита от первого рендера
+
+                    const centerX = (left + right) / 2;
+                    const centerY = (top + bottom) / 2;
 
                     ctx.restore();
                     
-                    // ⭐ ЛЕЙБЛ: УМЕНЬШИЛИ (300 - очень мелко)
-                    const fontSizeLabel = (height / 300).toFixed(2);
+                    // ⭐ ЛЕЙБЛ
+                    const fontSizeLabel = (chart.height / 250).toFixed(2);
                     ctx.font = `500 ${fontSizeLabel}em sans-serif`;
                     ctx.textBaseline = "middle";
                     ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--tg-theme-hint-color');
 
                     const textLabel = totalLabel;
-                    const textXLabel = Math.round((width - ctx.measureText(textLabel).width) / 2);
-                    const textYLabel = height / 2 - (height * 0.05); // Сблизили
+                    const textXLabel = Math.round(centerX - (ctx.measureText(textLabel).width / 2));
+                    const textYLabel = centerY - (chart.height * 0.08); 
 
                     ctx.fillText(textLabel, textXLabel, textYLabel);
 
-                    // ⭐ СУММА: УМЕНЬШИЛИ (240 - очень мелко)
-                    const fontSizeValue = (height / 240).toFixed(2);
+                    // ⭐ СУММА
+                    const fontSizeValue = (chart.height / 170).toFixed(2);
                     ctx.font = `bold ${fontSizeValue}em sans-serif`;
                     ctx.fillStyle = totalColor; 
 
                     const textValue = formattedCenterText;
-                    const textXValue = Math.round((width - ctx.measureText(textValue).width) / 2);
-                    const textYValue = height / 2 + (height * 0.07); // Сблизили
+                    const textXValue = Math.round(centerX - (ctx.measureText(textValue).width / 2));
+                    const textYValue = centerY + (chart.height * 0.08); 
 
                     ctx.fillText(textValue, textXValue, textYValue);
                     
@@ -1137,9 +1136,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 },
                 options: {
                     responsive: true,
-                    cutout: '50%', // Жирный бублик
+                    cutout: '50%', 
                     plugins: {
-                        // ⭐ ВЕРНУЛИ ЛЕГЕНДУ С МЯГКИМИ КВАДРАТАМИ (rectRounded)
                         legend: { 
                             display: true, 
                             position: 'bottom',
@@ -1147,7 +1145,7 @@ document.addEventListener("DOMContentLoaded", () => {
                                 boxWidth: 12,
                                 padding: 15,
                                 usePointStyle: true,
-                                pointStyle: 'rectRounded', // Мягкие квадраты
+                                pointStyle: 'rectRounded', 
                                 color: getComputedStyle(document.body).getPropertyValue('--tg-theme-text-color')
                             }
                         }
