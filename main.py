@@ -26,7 +26,7 @@ import google.generativeai as genai
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-# --- ⬇️ ИМПОРТ КОНСТАНТ (РЕФАКТОРИНГ) ⬇️ ---
+# --- ⬇️ ИМПОРТ КОНСТАНТ ⬇️ ---
 from constants import PROMPTS
 
 # --- Константы ---
@@ -196,7 +196,7 @@ app.add_middleware(
     allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*", "X-Telegram-InitData"],
+    allow_headers=["*", "X-Telegram-InitData", "X-Timezone-Offset"], # Добавили заголовок в CORS
 )
 
 # ---
@@ -363,13 +363,39 @@ def delete_category(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred during deletion: {e}")
 
-def _get_date_for_storage(date_str: str) -> str:
+# --- 🚀 ИЗМЕНЕНИЕ: Глобальная поддержка часовых поясов ---
+def _get_date_for_storage(date_str: str, timezone_offset_str: Optional[str]) -> str:
+    """
+    Определяет, какую дату сохранять.
+    Если пользователь выбрал 'сегодня', сохраняем текущее UTC время сервера (для точности сортировки).
+    Если 'вчера' или другую дату — сохраняем как есть.
+    
+    timezone_offset_str: Смещение в минутах (JS getTimezoneOffset).
+    Пример: UTC+3 -> -180.
+    Локальное время = UTC - Offset.
+    """
     if not date_str:
         raise HTTPException(status_code=400, detail="Date is required.")
     try:
         selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-        if selected_date == datetime.now().date():
-            return datetime.now(timezone.utc).isoformat()
+        
+        # Текущее время сервера (всегда UTC)
+        server_now_utc = datetime.now(timezone.utc)
+        
+        # Вычисляем "Локальное Сейчас" пользователя
+        user_now = server_now_utc
+        if timezone_offset_str and timezone_offset_str.lstrip('-').isdigit():
+            offset_minutes = int(timezone_offset_str)
+            # Формула: Local = UTC - Offset
+            user_now = server_now_utc - timedelta(minutes=offset_minutes)
+
+        # Сравниваем дату из формы с локальной датой пользователя
+        if selected_date == user_now.date():
+            # Если даты совпадают, значит это "сегодня".
+            # Сохраняем точное серверное время (UTC), чтобы работала сортировка по времени внутри дня.
+            return server_now_utc.isoformat()
+            
+        # Если даты разные (пользователь выбрал вчера/завтра), сохраняем то, что пришло.
         return date_str
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid date format. YYYY-MM-DD expected.")
@@ -378,9 +404,12 @@ def _get_date_for_storage(date_str: str) -> str:
 def add_transaction(
     transaction: Transaction,
     cursor = Depends(get_db),
-    user_id: str = Depends(get_validated_user_id)
+    user_id: str = Depends(get_validated_user_id),
+    x_timezone_offset: Optional[str] = Header(None) # Получаем заголовок
 ):
-    tx_date_str = _get_date_for_storage(transaction.date)
+    # Передаем offset в функцию
+    tx_date_str = _get_date_for_storage(transaction.date, x_timezone_offset)
+    
     try:
         query = "INSERT INTO transactions (user_id, amount, category_id, date) VALUES (%s, %s, %s, %s) RETURNING id"
         params = (user_id, transaction.amount, transaction.category_id, tx_date_str)
@@ -428,7 +457,8 @@ def update_transaction(
     transaction_id: int, 
     update: TransactionUpdate, 
     cursor = Depends(get_db),
-    user_id: str = Depends(get_validated_user_id)
+    user_id: str = Depends(get_validated_user_id),
+    x_timezone_offset: Optional[str] = Header(None) # Получаем заголовок
 ):
     fields_to_update = []
     values = []
@@ -440,7 +470,8 @@ def update_transaction(
         fields_to_update.append("category_id = %s")
         values.append(update.category_id)
     if update.date is not None:
-        tx_date_str = _get_date_for_storage(update.date)
+        # Передаем offset в функцию
+        tx_date_str = _get_date_for_storage(update.date, x_timezone_offset)
         fields_to_update.append("date = %s")
         values.append(tx_date_str)
 
@@ -511,13 +542,11 @@ def get_ai_advice(
         [f"- Date: {row['date']}, Type: {row['type']}, Category: {row['category']}, Amount: {row['amount']}" for row in rows]
     )
 
-    # --- ⬇️ РЕФАКТОРИНГ: ИСПОЛЬЗУЕМ ШАБЛОНЫ ИЗ CONSTANTS ⬇️ ---
     prompt_template = PROMPTS.get(prompt_type, PROMPTS['advice'])
     prompt = prompt_template.format(
         range=range, 
         transaction_list_str=transaction_list_str
     )
-    # --- ⬆️ КОНЕЦ РЕФАКТОРИНГА ⬆️ ---
         
     try:
         model = genai.GenerativeModel('gemini-2.5-flash')

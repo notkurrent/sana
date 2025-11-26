@@ -197,14 +197,16 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
     
-    // --- Headers Auth ---
+    // --- Headers Auth (UPDATED FOR TIMEZONES) ---
     function getAuthHeaders(isJson = true) {
         if (!tgInitData) {
             console.error("CRITICAL: tgInitData is missing.");
             tg.showAlert("Authentication data is missing. Please restart the app.");
         }
         const headers = {
-            'X-Telegram-InitData': tgInitData
+            'X-Telegram-InitData': tgInitData,
+            // 👇 ДОБАВЛЕНО: Отправляем смещение времени
+            'X-Timezone-Offset': String(new Date().getTimezoneOffset()) 
         };
         if (isJson) {
             headers['Content-Type'] = 'application/json';
