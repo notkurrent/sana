@@ -39,8 +39,12 @@
             </div>
 
             <div id="summary-pane" class="analytics-pane">
-                <h2 class="form-title">Expense Summary</h2>
+                <h2 class="form-title">Statistics</h2>
 
+                <div id="summary-type-filter" class="segmented-control" style="margin-bottom: 10px;">
+                    <button class="seg-button active" data-type="expense">Expense</button>
+                    <button class="seg-button" data-type="income">Income</button>
+                </div>
                 <div id="summary-range-filter" class="segmented-control date-filter-control">
                     <button class="seg-button" data-range="day">Day</button>
                     <button class="seg-button" data-range="week">Week</button>

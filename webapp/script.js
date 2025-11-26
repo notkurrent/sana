@@ -2,7 +2,6 @@ document.addEventListener("DOMContentLoaded", () => {
     
     const tg = window.Telegram.WebApp;
     const tgInitData = tg.initData;
-    // const userId = tg.initDataUnsafe?.user?.id; // Не используется в V1.0 API
     
     tg.ready();
     tg.expand();
@@ -17,32 +16,32 @@ document.addEventListener("DOMContentLoaded", () => {
         USER_RESET: "/users/me/reset",
     };
 
-    // --- ⬇️ РЕФАКТОРИНГ: ЕДИНЫЙ ОБЪЕКТ СОСТОЯНИЯ ⬇️ ---
+    // --- STATE ---
     const state = {
         transactions: [],
         categories: [],
         currencySymbol: "$",
         
         // UI States
-        editTransaction: null, // Был currentEditTransaction
-        quickCategory: null,   // Был currentQuickCategory
+        editTransaction: null,
+        quickCategory: null,
         activeBottomSheet: null,
         lastActiveScreen: 'home-screen',
         isInitialLoad: true,
-        chart: null,           // Был currentChart
+        chart: null,
         
         // Analytics & Filters
         analyticsDate: new Date(),
         summaryRange: 'month',
-        categoryType: 'expense', // Был currentCategoryManagementType
+        summaryType: 'expense', // ⭐ НОВОЕ: храним текущий тип аналитики (expense/income)
+        categoryType: 'expense',
         aiRange: 'month',
         
         // Cache
         calendarSummary: { income: 0, expense: 0, net: 0 }
     };
-    // --- ⬆️ КОНЕЦ РЕФАКТОРИНГА ⬆️ ---
 
-    // Переменные для свайпов (оставляем отдельно, т.к. это низкоуровневая UI логика)
+    // Свайпы
     let swipeStartX = 0;
     let swipeStartY = 0;
     let currentSwipeElement = null;
@@ -66,9 +65,7 @@ document.addEventListener("DOMContentLoaded", () => {
         year: 'numeric', month: 'long', day: 'numeric'
     });
     const preciseNumberFormatter = new Intl.NumberFormat('en-US', {
-        style: 'decimal',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
+        style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2
     });
 
     const formatDateForTitle = (date) => headerDateFormatter.format(date);
@@ -91,6 +88,11 @@ document.addEventListener("DOMContentLoaded", () => {
             segBtnCalendar: document.getElementById("seg-btn-calendar"),
             summaryPane: document.getElementById("summary-pane"),
             calendarPane: document.getElementById("calendar-pane"),
+            
+            // ⭐ НОВЫЕ ЭЛЕМЕНТЫ
+            summaryTypeFilter: document.getElementById("summary-type-filter"),
+            // ----------------
+            
             summaryRangeFilter: document.getElementById("summary-range-filter"),
             doughnutChartCanvas: document.getElementById("doughnut-chart"),
             summaryList: document.getElementById("summary-list"),
@@ -197,7 +199,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
     
-    // --- Headers Auth (UPDATED FOR TIMEZONES) ---
+    // --- Headers Auth ---
     function getAuthHeaders(isJson = true) {
         if (!tgInitData) {
             console.error("CRITICAL: tgInitData is missing.");
@@ -205,7 +207,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         const headers = {
             'X-Telegram-InitData': tgInitData,
-            // 👇 ДОБАВЛЕНО: Отправляем смещение времени
             'X-Timezone-Offset': String(new Date().getTimezoneOffset()) 
         };
         if (isJson) {
@@ -238,7 +239,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // --- Formatters ---
     function formatCurrency(amount) {
         if (typeof amount !== 'number') amount = 0;
-        return `${state.currencySymbol}${amount.toFixed(2)}`; // Используем state.currencySymbol
+        return `${state.currencySymbol}${amount.toFixed(2)}`;
     }
 
     function formatCurrencyForSummary(amount) {
@@ -273,7 +274,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const container = DOM.home.balanceAmount.closest('.total-container');
         const oldBalanceText = DOM.home.balanceAmount.textContent;
         
-        const newBalance = state.transactions.reduce((acc, tx) => { // Используем state.transactions
+        const newBalance = state.transactions.reduce((acc, tx) => { 
             return tx.type === 'income' ? acc + tx.amount : acc - tx.amount;
         }, 0);
         
@@ -382,7 +383,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const expenseCats = await expenseRes.json();
             const incomeCats = await incomeRes.json();
             
-            state.categories = [ // Обновляем state.categories
+            state.categories = [ 
                 ...expenseCats.map(c => ({...c, type: 'expense'})),
                 ...incomeCats.map(c => ({...c, type: 'income'}))
             ];
@@ -401,7 +402,7 @@ document.addEventListener("DOMContentLoaded", () => {
     
     async function loadCategoriesForForm(type) {
         DOM.fullForm.categorySelect.innerHTML = "<option value=''>Loading...</option>"; 
-        const categories = state.categories.filter(c => c.type === type); // Используем state
+        const categories = state.categories.filter(c => c.type === type); 
         DOM.fullForm.categorySelect.innerHTML = "";
         if (categories.length === 0) {
             DOM.fullForm.categorySelect.innerHTML = "<option value=''>No categories found</option>";
@@ -525,7 +526,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!response.ok) {
                 throw new Error("Network response was not ok");
             }
-            state.transactions = await response.json(); // Обновляем state
+            state.transactions = await response.json(); 
             renderTransactions(state.transactions, highlightId); 
             state.isInitialLoad = false;
             
@@ -541,7 +542,7 @@ document.addEventListener("DOMContentLoaded", () => {
         DOM.quickAdd.gridExpense.innerHTML = '';
         DOM.quickAdd.gridIncome.innerHTML = '';
 
-        state.categories.forEach(cat => { // Используем state
+        state.categories.forEach(cat => { 
             const { icon: customEmoji, name: categoryName } = parseCategory(cat.name);
             let emojiToShow;
 
@@ -579,7 +580,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!editBtn) return;
         
         const txId = parseInt(editBtn.dataset.txId, 10);
-        const transactionToEdit = state.transactions.find(tx => tx.id === txId); // state
+        const transactionToEdit = state.transactions.find(tx => tx.id === txId); 
         
         if (transactionToEdit) {
             openEditScreen(transactionToEdit);
@@ -587,7 +588,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function openEditScreen(tx) {
-        state.editTransaction = tx; // state
+        state.editTransaction = tx; 
         DOM.fullForm.title.textContent = "Edit Transaction";
         DOM.fullForm.saveBtn.textContent = "Save Changes";
         DOM.fullForm.deleteBtn.classList.remove("hidden");
@@ -721,12 +722,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function handleSaveForm() {
         const categoryId = DOM.fullForm.categorySelect.value;
-        
-        // --- ⭐ ИЗМЕНЕНИЕ: Меняем запятую на точку ---
         const amountStr = DOM.fullForm.amountInput.value.replace(',', '.');
         const amount = parseFloat(amountStr);
-        // ------------------------------------------
-        
         const date = DOM.fullForm.dateInput.value;
         
         if (!categoryId || isNaN(amount) || amount <= 0 || !date) {
@@ -744,7 +741,6 @@ document.addEventListener("DOMContentLoaded", () => {
         };
 
         const txId = state.editTransaction ? state.editTransaction.id : null;
-        
         const savedTransaction = await _saveTransaction(txData, txId);
         
         if (savedTransaction) {
@@ -762,7 +758,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function openBottomSheet(sheetElement) {
         if (!sheetElement) return;
 
-        if (state.activeBottomSheet && state.activeBottomSheet !== sheetElement) { // state
+        if (state.activeBottomSheet && state.activeBottomSheet !== sheetElement) { 
              state.activeBottomSheet.style.transform = 'translateY(100%)';
              setTimeout(() => state.activeBottomSheet.classList.add('hidden'), 300);
         }
@@ -803,7 +799,7 @@ document.addEventListener("DOMContentLoaded", () => {
         
         const { name: categoryName } = parseCategory(category.name);
         DOM.quickModal.title.textContent = categoryName;
-        DOM.quickModal.currency.textContent = state.currencySymbol; // state
+        DOM.quickModal.currency.textContent = state.currencySymbol; 
         DOM.quickModal.amountInput.value = '';
         
         DOM.quickModal.saveBtn.className = 'save-btn'; 
@@ -820,10 +816,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function saveQuickModal() {
-        // --- ⭐ ИЗМЕНЕНИЕ: Меняем запятую на точку ---
         const amountStr = DOM.quickModal.amountInput.value.replace(',', '.');
         const amount = parseFloat(amountStr);
-        // ------------------------------------------
 
         if (!state.quickCategory) return;
         
@@ -861,7 +855,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const dayStart = new Date(date).setHours(0, 0, 0, 0);
         const dayEnd = new Date(date).setHours(23, 59, 59, 999);
         
-        const dayTransactions = state.transactions.filter(tx => { // state
+        const dayTransactions = state.transactions.filter(tx => { 
             const txDate = new Date(tx.date).getTime();
             return txDate >= dayStart && txDate <= dayEnd;
         });
@@ -887,10 +881,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const handleTouchMove = (e) => {
             if (!isDragging) return;
-            
             let touchY = e.touches[0].clientY;
             let diffY = touchY - startY;
-
             if (diffY > 0) {
                 e.preventDefault(); 
                 currentY = diffY;
@@ -900,17 +892,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const handleTouchEnd = (e) => {
             if (!isDragging) return;
-            
             isDragging = false;
             sheet.style.transition = 'transform 0.3s ease-out';
-
             if (currentY > 100) { 
                 closeFn();
             } else {
                 sheet.style.transform = 'translateY(0)';
             }
             currentY = 0;
-            
             document.removeEventListener('touchmove', handleTouchMove);
             document.removeEventListener('touchend', handleTouchEnd);
         };
@@ -946,7 +935,7 @@ document.addEventListener("DOMContentLoaded", () => {
             cssClass = amount >= 0 ? "net positive" : "net negative";
         }
 
-        const fullAmountText = `${sign}${state.currencySymbol}${preciseNumberFormatter.format(Math.abs(amount))}`; // state
+        const fullAmountText = `${sign}${state.currencySymbol}${preciseNumberFormatter.format(Math.abs(amount))}`;
         
         DOM.summarySheet.title.textContent = title;
         DOM.summarySheet.currency.textContent = ""; 
@@ -971,10 +960,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function handleSwipeMove(e) {
         if (!currentSwipeElement) return;
-        
         const diffX = e.touches[0].clientX - swipeStartX;
         const diffY = e.touches[0].clientY - swipeStartY;
-        
         if (!isSwiping) {
             if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 10) {
                 isSwiping = true;
@@ -983,20 +970,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 return;
             }
         }
-        
         if (isSwiping) {
             e.preventDefault(); 
             const content = currentSwipeElement.querySelector('.expense-item-content');
             if (!content) return;
-            
             let moveX = diffX;
             if (moveX > 0) moveX = 0; 
-            
             const maxSwipe = -SWIPE_DELETE_BG_WIDTH;
             if (moveX < maxSwipe) {
                 moveX = maxSwipe - Math.pow(-moveX + maxSwipe, 0.7);
             }
-            
             content.classList.add('swiping');
             content.style.transform = `translateX(${moveX}px)`;
         }
@@ -1004,20 +987,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function handleSwipeEnd(e) {
         if (!currentSwipeElement) return;
-        
         const content = currentSwipeElement.querySelector('.expense-item-content');
         if (!content) return;
-        
         content.classList.remove('swiping');
         const currentTransform = new DOMMatrix(getComputedStyle(content).transform).m41;
-        
         if (isSwiping && currentTransform <= SWIPE_THRESHOLD) {
             content.style.transform = `translateX(-${SWIPE_DELETE_BG_WIDTH}px)`;
             handleDeleteSwipe(currentSwipeElement, content);
         } else {
             content.style.transform = 'translateX(0)';
         }
-        
         currentSwipeElement = null;
         isSwiping = false;
     }
@@ -1025,10 +1004,8 @@ document.addEventListener("DOMContentLoaded", () => {
     function handleDeleteSwipe(element, content) {
         const editBtn = element.querySelector('.edit-btn');
         if (!editBtn) return;
-
         const txId = parseInt(editBtn.dataset.txId, 10);
         tg.HapticFeedback.impactOccurred('medium');
-
         tg.showConfirm("Are you sure you want to delete this transaction?", async (confirmed) => {
             if (confirmed) {
                 element.style.height = element.offsetHeight + 'px';
@@ -1038,12 +1015,10 @@ document.addEventListener("DOMContentLoaded", () => {
                     element.style.margin = '0px';
                     element.style.padding = '0px';
                 });
-                
                 element.addEventListener('transitionend', async () => {
                     await deleteTransaction(txId);
                     await loadTransactions();
                 }, { once: true });
-
             } else {
                 content.style.transform = 'translateX(0)';
             }
@@ -1063,14 +1038,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function loadSummaryData() {
         DOM.analytics.summaryList.innerHTML = `<p class="list-placeholder">Loading summary...</p>`;
-        if (state.chart) state.chart.destroy(); // state
+        if (state.chart) state.chart.destroy();
         DOM.analytics.doughnutChartCanvas.classList.add('hidden');
         
         if (!tgInitData) return;
 
+        // ⭐ ЛОГИКА: Выбор API параметра и Цветов
+        const isExpense = state.summaryType === 'expense';
+        
+        // 1. Палитра цветов
+        const palette = isExpense
+            ? ['#FFB6C1', '#FFDAB9', '#FFFFE0', '#98FB98', '#AFEEEE', '#ADD8E6', '#E6E6FA', '#FADADD', '#FDE6D2', '#FBF0D0'] // Расходы (Mixed)
+            : ['#dcfce7', '#bbf7d0', '#86efac', '#4ade80', '#22c55e', '#16a34a', '#15803d', '#14532d', '#064e3b']; // Доходы (Greens)
+
+        // 2. Запрос к API
         let url = new URL(API_URLS.ANALYTICS_SUMMARY, window.location.origin);
-        url.searchParams.append('type', 'expense');
-        url.searchParams.append('range', state.summaryRange); // state
+        url.searchParams.append('type', state.summaryType); // expense или income
+        url.searchParams.append('range', state.summaryRange);
         
         try {
             const response = await fetch(url.toString(), { headers: getAuthHeaders(false) }); 
@@ -1080,7 +1064,7 @@ document.addEventListener("DOMContentLoaded", () => {
             DOM.analytics.summaryList.innerHTML = "";
             
             if (data.length === 0) {
-                DOM.analytics.summaryList.innerHTML = `<p class="list-placeholder">No expenses found for this period.</p>`;
+                DOM.analytics.summaryList.innerHTML = `<p class="list-placeholder">No ${state.summaryType}s found for this period.</p>`;
                 return;
             }
             
@@ -1088,6 +1072,15 @@ document.addEventListener("DOMContentLoaded", () => {
             const labels = data.map(item => parseCategory(item.category).name); 
             const totals = data.map(item => item.total);
             
+            // 3. Подготовка данных для центра
+            const totalSum = totals.reduce((a, b) => a + b, 0);
+            const formattedTotal = formatCurrencyForSummary(totalSum);
+            const totalLabel = isExpense ? "Total Expense" : "Total Income";
+            const totalSign = isExpense ? "-" : "+";
+            // Для цвета берем hex-коды (Chart.js не умеет читать CSS variables удобно)
+            const totalColor = isExpense ? "#ef4444" : "#22c55e"; 
+
+            // 4. Рендер списка
             data.forEach(item => {
                 const itemEl = document.createElement('div');
                 itemEl.className = 'summary-list-item';
@@ -1100,40 +1093,76 @@ document.addEventListener("DOMContentLoaded", () => {
                 } else if (defaultEmojis[name]) {
                     categoryDisplay = `${defaultEmojis[name]} ${name}`;
                 } else {
-                    categoryDisplay = `${defaultIconExpense} ${name}`;
+                    categoryDisplay = `${isExpense ? defaultIconExpense : defaultIconIncome} ${name}`;
                 }
+
+                const itemSign = isExpense ? "-" : "+";
+                const itemColorClass = isExpense ? "expense" : "income"; // Используем CSS классы для цвета списка
 
                 itemEl.innerHTML = `
                     <span class="category">${categoryDisplay}</span>
-                    <span class="amount">-${formatCurrency(item.total)}</span>
+                    <span class="amount" style="color: var(--color-${itemColorClass})">${itemSign}${formatCurrency(item.total)}</span>
                 `;
                 DOM.analytics.summaryList.appendChild(itemEl);
             });
 
-            if (state.chart) state.chart.destroy(); // state
-            
-            state.chart = new Chart(DOM.analytics.doughnutChartCanvas, { // state
+            // 5. Плагин для текста в центре
+            const centerTextPlugin = {
+                id: 'centerText',
+                beforeDraw: function(chart) {
+                    const width = chart.width;
+                    const height = chart.height;
+                    const ctx = chart.ctx;
+
+                    ctx.restore();
+                    
+                    // Лейбл (Total)
+                    const fontSizeLabel = (height / 114).toFixed(2);
+                    ctx.font = `500 ${fontSizeLabel}em sans-serif`;
+                    ctx.textBaseline = "middle";
+                    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--tg-theme-hint-color');
+
+                    const textLabel = totalLabel;
+                    const textXLabel = Math.round((width - ctx.measureText(textLabel).width) / 2);
+                    const textYLabel = height / 2 - (height * 0.10);
+
+                    ctx.fillText(textLabel, textXLabel, textYLabel);
+
+                    // Сумма (+$500)
+                    const fontSizeValue = (height / 70).toFixed(2);
+                    ctx.font = `bold ${fontSizeValue}em sans-serif`;
+                    ctx.fillStyle = totalColor; // Красный или Зеленый
+
+                    const textValue = `${totalSign}${formattedTotal}`;
+                    const textXValue = Math.round((width - ctx.measureText(textValue).width) / 2);
+                    const textYValue = height / 2 + (height * 0.07);
+
+                    ctx.fillText(textValue, textXValue, textYValue);
+                    
+                    ctx.save();
+                }
+            };
+
+            // 6. Создание графика
+            state.chart = new Chart(DOM.analytics.doughnutChartCanvas, { 
                 type: 'doughnut',
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Expenses', data: totals,
-                        backgroundColor: ['#FFB6C1', '#FFDAB9', '#FFFFE0', '#98FB98', '#AFEEEE', '#ADD8E6', '#E6E6FA', '#FADADD', '#FDE6D2', '#FBF0D0'],
+                        label: state.summaryType, // "expense" or "income"
+                        data: totals,
+                        backgroundColor: palette, // Наша выбранная палитра
                         borderWidth: 0,
                     }]
                 },
                 options: {
                     responsive: true,
+                    cutout: '75%', 
                     plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: {
-                                color: getComputedStyle(document.body).getPropertyValue('--tg-theme-text-color'),
-                                usePointStyle: true, pointStyle: 'rectRounded', boxWidth: 16
-                            }
-                        }
+                        legend: { display: false }
                     }
-                }
+                },
+                plugins: [centerTextPlugin] 
             });
 
         } catch (error) {
@@ -1147,8 +1176,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     
     function populateDatePickers() {
-        const currentMonth = state.analyticsDate.getMonth(); // state
-        const currentYear = state.analyticsDate.getFullYear(); // state
+        const currentMonth = state.analyticsDate.getMonth(); 
+        const currentYear = state.analyticsDate.getFullYear(); 
         
         DOM.calendar.monthSelect.innerHTML = "";
         const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -1173,7 +1202,7 @@ document.addEventListener("DOMContentLoaded", () => {
     async function loadCalendarData() {
         if (!tgInitData) return;
 
-        const year = state.analyticsDate.getFullYear(); // state
+        const year = state.analyticsDate.getFullYear(); 
         const month = state.analyticsDate.getMonth() + 1; 
         
         populateDatePickers(); 
@@ -1182,7 +1211,7 @@ document.addEventListener("DOMContentLoaded", () => {
         DOM.calendar.summaryNet.textContent = '...';
         DOM.calendar.container.innerHTML = '<p class="list-placeholder">Loading calendar...</p>';
         
-        state.calendarSummary = { income: 0, expense: 0, net: 0 }; // state
+        state.calendarSummary = { income: 0, expense: 0, net: 0 }; 
 
         try {
             const response = await fetch(`${API_URLS.ANALYTICS_CALENDAR}?month=${month}&year=${year}`, {
@@ -1192,7 +1221,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!response.ok) throw new Error("Failed to load calendar data");
             const data = await response.json();
             
-            state.calendarSummary = data.month_summary; // state
+            state.calendarSummary = data.month_summary; 
             
             DOM.calendar.summaryIncome.textContent = formatCurrencyForSummary(data.month_summary.income);
             DOM.calendar.summaryExpense.textContent = formatCurrencyForSummary(data.month_summary.expense * -1); 
@@ -1273,7 +1302,7 @@ document.addEventListener("DOMContentLoaded", () => {
         DOM.ai.resultBody.textContent = "Thinking...";
 
         try {
-            const url = `${API_URLS.AI_ADVICE}?range=${state.aiRange}&prompt_type=${promptType}`; // state
+            const url = `${API_URLS.AI_ADVICE}?range=${state.aiRange}&prompt_type=${promptType}`; 
             
             const response = await fetch(url, { headers: getAuthHeaders(false) });
             
@@ -1340,7 +1369,7 @@ document.addEventListener("DOMContentLoaded", () => {
     
     function loadCategoriesScreen() {
         DOM.categories.list.innerHTML = "";
-        const categories = state.categories.filter(c => c.type === state.categoryType); // state
+        const categories = state.categories.filter(c => c.type === state.categoryType); 
         renderCategoriesList(categories);
     }
 
@@ -1540,6 +1569,26 @@ document.addEventListener("DOMContentLoaded", () => {
             sessionStorage.setItem('lastAnalyticsTab', 'calendar');
             loadAnalyticsPage(); 
         });
+        
+        // ⭐ НОВОЕ: Обработчик переключения "Expense / Income"
+        DOM.analytics.summaryTypeFilter.addEventListener('click', (e) => {
+            const target = e.target.closest('.seg-button');
+            if (!target) return;
+            const type = target.dataset.type;
+            if (!type) return;
+            
+            tg.HapticFeedback.impactOccurred('light');
+            
+            // Переключаем класс active
+            DOM.analytics.summaryTypeFilter.querySelectorAll('.seg-button').forEach(btn => btn.classList.remove('active'));
+            target.classList.add('active');
+            
+            // Обновляем состояние и перезагружаем данные
+            state.summaryType = type; 
+            loadSummaryData(); 
+        });
+        // --------------------------------------------------
+
         DOM.analytics.summaryRangeFilter.addEventListener('click', (e) => {
             const target = e.target.closest('.seg-button');
             if (!target) return;
@@ -1548,7 +1597,7 @@ document.addEventListener("DOMContentLoaded", () => {
             tg.HapticFeedback.impactOccurred('light');
             DOM.analytics.summaryRangeFilter.querySelectorAll('.seg-button').forEach(btn => btn.classList.remove('active'));
             target.classList.add('active');
-            state.summaryRange = range; // state
+            state.summaryRange = range; 
             loadSummaryData(); 
         });
         DOM.calendar.prevMonthBtn.addEventListener('click', () => { tg.HapticFeedback.impactOccurred('light'); state.analyticsDate.setMonth(state.analyticsDate.getMonth() - 1); loadCalendarData(); });
@@ -1557,7 +1606,7 @@ document.addEventListener("DOMContentLoaded", () => {
         DOM.calendar.yearSelect.addEventListener('change', () => { tg.HapticFeedback.impactOccurred('light'); state.analyticsDate.setFullYear(parseInt(DOM.calendar.yearSelect.value)); loadCalendarData(); });
         
         DOM.calendar.boxIncome.addEventListener('click', () => {
-            openSummarySheet('income', state.calendarSummary.income); // state
+            openSummarySheet('income', state.calendarSummary.income); 
         });
         DOM.calendar.boxExpense.addEventListener('click', () => {
             openSummarySheet('expense', state.calendarSummary.expense * -1); 
