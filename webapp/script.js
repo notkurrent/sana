@@ -1044,6 +1044,7 @@ document.addEventListener("DOMContentLoaded", () => {
             
             // 3. Подготовка данных для центра
             const totalSum = totals.reduce((a, b) => a + b, 0);
+            // Форматируем абсолютное значение
             const absTotal = Math.abs(totalSum);
             let compactTotal;
             if (absTotal >= 1000000) compactTotal = (absTotal / 1000000).toFixed(2) + 'M';
@@ -1085,41 +1086,38 @@ document.addEventListener("DOMContentLoaded", () => {
             const centerTextPlugin = {
                 id: 'centerText',
                 beforeDraw: function(chart) {
-                    // ⭐ ИСПРАВЛЕНИЕ: Используем chartArea для расчета центра
-                    // Это гарантирует, что текст будет в центре БУБЛИКА, даже если легенда сдвинула график
-                    const { ctx, chartArea: { top, bottom, left, right } } = chart;
-                    
-                    if (!top) return; // Защита от первого рендера
+                    // ⭐ ИСПРАВЛЕНИЕ: Проверяем наличие chartArea
+                    if (!chart.chartArea) return; 
 
+                    const { ctx, chartArea: { top, bottom, left, right }, width, height } = chart;
+                    
                     const centerX = (left + right) / 2;
                     const centerY = (top + bottom) / 2;
 
-                    ctx.restore();
+                    ctx.save(); // ⭐ CORRECT ORDER: Save first
                     
-                    // ⭐ ЛЕЙБЛ
-                    const fontSizeLabel = (chart.height / 250).toFixed(2);
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+
+                    // 1. Лейбл (Expenses/Income)
+                    // Используем (bottom - top) - это высота самого бублика, а не всего канваса
+                    const donutHeight = bottom - top;
+                    const fontSizeLabel = (donutHeight / 250).toFixed(2);
                     ctx.font = `500 ${fontSizeLabel}em sans-serif`;
-                    ctx.textBaseline = "middle";
                     ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--tg-theme-hint-color');
 
-                    const textLabel = totalLabel;
-                    const textXLabel = Math.round(centerX - (ctx.measureText(textLabel).width / 2));
-                    const textYLabel = centerY - (chart.height * 0.08); 
+                    // Draw Label
+                    ctx.fillText(totalLabel, centerX, centerY - (donutHeight * 0.08));
 
-                    ctx.fillText(textLabel, textXLabel, textYLabel);
-
-                    // ⭐ СУММА
-                    const fontSizeValue = (chart.height / 170).toFixed(2);
+                    // 2. Сумма
+                    const fontSizeValue = (donutHeight / 170).toFixed(2);
                     ctx.font = `bold ${fontSizeValue}em sans-serif`;
-                    ctx.fillStyle = totalColor; 
+                    ctx.fillStyle = totalColor;
 
-                    const textValue = formattedCenterText;
-                    const textXValue = Math.round(centerX - (ctx.measureText(textValue).width / 2));
-                    const textYValue = centerY + (chart.height * 0.08); 
-
-                    ctx.fillText(textValue, textXValue, textYValue);
+                    // Draw Value
+                    ctx.fillText(formattedCenterText, centerX, centerY + (donutHeight * 0.08));
                     
-                    ctx.save();
+                    ctx.restore(); // ⭐ CORRECT ORDER: Restore last
                 }
             };
 
