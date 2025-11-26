@@ -200,11 +200,10 @@ body {
     margin-bottom: -8px; padding-left: var(--space-xs);
 }
 
-/* ОБНОВЛЕНО: Используем padding и line-height для выравнивания, без жесткой высоты */
 .input-group input,
 .input-group select,
 .settings-group select {
-    padding: var(--space-md) var(--space-md); /* Отступы со всех сторон */
+    padding: var(--space-md) var(--space-md);
     font-size: 1rem; 
     border: none; 
     border-radius: 10px;
@@ -216,9 +215,9 @@ body {
     -webkit-appearance: none; 
     -moz-appearance: none; 
     appearance: none;
-    line-height: 1.3; /* Обеспечивает нормальную высоту строки для текста */
-    display: flex; /* ⭐ НОВОЕ: Flexbox для выравнивания */
-    align-items: center; /* ⭐ НОВОЕ: Выравниваем содержимое по центру по вертикали */
+    line-height: 1.3; 
+    display: flex; 
+    align-items: center; 
 }
 
 .input-group .segmented-control { margin-bottom: 0; }
@@ -361,10 +360,9 @@ body {
 
 
 /* ========================================= */
-/* НАВИГАЦИЯ (ORIGINAL GLASS + FLAT STATIC PLUS) */
+/* НАВИГАЦИЯ */
 /* ========================================= */
 
-/* Таб-бар */
 .tab-bar {
     position: fixed;
     bottom: calc(20px + env(safe-area-inset-bottom));
@@ -379,12 +377,10 @@ body {
     grid-template-columns: repeat(5, 1fr);
     align-items: center;
     
-    /* Параметры стекла (Оригинал) */
     background-color: rgba(var(--tg-theme-secondary-bg-color-rgb), 0.75);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     
-    /* Обводка (Оригинал) */
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15),
                 inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.15);
     
@@ -400,7 +396,6 @@ body {
     }
 }
 
-/* Кнопки вкладок */
 .tab-button {
     background: none; border: none;
     color: var(--tg-theme-hint-color);
@@ -425,7 +420,6 @@ body {
     color: var(--tg-theme-button-color); 
 }
 
-/* Центральная кнопка (+) - ЖЕЛЕЗОБЕТОННО СТАТИЧНАЯ */
 .tab-button-add {
     background-color: var(--tg-theme-button-color);
     color: var(--tg-theme-button-text-color);
@@ -434,45 +428,38 @@ body {
     border-radius: 50%;
     border: none;
     
-    /* ⭐ ФИКС 1: Flexbox + обнуление отступов */
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0;
     margin: 0 auto;
     
-    /* Без тени */
     box-shadow: none;
     cursor: pointer;
     
-    /* ⭐ ФИКС 2: Оптимизация для тач-экранов iOS */
-    -webkit-tap-highlight-color: transparent; /* Убирает серый квадрат при нажатии */
-    touch-action: manipulation; /* Убирает задержки и лишние жесты */
-    -webkit-user-select: none;  /* Запрещает выделение */
+    -webkit-tap-highlight-color: transparent; 
+    touch-action: manipulation; 
+    -webkit-user-select: none;  
     user-select: none;
     
-    /* Анимация только яркости */
     transition: filter 0.2s ease; 
     
-    /* Гарантия отсутствия трансформаций */
-    transform: translateZ(0); /* Включает аппаратное ускорение, чтобы не мылило */
+    transform: translateZ(0); 
 }
 
 .tab-button-add:hover { filter: brightness(1.1); }
 
-/* ⭐ ФИКС 3: Полный запрет движения при нажатии */
 .tab-button-add:active {
     transform: none !important;
     margin: 0 auto !important;
     padding: 0 !important;
 }
 
-/* ⭐ ФИКС 4: Блокировка иконки */
 .tab-button-add svg { 
     width: 24px; 
     height: 24px; 
-    display: block; /* Убирает текстовые отступы */
-    pointer-events: none; /* Иконка прозрачна для кликов, клик идет сразу в кнопку */
+    display: block; 
+    pointer-events: none; 
 }
 
 /* Общие компоненты (Segmented Control) */
@@ -766,25 +753,23 @@ body {
     padding-left: var(--space-xs);
 }
 
-/* ОБНОВЛЕНО: Используем padding и Flexbox для кнопок */
 .settings-btn {
     background-color: var(--tg-theme-secondary-bg-color);
     color: var(--tg-theme-text-color);
     font-weight: 500;
     border: none;
     border-radius: 10px;
-    padding: var(--space-md); /* ⭐ ОБНОВЛЕНО: Padding со всех сторон */
+    padding: var(--space-md); 
     cursor: pointer;
     font-size: 1rem;
     text-align: left;
     width: 100%;
     
-    display: flex; /* ⭐ НОВОЕ: Flexbox */
-    align-items: center; /* ⭐ НОВОЕ: Выравниваем содержимое по центру по вертикали */
-    line-height: 1.3; /* Обеспечивает нормальную высоту строки для текста */
+    display: flex; 
+    align-items: center; 
+    line-height: 1.3; 
 }
 
-/* ФИКС: Чтобы <a> выглядел как кнопка */
 a.settings-btn {
     text-decoration: none;
     display: block;
@@ -798,25 +783,24 @@ a.settings-btn {
 }
 
 /* Экран Категорий (Categories) */
+
+/* ⬇️ ИЗМЕНЕНИЕ 1: Резиновая сетка (1fr) для имени + фикс ширины кнопки */
 .add-category-form {
     display: grid;
     gap: var(--space-sm);
     margin-bottom: var(--space-lg);
     align-items: center;
-    grid-template-columns: 1fr 75px 50px;
+    /* 1fr (Имя) | 75px (Смайл) | 54px (Кнопка) */
+    grid-template-columns: 1fr 75px 54px; 
     width: 100%;
     box-sizing: border-box;
 }
+/* Убрали media query, так как 1fr сам подстроится под любой экран */
 
-@media (max-width: 420px) {
-    .add-category-form {
-        grid-template-columns: 215px 75px 50px; 
-        padding-right: 15px; 
-    }
-}
-
+/* ⬇️ ИЗМЕНЕНИЕ 2: Принудительная высота 54px для полей */
 #new-category-name {
-    padding: var(--space-md);
+    height: 54px; /* Фикс высоты */
+    padding: 0 var(--space-md); /* Убрали вертикальный паддинг, оставили боковой */
     font-size: 1rem; 
     border: none; 
     border-radius: 10px;
@@ -824,29 +808,34 @@ a.settings-btn {
     background-color: var(--tg-theme-secondary-bg-color);
     color: var(--tg-theme-text-color); 
     box-sizing: border-box;
+    display: flex;
+    align-items: center;
 }
 
 #new-category-icon {
-    padding: var(--space-md);
-    font-size: 1rem;
-    text-align: left;
+    height: 54px; /* Фикс высоты */
+    padding: 0 var(--space-md); /* Убрали вертикальный паддинг */
+    font-size: 1rem; 
+    text-align: left; 
     border: none; 
     border-radius: 10px;
     outline: none; 
     background-color: var(--tg-theme-secondary-bg-color);
     color: var(--tg-theme-text-color); 
     box-sizing: border-box;
-    line-height: 1.3;
+    display: flex;
+    align-items: center;
 }
 
+/* ⬇️ ИЗМЕНЕНИЕ 3: Кнопка 54x54 и все выровнено */
 .add-category-btn {
     background-color: var(--tg-theme-button-color);
     color: var(--tg-theme-button-text-color);
     border: none; 
     border-radius: 10px;
     cursor: pointer; 
-    width: 50px;
-    height: 50px;
+    width: 54px;
+    height: 54px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1326,10 +1315,9 @@ a.settings-btn {
     text-decoration: none;
     font-weight: 500;
     
-    /* ⭐ ГЛАВНЫЙ ФИКС ВЫРАВНИВАНИЯ ⭐ */
     display: flex !important;
-    align-items: center !important;     /* Строгий центр по вертикали */
-    justify-content: space-between;     /* Текст слева, Иконка справа (у края) */
+    align-items: center !important;     
+    justify-content: space-between;     
     
     transition: opacity 0.2s ease, background-color 0.2s ease;
 }
@@ -1344,8 +1332,8 @@ a.settings-btn {
     height: 20px;
     flex-shrink: 0;
     display: block;
-    margin: 0; /* Убираем любые ручные сдвиги */
-    transform: rotate(0deg); /* На всякий случай */
+    margin: 0;
+    transform: rotate(0deg); 
 }
 
 .support-btn svg {
