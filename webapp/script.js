@@ -33,7 +33,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // Analytics & Filters
         analyticsDate: new Date(),
         summaryRange: 'month',
-        summaryType: 'expense', // ⭐ НОВОЕ: храним текущий тип аналитики (expense/income)
+        summaryType: 'expense', 
         categoryType: 'expense',
         aiRange: 'month',
         
@@ -89,9 +89,7 @@ document.addEventListener("DOMContentLoaded", () => {
             summaryPane: document.getElementById("summary-pane"),
             calendarPane: document.getElementById("calendar-pane"),
             
-            // ⭐ НОВЫЕ ЭЛЕМЕНТЫ
             summaryTypeFilter: document.getElementById("summary-type-filter"),
-            // ----------------
             
             summaryRangeFilter: document.getElementById("summary-range-filter"),
             doughnutChartCanvas: document.getElementById("doughnut-chart"),
@@ -1046,14 +1044,12 @@ document.addEventListener("DOMContentLoaded", () => {
         // ⭐ ЛОГИКА: Выбор API параметра и Цветов
         const isExpense = state.summaryType === 'expense';
         
-        // 1. Палитра цветов
         const palette = isExpense
-            ? ['#FFB6C1', '#FFDAB9', '#FFFFE0', '#98FB98', '#AFEEEE', '#ADD8E6', '#E6E6FA', '#FADADD', '#FDE6D2', '#FBF0D0'] // Расходы (Mixed)
-            : ['#dcfce7', '#bbf7d0', '#86efac', '#4ade80', '#22c55e', '#16a34a', '#15803d', '#14532d', '#064e3b']; // Доходы (Greens)
+            ? ['#FFB6C1', '#FFDAB9', '#FFFFE0', '#98FB98', '#AFEEEE', '#ADD8E6', '#E6E6FA', '#FADADD', '#FDE6D2', '#FBF0D0'] 
+            : ['#dcfce7', '#bbf7d0', '#86efac', '#4ade80', '#22c55e', '#16a34a', '#15803d', '#14532d', '#064e3b']; 
 
-        // 2. Запрос к API
         let url = new URL(API_URLS.ANALYTICS_SUMMARY, window.location.origin);
-        url.searchParams.append('type', state.summaryType); // expense или income
+        url.searchParams.append('type', state.summaryType); 
         url.searchParams.append('range', state.summaryRange);
         
         try {
@@ -1075,12 +1071,11 @@ document.addEventListener("DOMContentLoaded", () => {
             // 3. Подготовка данных для центра
             const totalSum = totals.reduce((a, b) => a + b, 0);
             const formattedTotal = formatCurrencyForSummary(totalSum);
-            const totalLabel = isExpense ? "Total Expense" : "Total Income";
+            // ⭐ ИЗМЕНЕНИЕ: Короче текст (Income / Expenses)
+            const totalLabel = isExpense ? "Expenses" : "Income";
             const totalSign = isExpense ? "-" : "+";
-            // Для цвета берем hex-коды (Chart.js не умеет читать CSS variables удобно)
             const totalColor = isExpense ? "#ef4444" : "#22c55e"; 
 
-            // 4. Рендер списка
             data.forEach(item => {
                 const itemEl = document.createElement('div');
                 itemEl.className = 'summary-list-item';
@@ -1097,7 +1092,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
 
                 const itemSign = isExpense ? "-" : "+";
-                const itemColorClass = isExpense ? "expense" : "income"; // Используем CSS классы для цвета списка
+                const itemColorClass = isExpense ? "expense" : "income"; 
 
                 itemEl.innerHTML = `
                     <span class="category">${categoryDisplay}</span>
@@ -1106,7 +1101,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 DOM.analytics.summaryList.appendChild(itemEl);
             });
 
-            // 5. Плагин для текста в центре
             const centerTextPlugin = {
                 id: 'centerText',
                 beforeDraw: function(chart) {
@@ -1116,7 +1110,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                     ctx.restore();
                     
-                    // Лейбл (Total)
+                    // Лейбл (Expenses/Income)
                     const fontSizeLabel = (height / 114).toFixed(2);
                     ctx.font = `500 ${fontSizeLabel}em sans-serif`;
                     ctx.textBaseline = "middle";
@@ -1124,18 +1118,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
                     const textLabel = totalLabel;
                     const textXLabel = Math.round((width - ctx.measureText(textLabel).width) / 2);
-                    const textYLabel = height / 2 - (height * 0.10);
+                    const textYLabel = height / 2 - (height * 0.12); // Чуть выше
 
                     ctx.fillText(textLabel, textXLabel, textYLabel);
 
                     // Сумма (+$500)
-                    const fontSizeValue = (height / 70).toFixed(2);
+                    // ⭐ ИЗМЕНЕНИЕ: Шрифт поменьше (90), чтобы не вылезал
+                    const fontSizeValue = (height / 90).toFixed(2);
                     ctx.font = `bold ${fontSizeValue}em sans-serif`;
-                    ctx.fillStyle = totalColor; // Красный или Зеленый
+                    ctx.fillStyle = totalColor; 
 
                     const textValue = `${totalSign}${formattedTotal}`;
                     const textXValue = Math.round((width - ctx.measureText(textValue).width) / 2);
-                    const textYValue = height / 2 + (height * 0.07);
+                    const textYValue = height / 2 + (height * 0.08); // Чуть ниже
 
                     ctx.fillText(textValue, textXValue, textYValue);
                     
@@ -1143,21 +1138,21 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             };
 
-            // 6. Создание графика
             state.chart = new Chart(DOM.analytics.doughnutChartCanvas, { 
                 type: 'doughnut',
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: state.summaryType, // "expense" or "income"
+                        label: state.summaryType, 
                         data: totals,
-                        backgroundColor: palette, // Наша выбранная палитра
+                        backgroundColor: palette, 
                         borderWidth: 0,
                     }]
                 },
                 options: {
                     responsive: true,
-                    cutout: '75%', 
+                    // ⭐ ИЗМЕНЕНИЕ: 65% для "толстенького" бублика
+                    cutout: '65%', 
                     plugins: {
                         legend: { display: false }
                     }
@@ -1570,7 +1565,7 @@ document.addEventListener("DOMContentLoaded", () => {
             loadAnalyticsPage(); 
         });
         
-        // ⭐ НОВОЕ: Обработчик переключения "Expense / Income"
+        // ⭐ Обработчик Expense / Income
         DOM.analytics.summaryTypeFilter.addEventListener('click', (e) => {
             const target = e.target.closest('.seg-button');
             if (!target) return;
@@ -1579,15 +1574,12 @@ document.addEventListener("DOMContentLoaded", () => {
             
             tg.HapticFeedback.impactOccurred('light');
             
-            // Переключаем класс active
             DOM.analytics.summaryTypeFilter.querySelectorAll('.seg-button').forEach(btn => btn.classList.remove('active'));
             target.classList.add('active');
             
-            // Обновляем состояние и перезагружаем данные
             state.summaryType = type; 
             loadSummaryData(); 
         });
-        // --------------------------------------------------
 
         DOM.analytics.summaryRangeFilter.addEventListener('click', (e) => {
             const target = e.target.closest('.seg-button');
