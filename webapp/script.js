@@ -1070,11 +1070,19 @@ document.addEventListener("DOMContentLoaded", () => {
             
             // 3. Подготовка данных для центра
             const totalSum = totals.reduce((a, b) => a + b, 0);
-            const formattedTotal = formatCurrencyForSummary(totalSum);
-            // ⭐ ИЗМЕНЕНИЕ: Короче текст (Income / Expenses)
+            // Форматируем абсолютное значение
+            const absTotal = Math.abs(totalSum);
+            let compactTotal;
+            if (absTotal >= 1000000) compactTotal = (absTotal / 1000000).toFixed(2) + 'M';
+            else if (absTotal >= 10000) compactTotal = (absTotal / 1000).toFixed(0) + 'K';
+            else if (absTotal >= 1000) compactTotal = (absTotal / 1000).toFixed(1) + 'K';
+            else compactTotal = absTotal.toFixed(2);
+
             const totalLabel = isExpense ? "Expenses" : "Income";
             const totalSign = isExpense ? "-" : "+";
             const totalColor = isExpense ? "#ef4444" : "#22c55e"; 
+            
+            const formattedCenterText = `${totalSign}${state.currencySymbol}${compactTotal}`;
 
             data.forEach(item => {
                 const itemEl = document.createElement('div');
@@ -1110,8 +1118,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
                     ctx.restore();
                     
-                    // ⭐ 1. Лейбл (ОЧЕНЬ МЕЛКИЙ - 190)
-                    const fontSizeLabel = (height / 190).toFixed(2);
+                    // ⭐ 1. Лейбл (ОЧЕНЬ МЕЛКИЙ - 220)
+                    const fontSizeLabel = (height / 220).toFixed(2);
                     ctx.font = `500 ${fontSizeLabel}em sans-serif`;
                     ctx.textBaseline = "middle";
                     ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--tg-theme-hint-color');
@@ -1122,12 +1130,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
                     ctx.fillText(textLabel, textXLabel, textYLabel);
 
-                    // ⭐ 2. Сумма (МЕЛКАЯ - 140)
-                    const fontSizeValue = (height / 140).toFixed(2);
+                    // ⭐ 2. Сумма (МЕЛКАЯ - 150)
+                    const fontSizeValue = (height / 150).toFixed(2);
                     ctx.font = `bold ${fontSizeValue}em sans-serif`;
                     ctx.fillStyle = totalColor; 
 
-                    const textValue = `${totalSign}${formattedTotal}`;
+                    const textValue = formattedCenterText;
                     const textXValue = Math.round((width - ctx.measureText(textValue).width) / 2);
                     const textYValue = height / 2 + (height * 0.08); 
 
@@ -1150,10 +1158,20 @@ document.addEventListener("DOMContentLoaded", () => {
                 },
                 options: {
                     responsive: true,
-                    // ⭐ ВЕРНУЛИ ЖИРНЫЙ БУБЛИК (50%)
+                    // ⭐ ЖИРНЫЙ БУБЛИК (50%)
                     cutout: '50%', 
                     plugins: {
-                        legend: { display: false }
+                        // ⭐ ЛЕГЕНДА ВКЛЮЧЕНА (Квадратики)
+                        legend: { 
+                            display: true, 
+                            position: 'bottom',
+                            labels: {
+                                boxWidth: 12,
+                                padding: 15,
+                                usePointStyle: true, // Кружочки
+                                color: getComputedStyle(document.body).getPropertyValue('--tg-theme-text-color')
+                            }
+                        }
                     }
                 },
                 plugins: [centerTextPlugin] 

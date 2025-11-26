@@ -1342,10 +1342,3 @@ a.settings-btn {
 .support-btn svg {
     fill: currentColor;
 }
-
-.separator-line {
-    height: 1px;
-    background-color: rgba(var(--tg-theme-hint-color-rgb), 0.15);
-    margin: 15px 0;
-    width: 100%;
-}
