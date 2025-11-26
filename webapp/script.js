@@ -1108,8 +1108,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--tg-theme-hint-color');
 
                     // Draw Label
-                    // ⭐ УМЕНЬШИЛИ ОТСТУП (0.06 вместо 0.08)
-                    ctx.fillText(totalLabel, centerX, centerY - (donutHeight * 0.06));
+                    // ⭐ УМЕНЬШИЛИ ОТСТУП (0.05 вместо 0.08)
+                    ctx.fillText(totalLabel, centerX, centerY - (donutHeight * 0.05));
 
                     // 2. Сумма
                     // ⭐ УМЕНЬШИЛИ РАЗМЕР ШРИФТА (делитель 200 вместо 170)
@@ -1118,8 +1118,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     ctx.fillStyle = totalColor;
 
                     // Draw Value
-                    // ⭐ УМЕНЬШИЛИ ОТСТУП (0.06 вместо 0.08)
-                    ctx.fillText(formattedCenterText, centerX, centerY + (donutHeight * 0.06));
+                    // ⭐ УМЕНЬШИЛИ ОТСТУП (0.05 вместо 0.08)
+                    ctx.fillText(formattedCenterText, centerX, centerY + (donutHeight * 0.05));
                     
                     ctx.restore(); // ⭐ CORRECT ORDER: Restore last
                 }
