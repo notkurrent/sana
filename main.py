@@ -539,7 +539,7 @@ def get_ai_advice(
          return {"advice": f"You have no transactions for this {range}."}
 
     transaction_list_str = "\n".join(
-        [f"- Date: {row['date']}, Type: {row['type']}, Category: {row['category']}, Amount: {row['amount']}" for row in rows]
+        [f"- Date: {row['date'].strftime('%Y-%m-%d %H:%M')}, Type: {row['type']}, Category: {row['category']}, Amount: {row['amount']}" for row in rows]
     )
 
     prompt_template = PROMPTS.get(prompt_type, PROMPTS['advice'])
