@@ -827,8 +827,8 @@ a.settings-btn {
 }
 
 #new-category-icon {
-    padding: 14px;
-    font-size: 1.2rem;
+    padding: var(--space-md);
+    font-size: 1rem;
     text-align: left;
     border: none; 
     border-radius: 10px;
