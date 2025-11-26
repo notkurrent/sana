@@ -1111,26 +1111,27 @@ document.addEventListener("DOMContentLoaded", () => {
                     ctx.restore();
                     
                     // Лейбл (Expenses/Income)
-                    const fontSizeLabel = (height / 114).toFixed(2);
+                    // ⭐ ИЗМЕНЕНИЕ: Шрифт сильно меньше (160)
+                    const fontSizeLabel = (height / 160).toFixed(2);
                     ctx.font = `500 ${fontSizeLabel}em sans-serif`;
                     ctx.textBaseline = "middle";
                     ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--tg-theme-hint-color');
 
                     const textLabel = totalLabel;
                     const textXLabel = Math.round((width - ctx.measureText(textLabel).width) / 2);
-                    const textYLabel = height / 2 - (height * 0.12); // Чуть выше
+                    const textYLabel = height / 2 - (height * 0.08); // Чуть сдвинули
 
                     ctx.fillText(textLabel, textXLabel, textYLabel);
 
                     // Сумма (+$500)
-                    // ⭐ ИЗМЕНЕНИЕ: Шрифт поменьше (90), чтобы не вылезал
-                    const fontSizeValue = (height / 90).toFixed(2);
+                    // ⭐ ИЗМЕНЕНИЕ: Шрифт умеренный (110)
+                    const fontSizeValue = (height / 110).toFixed(2);
                     ctx.font = `bold ${fontSizeValue}em sans-serif`;
                     ctx.fillStyle = totalColor; 
 
                     const textValue = `${totalSign}${formattedTotal}`;
                     const textXValue = Math.round((width - ctx.measureText(textValue).width) / 2);
-                    const textYValue = height / 2 + (height * 0.08); // Чуть ниже
+                    const textYValue = height / 2 + (height * 0.08); // Чуть сдвинули
 
                     ctx.fillText(textValue, textXValue, textYValue);
                     
@@ -1151,8 +1152,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 },
                 options: {
                     responsive: true,
-                    // ⭐ ИЗМЕНЕНИЕ: 65% для "толстенького" бублика
-                    cutout: '65%', 
+                    // ⭐ ИЗМЕНЕНИЕ: 50% для жирного бублика
+                    cutout: '50%', 
                     plugins: {
                         legend: { display: false }
                     }
