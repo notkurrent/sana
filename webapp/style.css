@@ -812,17 +812,17 @@ a.settings-btn {
 }
 
 #new-category-icon {
-    height: 54px; /* Фикс высоты */
-    padding: 0 16px; /* Боковой паддинг */
+    height: 54px;       /* Фикс высоты */
+    padding: 0;         /* ⭐ Убираем отступы, чтобы текст влез */
     font-size: 1rem; 
-    text-align: left; 
+    text-align: center; /* ⭐ Центрируем. Для смайлика в квадрате это выглядит лучше всего */
     border: none; 
     border-radius: 10px;
     outline: none; 
     background-color: var(--tg-theme-secondary-bg-color);
     color: var(--tg-theme-text-color); 
     box-sizing: border-box;
-    margin: 0; /* Сброс отступов браузера */
+    margin: 0;
 }
 
 /* Кнопка 54x54 */
