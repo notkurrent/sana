@@ -784,10 +784,10 @@ a.settings-btn {
 
 /* Экран Категорий (Categories) */
 
-/* ⬇️ ФИНАЛЬНОЕ ИЗМЕНЕНИЕ: Уменьшаем эмодзи до 60px, чтобы все влезло */
+/* ⬇️ СЕТКА (GRID) */
 .add-category-form {
     display: grid;
-    gap: 8px; /* Фиксированный gap 8px */
+    gap: 8px;
     margin-bottom: 24px;
     align-items: center;
     /* 1fr (Имя) | 60px (Смайл) | 54px (Кнопка) */
@@ -796,9 +796,10 @@ a.settings-btn {
     box-sizing: border-box;
 }
 
+/* ⬇️ ПОЛЕ ИМЕНИ (ИСПРАВЛЕНО: display: block вместо flex) */
 #new-category-name {
-    height: 54px; /* Фикс высоты */
-    padding: 0 16px; /* Боковой паддинг */
+    height: 54px;
+    padding: 0 16px;
     font-size: 1rem; 
     border: none; 
     border-radius: 10px;
@@ -807,25 +808,28 @@ a.settings-btn {
     color: var(--tg-theme-text-color); 
     box-sizing: border-box;
     width: 100%;
-    min-width: 0; /* ⭐ ВАЖНО ДЛЯ ANDROID: позволяет полю сжиматься */
-    margin: 0; /* Сброс отступов браузера */
+    min-width: 0; 
+    margin: 0; 
+    display: block; /* ⭐ Было flex, стало block. Это лечит Desktop */
 }
 
+/* ⬇️ ПОЛЕ ЭМОДЗИ (ИСПРАВЛЕНО: display: block вместо flex) */
 #new-category-icon {
-    height: 54px;       /* Фикс высоты */
-    padding: 0;         /* ⭐ Убираем отступы, чтобы текст влез */
+    height: 54px;
+    padding: 0; 
     font-size: 1rem; 
-    text-align: center; /* ⭐ Центрируем. Для смайлика в квадрате это выглядит лучше всего */
+    text-align: center; 
     border: none; 
     border-radius: 10px;
     outline: none; 
     background-color: var(--tg-theme-secondary-bg-color);
     color: var(--tg-theme-text-color); 
     box-sizing: border-box;
-    margin: 0;
+    margin: 0; 
+    display: block; /* ⭐ Было flex, стало block. Это лечит Desktop */
 }
 
-/* Кнопка 54x54 */
+/* ⬇️ КНОПКА */
 .add-category-btn {
     background-color: var(--tg-theme-button-color);
     color: var(--tg-theme-button-text-color);
@@ -834,12 +838,12 @@ a.settings-btn {
     cursor: pointer; 
     width: 54px;
     height: 54px;
-    display: flex;
+    display: flex; /* У кнопки оставляем flex, ей можно */
     align-items: center;
     justify-content: center;
     padding: 0; 
     flex-shrink: 0;
-    margin: 0; /* Сброс отступов браузера */
+    margin: 0;
 }
 
 .category-list {
