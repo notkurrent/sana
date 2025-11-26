@@ -1110,28 +1110,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
                     ctx.restore();
                     
-                    // Лейбл (Expenses/Income)
-                    // ⭐ ИЗМЕНЕНИЕ: Шрифт сильно меньше (160)
-                    const fontSizeLabel = (height / 160).toFixed(2);
+                    // ⭐ 1. Лейбл (ОЧЕНЬ МЕЛКИЙ - 190)
+                    const fontSizeLabel = (height / 190).toFixed(2);
                     ctx.font = `500 ${fontSizeLabel}em sans-serif`;
                     ctx.textBaseline = "middle";
                     ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--tg-theme-hint-color');
 
                     const textLabel = totalLabel;
                     const textXLabel = Math.round((width - ctx.measureText(textLabel).width) / 2);
-                    const textYLabel = height / 2 - (height * 0.08); // Чуть сдвинули
+                    const textYLabel = height / 2 - (height * 0.08); 
 
                     ctx.fillText(textLabel, textXLabel, textYLabel);
 
-                    // Сумма (+$500)
-                    // ⭐ ИЗМЕНЕНИЕ: Шрифт умеренный (110)
-                    const fontSizeValue = (height / 110).toFixed(2);
+                    // ⭐ 2. Сумма (МЕЛКАЯ - 140)
+                    const fontSizeValue = (height / 140).toFixed(2);
                     ctx.font = `bold ${fontSizeValue}em sans-serif`;
                     ctx.fillStyle = totalColor; 
 
                     const textValue = `${totalSign}${formattedTotal}`;
                     const textXValue = Math.round((width - ctx.measureText(textValue).width) / 2);
-                    const textYValue = height / 2 + (height * 0.08); // Чуть сдвинули
+                    const textYValue = height / 2 + (height * 0.08); 
 
                     ctx.fillText(textValue, textXValue, textYValue);
                     
@@ -1152,7 +1150,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 },
                 options: {
                     responsive: true,
-                    // ⭐ ИЗМЕНЕНИЕ: 50% для жирного бублика
+                    // ⭐ ВЕРНУЛИ ЖИРНЫЙ БУБЛИК (50%)
                     cutout: '50%', 
                     plugins: {
                         legend: { display: false }
