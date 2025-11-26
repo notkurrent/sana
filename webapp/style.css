@@ -784,23 +784,21 @@ a.settings-btn {
 
 /* Экран Категорий (Categories) */
 
-/* ⬇️ ИЗМЕНЕНИЕ 1: Резиновая сетка (1fr) для имени + фикс ширины кнопки */
+/* ⬇️ ФИНАЛЬНОЕ ИЗМЕНЕНИЕ: Уменьшаем эмодзи до 60px, чтобы все влезло */
 .add-category-form {
     display: grid;
-    gap: var(--space-sm);
-    margin-bottom: var(--space-lg);
+    gap: 8px; /* Фиксированный gap 8px */
+    margin-bottom: 24px;
     align-items: center;
-    /* 1fr (Имя) | 75px (Смайл) | 54px (Кнопка) */
-    grid-template-columns: 1fr 75px 54px; 
+    /* 1fr (Имя) | 60px (Смайл) | 54px (Кнопка) */
+    grid-template-columns: 1fr 60px 54px; 
     width: 100%;
     box-sizing: border-box;
 }
-/* Убрали media query, так как 1fr сам подстроится под любой экран */
 
-/* ⬇️ ИЗМЕНЕНИЕ 2: Принудительная высота 54px для полей */
 #new-category-name {
     height: 54px; /* Фикс высоты */
-    padding: 0 var(--space-md); /* Убрали вертикальный паддинг, оставили боковой */
+    padding: 0 16px; /* Боковой паддинг */
     font-size: 1rem; 
     border: none; 
     border-radius: 10px;
@@ -808,13 +806,14 @@ a.settings-btn {
     background-color: var(--tg-theme-secondary-bg-color);
     color: var(--tg-theme-text-color); 
     box-sizing: border-box;
-    display: flex;
-    align-items: center;
+    width: 100%;
+    min-width: 0; /* ⭐ ВАЖНО ДЛЯ ANDROID: позволяет полю сжиматься */
+    margin: 0; /* Сброс отступов браузера */
 }
 
 #new-category-icon {
     height: 54px; /* Фикс высоты */
-    padding: 0 var(--space-md); /* Убрали вертикальный паддинг */
+    padding: 0 16px; /* Боковой паддинг */
     font-size: 1rem; 
     text-align: left; 
     border: none; 
@@ -823,11 +822,10 @@ a.settings-btn {
     background-color: var(--tg-theme-secondary-bg-color);
     color: var(--tg-theme-text-color); 
     box-sizing: border-box;
-    display: flex;
-    align-items: center;
+    margin: 0; /* Сброс отступов браузера */
 }
 
-/* ⬇️ ИЗМЕНЕНИЕ 3: Кнопка 54x54 и все выровнено */
+/* Кнопка 54x54 */
 .add-category-btn {
     background-color: var(--tg-theme-button-color);
     color: var(--tg-theme-button-text-color);
@@ -841,6 +839,7 @@ a.settings-btn {
     justify-content: center;
     padding: 0; 
     flex-shrink: 0;
+    margin: 0; /* Сброс отступов браузера */
 }
 
 .category-list {
