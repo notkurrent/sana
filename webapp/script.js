@@ -1089,7 +1089,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     // ⭐ ИСПРАВЛЕНИЕ: Проверяем наличие chartArea
                     if (!chart.chartArea) return; 
 
-                    const { ctx, chartArea: { top, bottom, left, right }, width, height } = chart;
+                    const { ctx, chartArea: { top, bottom, left, right } } = chart;
                     
                     const centerX = (left + right) / 2;
                     const centerY = (top + bottom) / 2;
@@ -1102,20 +1102,24 @@ document.addEventListener("DOMContentLoaded", () => {
                     // 1. Лейбл (Expenses/Income)
                     // Используем (bottom - top) - это высота самого бублика, а не всего канваса
                     const donutHeight = bottom - top;
-                    const fontSizeLabel = (donutHeight / 250).toFixed(2);
+                    // ⭐ УМЕНЬШИЛИ РАЗМЕР ШРИФТА (делитель 320 вместо 250)
+                    const fontSizeLabel = (donutHeight / 320).toFixed(2);
                     ctx.font = `500 ${fontSizeLabel}em sans-serif`;
                     ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--tg-theme-hint-color');
 
                     // Draw Label
-                    ctx.fillText(totalLabel, centerX, centerY - (donutHeight * 0.08));
+                    // ⭐ УМЕНЬШИЛИ ОТСТУП (0.03 вместо 0.08)
+                    ctx.fillText(totalLabel, centerX, centerY - (donutHeight * 0.03));
 
                     // 2. Сумма
-                    const fontSizeValue = (donutHeight / 170).toFixed(2);
+                    // ⭐ УМЕНЬШИЛИ РАЗМЕР ШРИФТА (делитель 200 вместо 170)
+                    const fontSizeValue = (donutHeight / 200).toFixed(2);
                     ctx.font = `bold ${fontSizeValue}em sans-serif`;
                     ctx.fillStyle = totalColor;
 
                     // Draw Value
-                    ctx.fillText(formattedCenterText, centerX, centerY + (donutHeight * 0.08));
+                    // ⭐ УМЕНЬШИЛИ ОТСТУП (0.03 вместо 0.08)
+                    ctx.fillText(formattedCenterText, centerX, centerY + (donutHeight * 0.03));
                     
                     ctx.restore(); // ⭐ CORRECT ORDER: Restore last
                 }
