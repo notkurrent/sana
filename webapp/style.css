@@ -246,7 +246,7 @@ body {
     color: var(--color-expense); 
     border: 1px solid var(--color-expense);
     border-radius: 10px; padding: var(--space-md); cursor: pointer; font-size: 1rem;
-    transition: background 0.2s ease; margin-top: var(--space-lg);
+    transition: background 0.2s ease; margin-top: 0;
 }
 .delete-btn:hover { background-color: var(--color-expense); color: var(--tg-theme-button-text-color); }
 
