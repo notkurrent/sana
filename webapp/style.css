@@ -850,7 +850,7 @@ a.settings-btn {
     display: flex;
     flex-direction: column;
     gap: var(--space-sm);
-    margin-bottom: var(--space-lg);
+    margin-bottom: var(--space-sm); 
 }
 .category-item {
     display: flex;
