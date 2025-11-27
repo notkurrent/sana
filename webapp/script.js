@@ -63,6 +63,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const formatDateForTitle = (date) => headerDateFormatter.format(date);
     const formatTime = (date) => timeFormatter.format(date);
 
+    // ⭐ НОВАЯ ФУНКЦИЯ: Парсит дату, принудительно считая её UTC
+    // Это решает проблему с часовыми поясами (27 vs 28 число)
+    function parseDateFromUTC(dateString) {
+        if (dateString && !dateString.endsWith('Z')) {
+            return new Date(dateString + 'Z');
+        }
+        return new Date(dateString);
+    }
+
     const DOM = {
         screens: document.querySelectorAll(".screen"),
         backdrop: document.getElementById("backdrop"),
@@ -396,7 +405,8 @@ document.addEventListener("DOMContentLoaded", () => {
         const editIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" /></svg>`;
         const trashIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.58.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.84 0a.75.75 0 01-1.5.06l-.3 7.5a.75.75 0 111.5-.06l.3-7.5z" clip-rule="evenodd" /></svg>`;
         
-        const txDate = new Date(tx.date + 'Z');
+        // ⭐ ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ
+        const txDate = parseDateFromUTC(tx.date);
         const formattedTime = formatTime(txDate);
         
         const { icon: customEmoji, name: categoryName } = parseCategory(tx.category);
@@ -452,7 +462,8 @@ document.addEventListener("DOMContentLoaded", () => {
         let currentHeaderDate = ""; 
 
         transactions.forEach(tx => {
-            const txDate = new Date(tx.date);
+            // ⭐ ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ
+            const txDate = parseDateFromUTC(tx.date);
             const dateHeader = formatDateForTitle(txDate);
             
             if (dateHeader !== currentHeaderDate) {
@@ -578,7 +589,10 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         
         DOM.fullForm.amountInput.value = tx.amount;
-        DOM.fullForm.dateInput.value = new Date(tx.date).toISOString().split('T')[0];
+        
+        // ⭐ ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ для подстановки даты в форму
+        const dateObj = parseDateFromUTC(tx.date);
+        DOM.fullForm.dateInput.value = dateObj.toISOString().split('T')[0];
         
         await loadCategoriesForForm(tx.type); 
         DOM.fullForm.categorySelect.value = tx.category_id;
@@ -1044,7 +1058,6 @@ document.addEventListener("DOMContentLoaded", () => {
             
             // 3. Подготовка данных для центра
             const totalSum = totals.reduce((a, b) => a + b, 0);
-            // Форматируем абсолютное значение
             const absTotal = Math.abs(totalSum);
             let compactTotal;
             if (absTotal >= 1000000) compactTotal = (absTotal / 1000000).toFixed(2) + 'M';
@@ -1086,42 +1099,34 @@ document.addEventListener("DOMContentLoaded", () => {
             const centerTextPlugin = {
                 id: 'centerText',
                 beforeDraw: function(chart) {
-                    // ⭐ ИСПРАВЛЕНИЕ: Проверяем наличие chartArea
                     if (!chart.chartArea) return; 
 
                     const { ctx, chartArea: { top, bottom, left, right } } = chart;
-                    
                     const centerX = (left + right) / 2;
                     const centerY = (top + bottom) / 2;
 
-                    ctx.save(); // ⭐ CORRECT ORDER: Save first
-                    
+                    ctx.save(); 
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
 
-                    // 1. Лейбл (Expenses/Income)
-                    // Используем (bottom - top) - это высота самого бублика, а не всего канваса
                     const donutHeight = bottom - top;
-                    // ⭐ УМЕНЬШИЛИ РАЗМЕР ШРИФТА (делитель 320 вместо 250)
                     const fontSizeLabel = (donutHeight / 320).toFixed(2);
                     ctx.font = `500 ${fontSizeLabel}em sans-serif`;
                     ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--tg-theme-hint-color');
 
-                    // Draw Label
-                    // ⭐ УМЕНЬШИЛИ ОТСТУП (0.05 вместо 0.08)
-                    ctx.fillText(totalLabel, centerX, centerY - (donutHeight * 0.05));
+                    const textLabel = totalLabel;
+                    const textXLabel = Math.round(centerX - (ctx.measureText(textLabel).width / 2));
+                    const textYLabel = centerY - (donutHeight * 0.03); 
 
-                    // 2. Сумма
-                    // ⭐ УМЕНЬШИЛИ РАЗМЕР ШРИФТА (делитель 200 вместо 170)
+                    ctx.fillText(totalLabel, centerX, centerY - (donutHeight * 0.03));
+
                     const fontSizeValue = (donutHeight / 200).toFixed(2);
                     ctx.font = `bold ${fontSizeValue}em sans-serif`;
                     ctx.fillStyle = totalColor;
 
-                    // Draw Value
-                    // ⭐ УМЕНЬШИЛИ ОТСТУП (0.05 вместо 0.08)
-                    ctx.fillText(formattedCenterText, centerX, centerY + (donutHeight * 0.05));
+                    ctx.fillText(formattedCenterText, centerX, centerY + (donutHeight * 0.03));
                     
-                    ctx.restore(); // ⭐ CORRECT ORDER: Restore last
+                    ctx.restore(); 
                 }
             };
 
@@ -1158,11 +1163,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
         } catch (error) {
             renderErrorState(DOM.analytics.summaryList, () => {
-                DOM.analytics.summaryList.innerHTML = `<p class="list-placeholder">Loading summary...</p>`;
                 loadSummaryData();
             }, "Failed to load summary data.");
-            if (state.chart) state.chart.destroy();
-            DOM.analytics.doughnutChartCanvas.classList.add('hidden');
         }
     }
     
