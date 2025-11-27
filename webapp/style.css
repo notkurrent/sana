@@ -125,7 +125,7 @@ body {
     border-radius: 12px; 
     font-size: 1.2rem;
     font-weight: 600;
-    margin-bottom: 20px;
+    margin-bottom: var(--space-lg);
     position: sticky;
     top: calc(env(safe-area-inset-top) + 50px);
     z-index: 5; 
@@ -160,7 +160,8 @@ body {
     font-weight: 600;
     color: var(--tg-theme-text-color);
     padding: 10px 15px 8px 15px;
-    margin-top: var(--space-sm);
+    margin-top: var(--space-lg);
+    margin-bottom: 0; 
     border-radius: 12px;
     position: sticky;
     top: calc(env(safe-area-inset-top) + 50px + 65px + 10px);
