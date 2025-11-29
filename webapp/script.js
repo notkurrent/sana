@@ -261,7 +261,12 @@ document.addEventListener("DOMContentLoaded", () => {
         }, 0);
         
         const sign = newBalance < 0 ? "-" : ""; 
-        const newBalanceText = `${sign}${formatCurrency(Math.abs(newBalance))}`;
+        const balanceFormatter = new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: 0, 
+            maximumFractionDigits: 2  
+        });
+
+        const newBalanceText = `${sign}${state.currencySymbol}${balanceFormatter.format(Math.abs(newBalance))}`;
         DOM.home.balanceAmount.textContent = newBalanceText;
         
         if (newBalanceText === oldBalanceText || !container || state.isInitialLoad) {
