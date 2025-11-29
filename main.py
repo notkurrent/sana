@@ -457,7 +457,7 @@ def update_transaction(
     update: TransactionUpdate, 
     cursor = Depends(get_db),
     user_id: str = Depends(get_validated_user_id),
-    x_timezone_offset: Optional[str] = Header(None) # Получаем заголовок
+    x_timezone_offset: Optional[str] = Header(None)
 ):
     fields_to_update = []
     values = []
@@ -469,10 +469,20 @@ def update_transaction(
         fields_to_update.append("category_id = %s")
         values.append(update.category_id)
     if update.date is not None:
-        # Передаем offset в функцию
-        tx_date_str = _get_date_for_storage(update.date, x_timezone_offset)
-        fields_to_update.append("date = %s")
-        values.append(tx_date_str)
+        cursor.execute("SELECT date FROM transactions WHERE id = %s AND user_id = %s", (transaction_id, user_id))
+        original_tx = cursor.fetchone()
+        
+        if original_tx:
+            original_dt = original_tx['date']
+            new_date_obj = datetime.strptime(update.date, '%Y-%m-%d').date()
+            final_dt = original_dt.replace(year=new_date_obj.year, month=new_date_obj.month, day=new_date_obj.day)
+            
+            fields_to_update.append("date = %s")
+            values.append(final_dt.isoformat())
+        else:
+            tx_date_str = _get_date_for_storage(update.date, x_timezone_offset)
+            fields_to_update.append("date = %s")
+            values.append(tx_date_str)
 
     if not fields_to_update:
         raise HTTPException(status_code=400, detail="No fields to update")

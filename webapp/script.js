@@ -256,19 +256,26 @@ document.addEventListener("DOMContentLoaded", () => {
         const container = DOM.home.balanceAmount.closest('.total-container');
         const oldBalanceText = DOM.home.balanceAmount.textContent;
         
+        // Считаем баланс
         const newBalance = state.transactions.reduce((acc, tx) => { 
             return tx.type === 'income' ? acc + tx.amount : acc - tx.amount;
         }, 0);
         
         const sign = newBalance < 0 ? "-" : ""; 
+        const absBalance = Math.abs(newBalance);
+        
+        const hasCents = absBalance % 1 !== 0;
+
         const balanceFormatter = new Intl.NumberFormat('en-US', {
-            minimumFractionDigits: 0, 
+            minimumFractionDigits: hasCents ? 2 : 0, 
             maximumFractionDigits: 2  
         });
 
-        const newBalanceText = `${sign}${state.currencySymbol}${balanceFormatter.format(Math.abs(newBalance))}`;
+        const newBalanceText = `${sign}${state.currencySymbol}${balanceFormatter.format(absBalance)}`;
+        
         DOM.home.balanceAmount.textContent = newBalanceText;
         
+        // Анимация (мигание)
         if (newBalanceText === oldBalanceText || !container || state.isInitialLoad) {
             return;
         }
