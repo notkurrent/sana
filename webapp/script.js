@@ -1392,8 +1392,12 @@ document.addEventListener("DOMContentLoaded", () => {
             const item = document.createElement('div');
             item.className = 'category-item';
             
+            let badgeHtml = '';
             let deleteButtonHtml = '';
-            if (cat.user_id !== null) {
+
+            if (cat.user_id === null) {
+                badgeHtml = `<span class="default-badge">Default</span>`;
+            } else {
                 deleteButtonHtml = `
                     <button class="delete-category-btn" data-id="${cat.id}">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
@@ -1404,7 +1408,10 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             item.innerHTML = `
-                <span>${cat.name}</span>
+                <div style="display: flex; align-items: center;">
+                    <span>${cat.name}</span>
+                    ${badgeHtml}
+                </div>
                 ${deleteButtonHtml}
             `;
             
@@ -1495,8 +1502,11 @@ document.addEventListener("DOMContentLoaded", () => {
                     tg.HapticFeedback.notificationOccurred('success');
                     await loadAllCategories(); 
                     loadCategoriesScreen(); 
+
+                    await loadTransactions();
                     
                 } catch (error) {
+                    console.error(error);
                 }
             }
         });

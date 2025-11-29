@@ -303,7 +303,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
     position: relative;
     z-index: 2;
     background-color: var(--tg-theme-secondary-bg-color);
@@ -853,6 +853,7 @@ a.settings-btn {
     gap: var(--space-sm);
     margin-bottom: var(--space-sm); 
 }
+/* Обновленный стиль элемента списка */
 .category-item {
     display: flex;
     justify-content: space-between;
@@ -862,6 +863,37 @@ a.settings-btn {
     border-radius: 10px;
     font-size: 1rem;
     font-weight: 500;
+    gap: 10px; /* Отступ между текстом и кнопкой удаления */
+}
+
+/* Контейнер для Имени + Бейджа (тот самый div, который мы создали в JS) */
+.category-item > div:first-child {
+    display: flex;
+    align-items: center;
+    overflow: hidden; /* Чтобы длинный текст не ломал верстку */
+    flex-grow: 1;     /* Занимать все свободное место */
+}
+
+/* Название категории */
+.category-item > div:first-child span:first-child {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis; /* Длинный текст превратится в "Entertain..." */
+    flex-shrink: 1; /* Разрешаем тексту сжиматься */
+}
+
+/* Бейджик Default */
+.default-badge {
+    font-size: 0.75rem; /* 12px */
+    font-weight: 500;
+    color: var(--tg-theme-hint-color);
+    background-color: rgba(var(--tg-theme-text-color-rgb), 0.08);
+    padding: 3px 8px;
+    border-radius: 6px;
+    margin-left: 8px;
+    flex-shrink: 0; /* ЗАПРЕЩАЕМ бейджику сжиматься, он всегда виден целиком */
+    display: inline-block;
+    line-height: 1;
 }
 .delete-category-btn {
     background: none;
