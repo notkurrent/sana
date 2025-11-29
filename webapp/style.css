@@ -369,6 +369,8 @@ body {
     bottom: 0;
     width: 90px;
     background-color: var(--color-expense);
+    border-top-right-radius: 10px;
+    border-bottom-right-radius: 10px;
     color: white;
     display: flex;
     align-items: center;
