@@ -55,7 +55,7 @@ document.addEventListener("DOMContentLoaded", () => {
         hour: 'numeric', minute: '2-digit', hour12: true
     });
     const headerDateFormatter = new Intl.DateTimeFormat('en-US', {
-        year: 'numeric', month: 'long', day: 'numeric'
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
     });
     const preciseNumberFormatter = new Intl.NumberFormat('en-US', {
         style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2
@@ -1056,7 +1056,10 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             
             DOM.analytics.doughnutChartCanvas.classList.remove('hidden');
-            const labels = data.map(item => parseCategory(item.category).name); 
+            const labels = data.map(item => {
+                const rawName = parseCategory(item.category).name;
+                return rawName.length > 15 ? rawName.substring(0, 15) + '...' : rawName;
+            }); 
             const totals = data.map(item => item.total);
             
             // 3. Подготовка данных для центра

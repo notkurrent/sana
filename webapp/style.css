@@ -310,24 +310,45 @@ body {
     transition: transform 0.3s ease;
 }
 
+/* 1. Контейнер текста (Категория + Время) */
 .tx-info {
     display: flex;
     flex-direction: column;
     gap: var(--space-xs);
     align-items: flex-start;
+    
+    /* 🔥 МАГИЯ: Позволяем контейнеру сжиматься, если места мало */
+    flex: 1; 
+    min-width: 0; 
+    margin-right: 10px; /* Отступ от суммы */
 }
-.tx-category { font-size: 1rem; font-weight: 500; }
+
+/* 2. Само название категории */
+.tx-category {
+    font-size: 1rem;
+    font-weight: 500;
+    
+    /* 🔥 ОБРЕЗКА ТЕКСТА */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;      /* Занимать всю ширину контейнера */
+    display: block;   /* Важно для span, чтобы работала ширина */
+}
+
 .tx-time { font-size: 0.8rem; color: var(--tg-theme-hint-color); }
 
 .tx-amount { font-weight: 600; }
 .tx-amount.income { color: var(--color-income); }
 .tx-amount.expense { color: var(--color-expense); }
 
+/* 3. Детали справа (Сумма + Карандаш) */
 .expense-item-details {
     display: flex;
     align-items: center;
     gap: var(--space-sm);
     font-size: 1rem;
+    flex-shrink: 0; /* 🔥 ЗАПРЕЩАЕМ сжимать сумму и кнопку */
 }
 .edit-btn {
     background: none; border: none;
@@ -594,9 +615,27 @@ body {
     padding: var(--space-md);
     border-radius: 10px;
     font-size: 1rem;
+    gap: 15px; /* Зазор между текстом и суммой */
 }
-.summary-list-item .category { font-weight: 500; }
-.summary-list-item .amount { font-weight: 600; color: var(--color-expense); }
+
+/* Название категории в списке */
+.summary-list-item .category {
+    font-weight: 500;
+    
+    /* 🔥 ОБРЕЗКА */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;        /* Занимать всё свободное место */
+    min-width: 0;   /* Разрешить сжатие */
+}
+
+/* Сумма */
+.summary-list-item .amount {
+    font-weight: 600;
+    white-space: nowrap; /* Сумму не переносить */
+    flex-shrink: 0;      /* Сумму не сжимать */
+}
 
 /* Экран Аналитики (Calendar) */
 .calendar-controls {
@@ -947,16 +986,19 @@ a.settings-btn {
 }
 
 .sheet-header {
-    padding: var(--space-md) var(--space-md);
+    padding: var(--space-md);
     text-align: center;
     border-bottom: 1px solid rgba(var(--tg-theme-hint-color-rgb), 0.2);
-    flex-shrink: 0; 
-    background-color: var(--tg-theme-tertiary-bg-color); 
+    flex-shrink: 0;
+    background-color: var(--tg-theme-tertiary-bg-color);
     position: sticky;
     top: 0;
     z-index: 10;
     touch-action: none;
     cursor: grab;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 .sheet-handle {
     width: 40px;
@@ -969,6 +1011,10 @@ a.settings-btn {
     margin: 0;
     font-size: 1.2rem;
     font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 80%;
 }
 
 #sheet-content-wrapper {
