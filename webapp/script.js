@@ -32,7 +32,8 @@ document.addEventListener("DOMContentLoaded", () => {
         summaryType: 'expense', 
         categoryType: 'expense',
         aiRange: 'month',
-        calendarSummary: { income: 0, expense: 0, net: 0 }
+        calendarSummary: { income: 0, expense: 0, net: 0 },
+        isLoading: false
     };
 
     let swipeStartX = 0;
@@ -1023,11 +1024,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function loadSummaryData() {
+        if (!tgInitData) return;
+        if (state.isLoading) return;
+        state.isLoading = true;
+        
         DOM.analytics.summaryList.innerHTML = `<p class="list-placeholder">Loading summary...</p>`;
         if (state.chart) state.chart.destroy();
         DOM.analytics.doughnutChartCanvas.classList.add('hidden');
-        
-        if (!tgInitData) return;
 
         // ⭐ ЛОГИКА: Выбор API параметра и Цветов
         const isExpense = state.summaryType === 'expense';
@@ -1165,6 +1168,8 @@ document.addEventListener("DOMContentLoaded", () => {
             renderErrorState(DOM.analytics.summaryList, () => {
                 loadSummaryData();
             }, "Failed to load summary data.");
+        } finally {
+        state.isLoading = false; 
         }
     }
     
