@@ -1,378 +1,473 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8" />
     <title>Sana</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Onest:wght@700&display=swap" rel="stylesheet">
-    
-    <link rel="stylesheet" href="/static/style.css?v=3.5"> 
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Onest:wght@700&display=swap" rel="stylesheet" />
+
+    <link rel="stylesheet" href="/static/style.css?v=3.6" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-    
-</head>
-<body>
-
+  </head>
+  <body>
     <div id="app-header">
-        <h1 class="logo-font">SANA</h1>
+      <h1 class="logo-font">SANA</h1>
     </div>
 
     <main class="content">
-        
-        <div id="home-screen" class="screen">
-            <div class="total-container">
-                <span>Balance:</span> 
-                <span id="balance-amount">$0.00</span>
-            </div>
-            <div id="transactions-list" class="transactions-list">
-                </div>
+      <div id="home-screen" class="screen">
+        <div class="total-container">
+          <span>Balance:</span>
+          <span id="balance-amount">$0.00</span>
         </div>
-        
-        <div id="analytics-screen" class="screen hidden">
-            
-            <div class="segmented-control" style="margin-bottom: 20px;">
-                <button id="seg-btn-summary" class="seg-button active">Summary</button>
-                <button id="seg-btn-calendar" class="seg-button">Calendar</button>
-            </div>
+        <div id="transactions-list" class="transactions-list"></div>
+      </div>
 
-            <div id="summary-pane" class="analytics-pane">
-                
-                <h2 class="form-title" style="margin-bottom: 15px;">Statistics</h2>
-
-                <div id="summary-type-filter" class="segmented-control date-filter-control" style="margin-bottom: 10px;">
-                    <button class="seg-button active" data-type="expense">Expense</button>
-                    <button class="seg-button" data-type="income">Income</button>
-                </div>
-
-                <div id="summary-range-filter" class="segmented-control date-filter-control">
-                    <button class="seg-button" data-range="day">Day</button>
-                    <button class="seg-button" data-range="week">Week</button>
-                    <button class="seg-button active" data-range="month">Month</button>
-                    <button class="seg-button" data-range="year">Year</button>
-                    <button class="seg-button" data-range="all">All</button>
-                </div>
-                
-                <div class="chart-container">
-                    <canvas id="doughnut-chart"></canvas>
-                </div>
-                <div id="summary-list" class="summary-list">
-                    </div>
-            </div>
-
-            <div id="calendar-pane" class="analytics-pane hidden">
-                
-                <div class="calendar-controls">
-                    <button id="prev-month-btn" class="month-nav-btn" aria-label="Previous month">&lt;</button>
-                    <div class="month-year-picker">
-                        
-                        <div class="custom-select-wrapper">
-                            <select id="month-select" aria-label="Select month"></select>
-                            <span class="custom-select-arrow"></span>
-                        </div>
-                        
-                        <div class="custom-select-wrapper">
-                            <select id="year-select" aria-label="Select year"></select>
-                            <span class="custom-select-arrow"></span>
-                        </div>
-                        
-                    </div>
-                    <button id="next-month-btn" class="month-nav-btn" aria-label="Next month">&gt;</button>
-                </div>
-                
-                <div id="calendar-container">
-                    </div>
-                
-                <div class="calendar-summary-container">
-                    <div id="calendar-summary-box-income" class="summary-box">
-                        <span class="summary-label">Income</span>
-                        <span id="calendar-summary-income" class="summary-value income">$0.00</span>
-                    </div>
-                    <div id="calendar-summary-box-expense" class="summary-box">
-                        <span class="summary-label">Expense</span>
-                        <span id="calendar-summary-expense" class="summary-value expense">$0.00</span>
-                    </div>
-                    <div id="calendar-summary-box-net" class="summary-box">
-                        <span class="summary-label">Net</span>
-                        <span id="calendar-summary-net" class="summary-value">$0.00</span>
-                    </div>
-                </div>
-                
-                <p class="summary-tap-hint">Tap a box for precise details</p>
-                </div>
+      <div id="analytics-screen" class="screen hidden">
+        <div class="segmented-control" style="margin-bottom: 20px">
+          <button id="seg-btn-summary" class="seg-button active">Summary</button>
+          <button id="seg-btn-calendar" class="seg-button">Calendar</button>
         </div>
 
-        <div id="ai-screen" class="screen hidden">
-            <h2 class="form-title">AI Advisor</h2>
-            
-            <div class="settings-group">
-                <label>Select Period for Feature</label>
-                <div id="ai-date-filter" class="segmented-control date-filter-control">
-                    <button class="seg-button" data-range="day">Day</button>
-                    <button class="seg-button" data-range="week">Week</button>
-                    <button class="seg-button active" data-range="month">Month</button>
-                    <button class="seg-button" data-range="year">Year</button>
-                    <button class="seg-button" data-range="all">All</button>
-                </div>
-            </div>
+        <div id="summary-pane" class="analytics-pane">
+          <h2 class="form-title" style="margin-bottom: 15px">Statistics</h2>
 
-            <div id="ai-features-list">
-                
-                <button id="ai-btn-advice" class="ai-feature-card">
-                    <div class="ai-feature-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0111.186 0z" />
-                        </svg>
-                    </div>
-                    <div class="ai-feature-text">
-                        <h4>Get Advice</h4>
-                        <p>An actionable tip based on this month's spending.</p>
-                    </div>
-                    <div class="ai-feature-arrow">&gt;</div>
-                </button>
+          <div id="summary-type-filter" class="segmented-control date-filter-control" style="margin-bottom: 10px">
+            <button class="seg-button active" data-type="expense">Expense</button>
+            <button class="seg-button" data-type="income">Income</button>
+          </div>
 
-                <button id="ai-btn-summary" class="ai-feature-card">
-                    <div class="ai-feature-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z" />
-                        </svg>
-                    </div>
-                    <div class="ai-feature-text">
-                        <h4>AI Summary</h4>
-                        <p>A quick summary of totals for this month.</p>
-                    </div>
-                    <div class="ai-feature-arrow">&gt;</div>
-                </button>
+          <div id="summary-range-filter" class="segmented-control date-filter-control">
+            <button class="seg-button" data-range="day">Day</button>
+            <button class="seg-button" data-range="week">Week</button>
+            <button class="seg-button active" data-range="month">Month</button>
+            <button class="seg-button" data-range="year">Year</button>
+            <button class="seg-button" data-range="all">All</button>
+          </div>
 
-                <button id="ai-btn-anomaly" class="ai-feature-card">
-                    <div class="ai-feature-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-                        </svg>
-                    </div>
-                    <div class="ai-feature-text">
-                        <h4>Find Anomaly</h4>
-                        <p>Find the largest single expense for this month.</p>
-                    </div>
-                    <div class="ai-feature-arrow">&gt;</div>
-                </button>
-            </div>
-
-            <div id="ai-result-container" class="ai-result-container hidden">
-                <h4 id="ai-result-title">Here's your advice</h4>
-                <p id="ai-result-body">Thinking...</p>
-                <button id="ai-result-back-btn" class="cancel-btn">Back</button>
-            </div>
-        </div>
-        
-        <div id="settings-screen" class="screen hidden">
-            <h2 class="form-title">Settings</h2>
-            
-            <div class="settings-group">
-                <label for="currency-select">Currency</label>
-                
-                <div class="custom-select-wrapper">
-                    <select id="currency-select">
-                        <option value="$">USD ($)</option>
-                        <option value="₸">KZT (₸)</option>
-                        <option value="€">EUR (€)</option>
-                        <option value="₽">RUB (₽)</option>
-                        <option value="£">GBP (£)</option>
-                        <option value="₺">TRY (₺)</option>
-                        <option value="₴">UAH (₴)</option>
-                    </select>
-                    <span class="custom-select-arrow"></span>
-                </div>
-            </div>
-            
-            <div class="settings-group">
-                <label>Community & Support</label>
-                
-                <a href="https://t.me/+w2vW3Pgrlok1N2Uy" target="_blank" class="settings-btn support-btn">
-                    <span>Join Discussion Group</span>
-                    
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="btn-icon">
-                         <path d="M1.946 9.315c-.522-.174-.527-.455.01-.634l19.087-6.362c.529-.176.832.12.684.638l-5.454 19.086c-.15.529-.455.547-.679.045L12 14l6-8-8 6-8.054-2.685z"/>
-                    </svg>
-                </a>
-            </div>
-            <div class="settings-group">
-                <label>Danger Zone</label>
-                <button id="reset-data-btn" class="settings-btn reset-btn">Reset All Data</button>
-            </div>
+          <div class="chart-container">
+            <canvas id="doughnut-chart"></canvas>
+          </div>
+          <div id="summary-list" class="summary-list"></div>
         </div>
 
-        <div id="categories-screen" class="screen hidden">
-            <h2 class="form-title">Manage Categories</h2>
+        <div id="calendar-pane" class="analytics-pane hidden">
+          <div class="calendar-controls">
+            <button id="prev-month-btn" class="month-nav-btn" aria-label="Previous month">&lt;</button>
+            <div class="month-year-picker">
+              <div class="custom-select-wrapper">
+                <select id="month-select" aria-label="Select month"></select>
+                <span class="custom-select-arrow"></span>
+              </div>
 
+              <div class="custom-select-wrapper">
+                <select id="year-select" aria-label="Select year"></select>
+                <span class="custom-select-arrow"></span>
+              </div>
+            </div>
+            <button id="next-month-btn" class="month-nav-btn" aria-label="Next month">&gt;</button>
+          </div>
+
+          <div id="calendar-container"></div>
+
+          <div class="calendar-summary-container">
+            <div id="calendar-summary-box-income" class="summary-box">
+              <span class="summary-label">Income</span>
+              <span id="calendar-summary-income" class="summary-value income">$0.00</span>
+            </div>
+            <div id="calendar-summary-box-expense" class="summary-box">
+              <span class="summary-label">Expense</span>
+              <span id="calendar-summary-expense" class="summary-value expense">$0.00</span>
+            </div>
+            <div id="calendar-summary-box-net" class="summary-box">
+              <span class="summary-label">Net</span>
+              <span id="calendar-summary-net" class="summary-value">$0.00</span>
+            </div>
+          </div>
+
+          <p class="summary-tap-hint">Tap a box for precise details</p>
+        </div>
+      </div>
+
+      <div id="ai-screen" class="screen hidden">
+        <h2 class="form-title">AI Advisor</h2>
+
+        <div class="settings-group">
+          <label>Select Period for Feature</label>
+          <div id="ai-date-filter" class="segmented-control date-filter-control">
+            <button class="seg-button" data-range="day">Day</button>
+            <button class="seg-button" data-range="week">Week</button>
+            <button class="seg-button active" data-range="month">Month</button>
+            <button class="seg-button" data-range="year">Year</button>
+            <button class="seg-button" data-range="all">All</button>
+          </div>
+        </div>
+
+        <div id="ai-features-list">
+          <button id="ai-btn-advice" class="ai-feature-card">
+            <div class="ai-feature-icon">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke-width="2"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0111.186 0z"
+                />
+              </svg>
+            </div>
+            <div class="ai-feature-text">
+              <h4>Get Advice</h4>
+              <p>An actionable tip based on this month's spending.</p>
+            </div>
+            <div class="ai-feature-arrow">&gt;</div>
+          </button>
+
+          <button id="ai-btn-summary" class="ai-feature-card">
+            <div class="ai-feature-icon">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke-width="2"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z"
+                />
+              </svg>
+            </div>
+            <div class="ai-feature-text">
+              <h4>AI Summary</h4>
+              <p>A quick summary of totals for this month.</p>
+            </div>
+            <div class="ai-feature-arrow">&gt;</div>
+          </button>
+
+          <button id="ai-btn-anomaly" class="ai-feature-card">
+            <div class="ai-feature-icon">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke-width="2"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+                />
+              </svg>
+            </div>
+            <div class="ai-feature-text">
+              <h4>Find Anomaly</h4>
+              <p>Find the largest single expense for this month.</p>
+            </div>
+            <div class="ai-feature-arrow">&gt;</div>
+          </button>
+        </div>
+
+        <div id="ai-result-container" class="ai-result-container hidden">
+          <h4 id="ai-result-title">Here's your advice</h4>
+          <p id="ai-result-body">Thinking...</p>
+          <button id="ai-result-back-btn" class="cancel-btn">Back</button>
+        </div>
+      </div>
+
+      <div id="settings-screen" class="screen hidden">
+        <h2 class="form-title">Settings</h2>
+
+        <div class="settings-group">
+          <label for="currency-select">Currency</label>
+
+          <div class="custom-select-wrapper">
+            <select id="currency-select">
+              <option value="$">USD ($)</option>
+              <option value="₸">KZT (₸)</option>
+              <option value="€">EUR (€)</option>
+              <option value="₽">RUB (₽)</option>
+              <option value="£">GBP (£)</option>
+              <option value="₺">TRY (₺)</option>
+              <option value="₴">UAH (₴)</option>
+            </select>
+            <span class="custom-select-arrow"></span>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <label>Community & Support</label>
+
+          <a href="https://t.me/+w2vW3Pgrlok1N2Uy" target="_blank" class="settings-btn support-btn">
+            <span>Join Discussion Group</span>
+
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="btn-icon">
+              <path
+                d="M1.946 9.315c-.522-.174-.527-.455.01-.634l19.087-6.362c.529-.176.832.12.684.638l-5.454 19.086c-.15.529-.455.547-.679.045L12 14l6-8-8 6-8.054-2.685z"
+              />
+            </svg>
+          </a>
+        </div>
+        <div class="settings-group">
+          <label>Danger Zone</label>
+          <button id="reset-data-btn" class="settings-btn reset-btn">Reset All Data</button>
+        </div>
+      </div>
+
+      <div id="categories-screen" class="screen hidden">
+        <h2 class="form-title">Manage Categories</h2>
+
+        <div class="segmented-control">
+          <button id="cat-seg-btn-expense" class="seg-button active">Expense</button>
+          <button id="cat-seg-btn-income" class="seg-button">Income</button>
+        </div>
+
+        <div class="add-category-form">
+          <input type="text" id="new-category-name" placeholder="Category Name" aria-label="New category name" />
+          <input
+            type="text"
+            id="new-category-icon"
+            placeholder="Emoji"
+            maxlength="2"
+            aria-label="New category icon (emoji)"
+          />
+
+          <button id="add-category-btn" class="add-category-btn" aria-label="Add new category">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke-width="2.5"
+              stroke="currentColor"
+              width="24"
+              height="24"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6" />
+            </svg>
+          </button>
+        </div>
+
+        <div id="categories-list" class="category-list"></div>
+
+        <div class="sticky-footer">
+          <button id="categories-back-btn" class="save-btn">Back</button>
+        </div>
+      </div>
+
+      <div id="full-form-screen" class="screen hidden">
+        <h2 id="form-title" class="form-title">New Transaction</h2>
+        <div class="input-group">
+          <div id="form-type-wrapper">
+            <label>Type</label>
             <div class="segmented-control">
-                <button id="cat-seg-btn-expense" class="seg-button active">Expense</button>
-                <button id="cat-seg-btn-income" class="seg-button">Income</button>
+              <button id="form-type-expense" class="seg-button active" data-type="expense">Expense</button>
+              <button id="form-type-income" class="seg-button" data-type="income">Income</button>
             </div>
+          </div>
 
-            <div class="add-category-form">
-                <input type="text" id="new-category-name" placeholder="Category Name" aria-label="New category name">
-                <input type="text" id="new-category-icon" placeholder="Emoji" maxlength="2" aria-label="New category icon (emoji)">
-                
-                <button id="add-category-btn" class="add-category-btn" aria-label="Add new category">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" width="24" height="24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6" />
-                    </svg>
-                </button>
-            </div>
+          <label for="category-select">Category</label>
+          <select id="category-select">
+            <option value="">Loading categories...</option>
+          </select>
 
-            <div id="categories-list" class="category-list">
-                </div>
+          <label for="transaction-amount">Amount</label>
+          <input type="text" inputmode="decimal" id="transaction-amount" placeholder="0.00" />
+          <label for="transaction-date">Date</label>
+          <input type="date" id="transaction-date" />
 
-            <div class="sticky-footer">
-                <button id="categories-back-btn" class="save-btn">Back</button>
-            </div>
+          <button id="save-btn" class="save-btn">Save Transaction</button>
+          <button id="cancel-btn" class="cancel-btn">Cancel</button>
+          <button id="delete-btn" class="delete-btn hidden">Delete Transaction</button>
+        </div>
+      </div>
+
+      <div id="quick-add-screen" class="screen hidden">
+        <div class="quick-add-header">
+          <h2 class="form-title">Quick Add</h2>
+          <button id="quick-add-manage-categories-btn" class="quick-add-manage-btn">Manage</button>
         </div>
 
-        <div id="full-form-screen" class="screen hidden">
-            <h2 id="form-title" class="form-title">New Transaction</h2>
-            <div class="input-group">
-                
-                <div id="form-type-wrapper">
-                    <label>Type</label>
-                    <div class="segmented-control">
-                        <button id="form-type-expense" class="seg-button active" data-type="expense">Expense</button>
-                        <button id="form-type-income" class="seg-button" data-type="income">Income</button>
-                    </div>
-                </div>
-                
-                <label for="category-select">Category</label>
-                <select id="category-select">
-                    <option value="">Loading categories...</option>
-                </select>
-                
-                <label for="transaction-amount">Amount</label>
-                <input type="text" inputmode="decimal" id="transaction-amount" placeholder="0.00">
-                <label for="transaction-date">Date</label>
-                <input type="date" id="transaction-date">
-                
-                <button id="save-btn" class="save-btn">Save Transaction</button>
-                <button id="cancel-btn" class="cancel-btn">Cancel</button>
-                <button id="delete-btn" class="delete-btn hidden">Delete Transaction</button>
-            </div>
-        </div>
+        <h3 class="quick-add-subheader">EXPENSE</h3>
+        <div id="quick-add-grid-expense" class="category-grid"></div>
 
-        <div id="quick-add-screen" class="screen hidden">
-            
-            <div class="quick-add-header">
-                <h2 class="form-title">Quick Add</h2>
-                <button id="quick-add-manage-categories-btn" class="quick-add-manage-btn">
-                    Manage
-                </button>
-            </div>
-            
-            <h3 class="quick-add-subheader">EXPENSE</h3>
-            <div id="quick-add-grid-expense" class="category-grid">
-                </div>
-            
-            <h3 class="quick-add-subheader">INCOME</h3>
-            <div id="quick-add-grid-income" class="category-grid">
-                </div>
-            
-            <div class="sticky-footer">
-                <div class="quick-manual-controls">
-                    <button id="quick-manual-expense" class="quick-manual-btn expense" aria-label="Add full expense transaction">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" />
-                        </svg>
-                    </button>
-                    <button id="quick-manual-income" class="quick-manual-btn income" aria-label="Add full income transaction">
-                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                        </svg>
-                    </button>
-                </div>
-                <p class="sticky-footer-text">
-                    Tap to add a full Expense or Income transaction.
-                </p>
-            </div>
+        <h3 class="quick-add-subheader">INCOME</h3>
+        <div id="quick-add-grid-income" class="category-grid"></div>
 
+        <div class="sticky-footer">
+          <div class="quick-manual-controls">
+            <button
+              id="quick-manual-expense"
+              class="quick-manual-btn expense"
+              aria-label="Add full expense transaction"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke-width="3"
+                stroke="currentColor"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" />
+              </svg>
+            </button>
+            <button id="quick-manual-income" class="quick-manual-btn income" aria-label="Add full income transaction">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke-width="3"
+                stroke="currentColor"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+            </button>
+          </div>
+          <p class="sticky-footer-text">Tap to add a full Expense or Income transaction.</p>
         </div>
-        
-    </main> 
-    
+      </div>
+    </main>
+
     <nav class="tab-bar">
-        <button id="tab-home" class="tab-button active" aria-label="Home">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="24" height="24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
-            </svg>
-            <span>Home</span>
-        </button>
-        <button id="tab-analytics" class="tab-button" aria-label="Analytics">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="24" height="24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25A1.125 1.125 0 019.75 19.875V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
-            </svg>
-            <span>Analytics</span>
-        </button>
-        <button id="tab-add" class="tab-button-add" aria-label="Add transaction">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="28" height="28">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6" />
-            </svg>
-        </button>
-        <button id="tab-ai" class="tab-button" aria-label="AI Advisor">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="24" height="24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 0 0 2.25-2.25V6.75a2.25 2.25 0 0 0-2.25-2.25H6.75A2.25 2.25 0 0 0 4.5 6.75v10.5a2.25 2.25 0 0 0 2.25 2.25Zm.75-12h9v9h-9v-9Z" />
-            </svg>
+      <button id="tab-home" class="tab-button active" aria-label="Home">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke-width="2"
+          stroke="currentColor"
+          width="24"
+          height="24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"
+          />
+        </svg>
+        <span>Home</span>
+      </button>
+      <button id="tab-analytics" class="tab-button" aria-label="Analytics">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke-width="2"
+          stroke="currentColor"
+          width="24"
+          height="24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25A1.125 1.125 0 019.75 19.875V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"
+          />
+        </svg>
+        <span>Analytics</span>
+      </button>
+      <button id="tab-add" class="tab-button-add" aria-label="Add transaction">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke-width="2"
+          stroke="currentColor"
+          width="28"
+          height="28"
+        >
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6" />
+        </svg>
+      </button>
+      <button id="tab-ai" class="tab-button" aria-label="AI Advisor">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke-width="2"
+          stroke="currentColor"
+          width="24"
+          height="24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 0 0 2.25-2.25V6.75a2.25 2.25 0 0 0-2.25-2.25H6.75A2.25 2.25 0 0 0 4.5 6.75v10.5a2.25 2.25 0 0 0 2.25 2.25Zm.75-12h9v9h-9v-9Z"
+          />
+        </svg>
 
-            <span>AI</span>
-        </button>
-        <button id="tab-settings" class="tab-button" aria-label="Settings">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="24" height="24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 0 1 1.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.559.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 0 1-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 0 1-.12-1.45l.527-.737c.25-.35.272-.806.108-1.204-.165-.397-.506-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 0 1 .12-1.45l.773-.773a1.125 1.125 0 0 1 1.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894Z" />
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-            </svg>
+        <span>AI</span>
+      </button>
+      <button id="tab-settings" class="tab-button" aria-label="Settings">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke-width="2"
+          stroke="currentColor"
+          width="24"
+          height="24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 0 1 1.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.559.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 0 1-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 0 1-.12-1.45l.527-.737c.25-.35.272-.806.108-1.204-.165-.397-.506-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 0 1 .12-1.45l.773-.773a1.125 1.125 0 0 1 1.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894Z"
+          />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+        </svg>
 
-            <span>Settings</span>
-        </button>
+        <span>Settings</span>
+      </button>
     </nav>
-    
+
     <div id="backdrop" class="backdrop hidden"></div>
-    
+
     <div id="day-details-sheet" class="bottom-sheet hidden">
-        <div class="sheet-header">
-            <div class="sheet-handle"></div>
-            <h3 id="sheet-date-title">November 4, 2025</h3>
-        </div>
-        <div id="sheet-content-wrapper">
-            <div id="sheet-transactions-list" class="sheet-transactions-list">
-                </div>
-        </div>
+      <div class="sheet-header">
+        <div class="sheet-handle"></div>
+        <h3 id="sheet-date-title">November 4, 2025</h3>
+      </div>
+      <div id="sheet-content-wrapper">
+        <div id="sheet-transactions-list" class="sheet-transactions-list"></div>
+      </div>
     </div>
-    
+
     <div id="quick-add-modal-sheet" class="bottom-sheet hidden">
-        <div class="sheet-header">
-            <div class="sheet-handle"></div>
-            <h3 id="quick-modal-title">Food</h3>
+      <div class="sheet-header">
+        <div class="sheet-handle"></div>
+        <h3 id="quick-modal-title">Food</h3>
+      </div>
+      <div id="quick-modal-content" class="quick-modal-content">
+        <div class="quick-add-amount-container">
+          <span id="quick-modal-currency">$</span>
+
+          <input type="text" inputmode="decimal" id="quick-modal-amount" placeholder="0.00" aria-label="Amount" />
         </div>
-        <div id="quick-modal-content" class="quick-modal-content">
-            <div class="quick-add-amount-container">
-                <span id="quick-modal-currency">$</span>
-                
-                <input type="text" inputmode="decimal" id="quick-modal-amount" placeholder="0.00" aria-label="Amount">
-                </div>
-            <button id="quick-modal-save-btn" class="save-btn">Save</button>
-        </div>
+        <button id="quick-modal-save-btn" class="save-btn">Save</button>
+      </div>
     </div>
-    
+
     <div id="summary-details-sheet" class="bottom-sheet hidden">
-        <div class="sheet-header">
-            <div class="sheet-handle"></div>
-            <h3 id="summary-sheet-title">Total Income</h3>
+      <div class="sheet-header">
+        <div class="sheet-handle"></div>
+        <h3 id="summary-sheet-title">Total Income</h3>
+      </div>
+      <div id="summary-sheet-content" class="quick-modal-content">
+        <div class="quick-add-amount-container">
+          <span id="summary-sheet-currency">$</span>
+          <input type="text" id="summary-sheet-amount" readonly aria-label="Amount" />
         </div>
-        <div id="summary-sheet-content" class="quick-modal-content">
-            <div class="quick-add-amount-container">
-                <span id="summary-sheet-currency">$</span>
-                <input type="text" id="summary-sheet-amount" readonly aria-label="Amount">
-            </div>
-            </div>
+      </div>
     </div>
-    
-    <script src="/static/script.js?v=3.5" defer></script> </body>
+
+    <script src="/static/script.js?v=3.6" defer></script>
+  </body>
 </html>

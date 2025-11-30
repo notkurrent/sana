@@ -1,7 +1,7 @@
 # constants.py
 
 PROMPTS = {
-    'summary': """
+    "summary": """
 You are a concise financial analyst. Analyze the following transactions for the period.
 Write a very short (2-3 sentences) summary.
 Start with the total expenses and total income.
@@ -11,7 +11,7 @@ Transactions:
 {transaction_list_str}
 Give your summary now.
 """,
-    'anomaly': """
+    "anomaly": """
 You are a data analyst. Find the single largest EXPENSE transaction from the following list.
 Report what the category was, the date, and the amount in 1-2 sentences.
 Start directly with 'Your largest single expense this {range} was...'.
@@ -20,12 +20,12 @@ Transactions:
 {transaction_list_str}
 Give your finding now.
 """,
-    'advice': """
+    "advice": """
 You are a friendly financial advisor. A user provided their recent transactions for this {range}.
 Analyze them and give one short (under 50 words), simple, actionable piece of advice.
 Start directly with the advice. Do not be generic; base it on the provided data.
 Transactions:
 {transaction_list_str}
 Give your advice now.
-"""
+""",
 }

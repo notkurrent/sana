@@ -10,32 +10,35 @@ It combines a modern, responsive **SPA frontend** with a robust **Python backend
 
 ## ✨ Key Features
 
-* **⚡️ Seamless Integration:** Works directly inside Telegram using TMA technology. No installation required.
-* **🧠 Smart AI Advisor:** Integrated **Google Gemini** analyzes your transactions to give actionable financial tips, summaries, and anomaly detection.
-* **💎 Instant UX:** Optimized for "Zero Latency" feel with optimistic UI updates, haptic feedback, and iOS-style swipe gestures.
-* **🔒 Bank-Grade Security:** Implements strict `HMAC SHA-256` validation to verify Telegram initialization data, preventing unauthorized API access.
-* **📊 Analytics:** Interactive doughnut charts and a custom-built calendar view for detailed expense tracking.
+- **⚡️ Seamless Integration:** Works directly inside Telegram using TMA technology. No installation required.
+- **🧠 Smart AI Advisor:** Integrated **Google Gemini** analyzes your transactions to give actionable financial tips, summaries, and anomaly detection.
+- **💎 Instant UX:** Optimized for "Zero Latency" feel with optimistic UI updates, haptic feedback, and iOS-style swipe gestures.
+- **🔒 Bank-Grade Security:** Implements strict `HMAC SHA-256` validation to verify Telegram initialization data, preventing unauthorized API access.
+- **📊 Analytics:** Interactive doughnut charts and a custom-built calendar view for detailed expense tracking.
 
 ---
 
 ## 🛠️ Technology Stack
 
 ### Frontend
-* **Core:** Vanilla JavaScript (ES6+), HTML5, CSS3.
-* **Architecture:** Single Page Application (SPA).
-* **Design:** Custom Adaptive CSS (Dark/Light mode support based on Telegram theme).
-* **Visualization:** Chart.js.
+
+- **Core:** Vanilla JavaScript (ES6+), HTML5, CSS3.
+- **Architecture:** Single Page Application (SPA).
+- **Design:** Custom Adaptive CSS (Dark/Light mode support based on Telegram theme).
+- **Visualization:** Chart.js.
 
 ### Backend
-* **Framework:** Python (FastAPI).
-* **Server:** Uvicorn / Gunicorn.
-* **Database:** PostgreSQL (via Supabase).
-* **AI:** Google Generative AI (Gemini 1.5 Flash).
-* **Security:** HMAC Data Validation & Dependency Injection.
+
+- **Framework:** Python (FastAPI).
+- **Server:** Uvicorn / Gunicorn.
+- **Database:** PostgreSQL (via Supabase).
+- **AI:** Google Generative AI (Gemini 1.5 Flash).
+- **Security:** HMAC Data Validation & Dependency Injection.
 
 ### Deployment
-* **Platform:** Render (Dockerized Web Service).
-* **CI/CD:** Automatic deploys via Git.
+
+- **Platform:** Render (Dockerized Web Service).
+- **CI/CD:** Automatic deploys via Git.
 
 ---
 
@@ -60,18 +63,21 @@ Sana-Project/
 ## ⚙️ How to Run Locally
 
 1.  **Clone the repository:**
+
     ```bash
     git clone git clone https://github.com/notkurrent/sana.git
     cd sana
     ```
 
 2.  **Install dependencies:**
+
     ```bash
     pip install -r requirements.txt
     ```
 
 3.  **Set up Environment:**
     Create a `.env` file in the root directory and add your keys:
+
     ```env
     BOT_TOKEN=your_telegram_bot_token
     DATABASE_URL=your_postgres_url
@@ -101,4 +107,4 @@ This project was built with a focus on **security** and **performance**:
 
 If you have any questions or suggestions, feel free to open an issue or contact the developer via Telegram.
 
-*Developed by Gayas Serikuly*
+_Developed by Gayas Serikuly_
