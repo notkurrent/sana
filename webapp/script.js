@@ -880,12 +880,17 @@ document.addEventListener("DOMContentLoaded", () => {
   function openDaySheet(date) {
     DOM.daySheet.title.textContent = formatDateForTitle(date);
 
-    const dayStart = new Date(date).setHours(0, 0, 0, 0);
-    const dayEnd = new Date(date).setHours(23, 59, 59, 999);
+    // Получаем строку даты в формате "YYYY-MM-DD" для выбранного дня
+    // (функция getLocalDateString у тебя уже есть выше)
+    const selectedDateString = getLocalDateString(date);
 
     const dayTransactions = state.transactions.filter((tx) => {
-      const txDate = new Date(tx.date).getTime();
-      return txDate >= dayStart && txDate <= dayEnd;
+      // Берем дату транзакции и парсим её с учетом сдвига (как мы делаем для заголовков)
+      const txDate = parseDateFromUTC(tx.date);
+      const txDateString = getLocalDateString(txDate);
+
+      // Сравниваем просто СТРОКИ ("2025-12-01" === "2025-12-01")
+      return txDateString === selectedDateString;
     });
 
     DOM.daySheet.list.innerHTML = "";

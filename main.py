@@ -31,6 +31,7 @@ from constants import PROMPTS
 
 # --- Константы ---
 BASE_DIR = Path(__file__).resolve().parent
+# DB_NAME удален
 WEBAPP_DIR = BASE_DIR / "webapp"
 
 # --- Загрузка окружения ---
@@ -201,7 +202,7 @@ app.add_middleware(
     allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*", "X-Telegram-InitData", "X-Timezone-Offset"],  # Добавили заголовок в CORS
+    allow_headers=["*", "X-Telegram-InitData", "X-Timezone-Offset"],
 )
 
 # ---
@@ -352,39 +353,22 @@ def delete_category(category_id: int, cursor=Depends(get_db), user_id: str = Dep
         raise HTTPException(status_code=500, detail=f"An error occurred during deletion: {e}")
 
 
-# --- 🚀 ИЗМЕНЕНИЕ: Глобальная поддержка часовых поясов ---
+# --- Глобальная поддержка часовых поясов ---
 def _get_date_for_storage(date_str: str, timezone_offset_str: Optional[str]) -> str:
-    """
-    Определяет, какую дату сохранять.
-    Если пользователь выбрал 'сегодня', сохраняем текущее UTC время сервера (для точности сортировки).
-    Если 'вчера' или другую дату — сохраняем как есть.
-
-    timezone_offset_str: Смещение в минутах (JS getTimezoneOffset).
-    Пример: UTC+3 -> -180.
-    Локальное время = UTC - Offset.
-    """
     if not date_str:
         raise HTTPException(status_code=400, detail="Date is required.")
     try:
         selected_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-
-        # Текущее время сервера (всегда UTC)
         server_now_utc = datetime.now(timezone.utc)
 
-        # Вычисляем "Локальное Сейчас" пользователя
         user_now = server_now_utc
         if timezone_offset_str and timezone_offset_str.lstrip("-").isdigit():
             offset_minutes = int(timezone_offset_str)
-            # Формула: Local = UTC - Offset
             user_now = server_now_utc - timedelta(minutes=offset_minutes)
 
-        # Сравниваем дату из формы с локальной датой пользователя
         if selected_date == user_now.date():
-            # Если даты совпадают, значит это "сегодня".
-            # Сохраняем точное серверное время (UTC), чтобы работала сортировка по времени внутри дня.
             return server_now_utc.isoformat()
 
-        # Если даты разные (пользователь выбрал вчера/завтра), сохраняем то, что пришло.
         return date_str
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid date format. YYYY-MM-DD expected.")
@@ -395,9 +379,8 @@ def add_transaction(
     transaction: Transaction,
     cursor=Depends(get_db),
     user_id: str = Depends(get_validated_user_id),
-    x_timezone_offset: Optional[str] = Header(None),  # Получаем заголовок
+    x_timezone_offset: Optional[str] = Header(None),
 ):
-    # Передаем offset в функцию
     tx_date_str = _get_date_for_storage(transaction.date, x_timezone_offset)
 
     try:
@@ -460,7 +443,6 @@ def update_transaction(
             original_dt = original_tx["date"]
             new_date_obj = datetime.strptime(update.date, "%Y-%m-%d").date()
             final_dt = original_dt.replace(year=new_date_obj.year, month=new_date_obj.month, day=new_date_obj.day)
-
             fields_to_update.append("date = %s")
             values.append(final_dt.isoformat())
         else:
@@ -482,22 +464,44 @@ def update_transaction(
     return {"status": "success", "message": "Transaction updated"}
 
 
-def _get_date_range_filter(range_str: str) -> Tuple[str, List[str]]:
+# 🔥 ФИКС: Поддержка UTC и Local Time для фильтров
+def _get_date_range_filter(range_str: str, timezone_offset_str: Optional[str] = None) -> Tuple[str, List[str]]:
     if range_str == "all":
         return "", []
-    now = datetime.now()
+
+    # 1. Берем серверное время (UTC)
+    server_now = datetime.now(timezone.utc)
+
+    offset_minutes = 0
+    if timezone_offset_str and timezone_offset_str.lstrip("-").isdigit():
+        offset_minutes = int(timezone_offset_str)
+        # 2. Вычисляем локальное время пользователя для определения границ
+        user_now = server_now - timedelta(minutes=offset_minutes)
+    else:
+        user_now = server_now
+
+    # 3. Считаем границы на основе ВРЕМЕНИ ПОЛЬЗОВАТЕЛЯ
     start_date_dt = None
+
     if range_str == "day":
-        start_date_dt = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        start_date_dt = user_now.replace(hour=0, minute=0, second=0, microsecond=0)
     elif range_str == "week":
-        start_date_dt = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+        start_date_dt = (user_now - timedelta(days=user_now.weekday())).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
     elif range_str == "month":
-        start_date_dt = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        start_date_dt = user_now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     elif range_str == "year":
-        start_date_dt = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        start_date_dt = user_now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
 
     if start_date_dt:
-        start_date_str_formatted = start_date_dt.strftime("%Y-%m-%d %H:%M:%S")
+        # 4. 🔥 ГЛАВНЫЙ ФИКС: Переводим локальную границу обратно в UTC для запроса к БД
+        query_start_utc = start_date_dt + timedelta(minutes=offset_minutes)
+
+        # Убираем tzinfo для чистого сравнения в SQL
+        query_start_utc = query_start_utc.replace(tzinfo=None)
+
+        start_date_str_formatted = query_start_utc.strftime("%Y-%m-%d %H:%M:%S")
         return " AND t.date >= %s", [start_date_str_formatted]
     return "", []
 
@@ -508,6 +512,7 @@ def get_ai_advice(
     prompt_type: str = Query("advice"),
     cursor=Depends(get_db),
     user_id: str = Depends(get_validated_user_id),
+    x_timezone_offset: Optional[str] = Header(None),
 ):
     if not GOOGLE_API_KEY:
         raise HTTPException(status_code=500, detail="AI service is not configured.")
@@ -520,7 +525,8 @@ def get_ai_advice(
     """
     params = [user_id]
 
-    date_filter_sql, date_params = _get_date_range_filter(range)
+    # Передаем offset в функцию фильтрации
+    date_filter_sql, date_params = _get_date_range_filter(range, x_timezone_offset)
     query_base += date_filter_sql
     params.extend(date_params)
     query_base += " ORDER BY t.date DESC"
@@ -559,6 +565,7 @@ def get_analytics_summary(
     range: str = Query("month"),
     cursor=Depends(get_db),
     user_id: str = Depends(get_validated_user_id),
+    x_timezone_offset: Optional[str] = Header(None),
 ):
     query_base = """
     SELECT c.name AS category, SUM(t.amount) AS total
@@ -568,7 +575,8 @@ def get_analytics_summary(
     """
     params = [user_id, type]
 
-    date_filter_sql, date_params = _get_date_range_filter(range)
+    # Передаем offset в функцию фильтрации
+    date_filter_sql, date_params = _get_date_range_filter(range, x_timezone_offset)
     query_base += date_filter_sql
     params.extend(date_params)
 
@@ -585,25 +593,40 @@ def get_analytics_calendar(
     year: int = Query(...),
     cursor=Depends(get_db),
     user_id: str = Depends(get_validated_user_id),
+    x_timezone_offset: Optional[str] = Header(None),  # 🔥 ДОБАВЛЕН HEADER
 ):
     month_str = str(month).zfill(2)
     year_str = str(year)
 
+    # 🔥 FIX КАЛЕНДАРЯ: Сдвигаем время транзакций перед группировкой по дням
+    # Используем offset, чтобы сервер сгруппировал транзакции так, как их видит пользователь.
+    # Postgres позволяет вычитать интервалы.
+    # Если offset = -180 (UTC+3), то: t.date - (-180 minutes) = t.date + 3 hours.
+
+    offset_minutes = 0
+    if x_timezone_offset and x_timezone_offset.lstrip("-").isdigit():
+        offset_minutes = int(x_timezone_offset)
+
+    # В запросе мы используем параметризацию (%s) для интервала.
+    # Формула: date - (offset * interval '1 minute')
+    # Если offset -180, то мы делаем: date - (-180 мин) = date + 180 мин.
+
     query_month = """
     SELECT 
-        TO_CHAR(t.date, 'YYYY-MM-DD') AS day_key,
+        TO_CHAR(t.date - (%s * INTERVAL '1 minute'), 'YYYY-MM-DD') AS day_key,
         c.type,
         SUM(t.amount) AS daily_total
     FROM transactions t
     JOIN categories c ON t.category_id = c.id
     WHERE 
         t.user_id = %s 
-        AND TO_CHAR(t.date, 'YYYY') = %s
-        AND TO_CHAR(t.date, 'MM') = %s
+        AND TO_CHAR(t.date - (%s * INTERVAL '1 minute'), 'YYYY') = %s
+        AND TO_CHAR(t.date - (%s * INTERVAL '1 minute'), 'MM') = %s
     GROUP BY day_key, c.type
     """
 
-    cursor.execute(query_month, (user_id, year_str, month_str))
+    # Порядок параметров: offset, user_id, offset, year, offset, month
+    cursor.execute(query_month, (offset_minutes, user_id, offset_minutes, year_str, offset_minutes, month_str))
     rows_month = cursor.fetchall()
 
     month_summary = {"income": 0, "expense": 0, "net": 0}
