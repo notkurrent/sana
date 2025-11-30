@@ -45,8 +45,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const defaultEmojis = {
         'Food': '🍔', 'Transport': '🚌', 'Housing': '🏠',
-        'Entertainment': '🎬', 'Salary': '💰', 'Freelance': '💻',
-        'Gifts': '🎁', 
+        'Salary': '💰', 'Freelance': '💻', 'Gifts': '🎁', 
     };
     const defaultIconExpense = '📦';
     const defaultIconIncome = '💎';

@@ -96,7 +96,7 @@ def setup_database():
             try:
                 cursor.execute("SELECT count(*) FROM categories")
                 if cursor.fetchone()["count"] == 0:
-                    default_expenses = ['Food', 'Transport', 'Housing', 'Entertainment', 'Other']
+                    default_expenses = ['Food', 'Transport', 'Housing', 'Other']
                     for cat in default_expenses:
                         cursor.execute("INSERT INTO categories (name, type) VALUES (%s, 'expense')", (cat,))
                     default_incomes = ['Salary', 'Freelance', 'Gifts', 'Other']
