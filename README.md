@@ -32,13 +32,15 @@ It combines a modern, responsive **SPA frontend** with a robust **Python backend
 - **Framework:** Python (FastAPI).
 - **Server:** Uvicorn / Gunicorn.
 - **Database:** PostgreSQL (via Supabase).
-- **AI:** Google Generative AI (Gemini 1.5 Flash).
+- **AI:** Google Generative AI (Gemini 2.5 Flash).
 - **Security:** HMAC Data Validation & Dependency Injection.
 
 ### Deployment
 
-- **Platform:** Render (Dockerized Web Service).
-- **CI/CD:** Automatic deploys via Git.
+- **Platform:** DigitalOcean Droplet (VPS).
+- **Infrastructure:** Docker & Docker Compose.
+- **Web Server:** Uvicorn behind Nginx (Reverse Proxy).
+- **SSL:** Automated via Certbot (Let's Encrypt).
 
 ---
 
@@ -54,42 +56,40 @@ Sana-Project/
 ├── constants.py            # AI Prompts & Configuration
 ├── setup_bot.py            # Webhook setup utility
 ├── requirements.txt        # Python dependencies
+├── Dockerfile              # Docker image configuration
+├── docker-compose.yml      # Container orchestration config
 ├── .gitignore              # Git configuration
 └── README.md               # Project Documentation
 ```
 
 ---
 
-## ⚙️ How to Run Locally
+## ⚙️ How to Run (Docker)
 
 1.  **Clone the repository:**
 
     ```bash
-    git clone git clone https://github.com/notkurrent/sana.git
+    git clone [https://github.com/notkurrent/sana.git](https://github.com/notkurrent/sana.git)
     cd sana
     ```
 
-2.  **Install dependencies:**
-
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-3.  **Set up Environment:**
+2.  **Set up Environment:**
     Create a `.env` file in the root directory and add your keys:
 
     ```env
     BOT_TOKEN=your_telegram_bot_token
     DATABASE_URL=your_postgres_url
     GOOGLE_API_KEY=your_gemini_key
-    RENDER_EXTERNAL_URL=http://localhost:8000
-    WEB_APP_URL=http://localhost:8000
+    BASE_URL=https://your-domain.com
+    WEB_APP_URL=https://your-domain.com
     ```
 
-4.  **Run the server:**
+3.  **Run with Docker Compose:**
     ```bash
-    python main.py
+    docker compose up -d --build
     ```
+
+The server will start at `http://localhost:8000`.
 
 ---
 

@@ -31,7 +31,6 @@ from constants import PROMPTS
 
 # --- Константы ---
 BASE_DIR = Path(__file__).resolve().parent
-# DB_NAME удален
 WEBAPP_DIR = BASE_DIR / "webapp"
 
 # --- Загрузка окружения ---
