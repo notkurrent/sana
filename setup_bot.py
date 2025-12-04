@@ -8,20 +8,20 @@ from telegram import Bot
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL")
+BASE_URL = os.getenv("BASE_URL")
 
 
 async def main():
     """
     Асинхронная функция для установки Webhook.
     """
-    if not BOT_TOKEN or not RENDER_EXTERNAL_URL:
+    if not BOT_TOKEN or not BASE_URL:
         print("--- [Setup Bot]: ❌ ОШИБКА: BOT_TOKEN или RENDER_EXTERNAL_URL не найдены.")
         print("--- [Setup Bot]: Убедитесь, что они установлены в Environment на Render.")
         sys.exit(1)  # Выход с ошибкой
 
     bot = Bot(token=BOT_TOKEN)
-    webhook_url = f"{RENDER_EXTERNAL_URL}/{BOT_TOKEN}"
+    webhook_url = f"{BASE_URL}/webhook"
 
     print(f"--- [Setup Bot]: Пытаемся установить Webhook на: {webhook_url} ...")
 

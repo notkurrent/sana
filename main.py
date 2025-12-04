@@ -40,7 +40,7 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 DATABASE_URL = os.getenv("DATABASE_URL")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 WEB_APP_URL = os.getenv("WEB_APP_URL")
-RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL")
+BASE_URL = os.getenv("BASE_URL")
 
 # --- Логирование ---
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -190,12 +190,12 @@ else:
     print("ВНИМАНИЕ: GOOGLE_API_KEY не найден.")
 
 # --- Middleware ---
-RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL")
+BASE_URL = os.getenv("BASE_URL")
 
-origins = [RENDER_EXTERNAL_URL, "https://*.telegram-web-app.com", "https://*.web.telegram.org"]
+origins = [BASE_URL, "https://*.telegram-web-app.com", "https://*.web.telegram.org"]
 
-if not RENDER_EXTERNAL_URL:
-    logger.critical("КРИТИЧЕСКАЯ ОШИБКА: RENDER_EXTERNAL_URL не найден!")
+if not BASE_URL:
+    logger.critical("КРИТИЧЕСКАЯ ОШИБКА: BASE_URL не найден!")
 
 app.add_middleware(
     CORSMiddleware,
@@ -663,7 +663,7 @@ def reset_user_data(cursor=Depends(get_db), user_id: str = Depends(get_validated
 # ---
 if BOT_TOKEN and ptb_app:
 
-    @app.post(f"/{BOT_TOKEN}")
+    @app.post("/webhook")
     async def telegram_webhook(request: Request):
         try:
             update_json = await request.json()
