@@ -1,4 +1,5 @@
 import psycopg2
+from psycopg2 import pool
 from psycopg2.extras import RealDictCursor
 import os
 import uvicorn
@@ -45,27 +46,30 @@ BASE_URL = os.getenv("BASE_URL")
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# --- Глобальный пул соединений ---
+db_pool = None
+
 
 # ---
 # --- Управление Базой Данных (Postgres)
 # ---
 @contextmanager
 def get_db_connection():
-    if not DATABASE_URL:
-        raise ValueError("DATABASE_URL не установлен!")
+    if not db_pool:
+        raise ValueError("Пул соединений не инициализирован!")
+
     conn = None
     try:
-        conn = psycopg2.connect(DATABASE_URL)
+        conn = db_pool.getconn()  # БЕРЕМ горячее соединение
         yield conn.cursor(cursor_factory=RealDictCursor)
-    except psycopg2.OperationalError as e:
-        print(f"!!! POSTGRES CONNECTION ERROR: {e}")
-        raise e
+        conn.commit()
     except Exception as e:
+        if conn:
+            conn.rollback()  # Откат при ошибке
         raise e
     finally:
         if conn:
-            conn.commit()
-            conn.close()
+            db_pool.putconn(conn)  # ВОЗВРАЩАЕМ в пул (не закрываем!)
 
 
 def get_db():
@@ -156,24 +160,36 @@ else:
 # ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("--- [Lifespan]: Запуск инициализации БД...")
-    try:
-        setup_database()
-        print("--- [Lifespan]: Инициализация БД завершена.")
-    except Exception as e:
-        print(f"--- [Lifespan ERROR]: Не удалось выполнить setup_database: {e}")
+    global db_pool
+    print("--- [Lifespan]: 🚀 Запуск сервера...")
 
+    # 1. Инициализация Пула БД
+    try:
+        print("--- [Lifespan]: Подключаемся к базе данных (создаем пул)...")
+        # Создаем от 1 до 20 соединений
+        db_pool = psycopg2.pool.SimpleConnectionPool(minconn=1, maxconn=20, dsn=DATABASE_URL)
+        if db_pool:
+            print("--- [Lifespan]: ✅ Пул соединений готов!")
+            setup_database()  # Создаем таблицы, если их нет
+    except Exception as e:
+        print(f"--- [Lifespan ERROR]: Ошибка подключения к БД: {e}")
+
+    # 2. Инициализация Бота
     if ptb_app:
-        print("--- [Lifespan]: Инициализация Telegram Bot (Application.initialize)...")
+        print("--- [Lifespan]: Инициализация Telegram Bot...")
         await ptb_app.initialize()
-        print("--- [Lifespan]: Telegram Bot инициализирован.")
-    else:
-        logger.warning("--- [Lifespan]: Пропуск инициализации Bot (ptb_app не найден).")
-    yield
+
+    yield  # <-- Тут работает приложение
+
+    # 3. Завершение работы
     if ptb_app:
-        print("--- [Lifespan]: Завершение работы Telegram Bot...")
+        print("--- [Lifespan]: Остановка бота...")
         await ptb_app.shutdown()
-    print("--- [Lifespan]: Сервер выключается.")
+
+    if db_pool:
+        print("--- [Lifespan]: Закрываем соединения с БД...")
+        db_pool.closeall()
+    print("--- [Lifespan]: Сервер выключен.")
 
 
 # ---

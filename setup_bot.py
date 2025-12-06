@@ -16,8 +16,8 @@ async def main():
     Асинхронная функция для установки Webhook.
     """
     if not BOT_TOKEN or not BASE_URL:
-        print("--- [Setup Bot]: ❌ ОШИБКА: BOT_TOKEN или RENDER_EXTERNAL_URL не найдены.")
-        print("--- [Setup Bot]: Убедитесь, что они установлены в Environment на Render.")
+        print("--- [Setup Bot]: ❌ ОШИБКА: BOT_TOKEN или BASE_URL не найдены.")
+        print("--- [Setup Bot]: Убедитесь, что они установлены в .env файле или на сервере.")
         sys.exit(1)  # Выход с ошибкой
 
     bot = Bot(token=BOT_TOKEN)
