@@ -57,7 +57,9 @@ Sana-Project/
 ├── setup_bot.py            # Webhook setup utility
 ├── requirements.txt        # Python dependencies
 ├── Dockerfile              # Docker image configuration
-├── docker-compose.yml      # Container orchestration config
+├── docker-compose.yml      # Production orchestration config
+├── docker-compose.dev.yml  # Local Development orchestration (Hot-reload)
+├── .env.example            # Environment variables template
 ├── .gitignore              # Git configuration
 └── README.md               # Project Documentation
 ```
@@ -69,7 +71,7 @@ Sana-Project/
 1.  **Clone the repository:**
 
     ```bash
-    git clone [https://github.com/notkurrent/sana.git](https://github.com/notkurrent/sana.git)
+    git clone git clone https://github.com/notkurrent/sana.git
     cd sana
     ```
 
@@ -90,6 +92,63 @@ Sana-Project/
     ```
 
 The server will start at `http://localhost:8000`.
+
+---
+
+## 👨‍💻 Local Development (Dev Environment)
+
+To develop comfortably with **Hot-Reload** (changes in code apply instantly) and a safe **Local Database**, follow these steps:
+
+### Prerequisites
+
+1.  **Docker Desktop** installed and running.
+2.  **Ngrok** installed (to tunnel Telegram Webhooks to localhost).
+3.  A separate **Test Bot** created in @BotFather (e.g., `@SanaDevBot`).
+
+### Step-by-Step Setup
+
+1.  **Create Development Config:**
+    Copy the example file and rename it to `.env.dev`.
+    _Note: `.env.dev` is git-ignored to protect your secrets._
+
+    ```bash
+    cp .env.example .env.dev
+    ```
+
+2.  **Start Ngrok:**
+    Open a terminal and run ngrok on port 8000:
+
+    ```bash
+    ngrok http 8000
+    ```
+
+    Copy the provided HTTPS URL (e.g., `https://a1b2.ngrok-free.dev`).
+
+3.  **Configure `.env.dev`:**
+    Open `.env.dev` and update:
+
+    - `BOT_TOKEN`: Your **Test Bot** token.
+    - `WEB_APP_URL` & `BASE_URL`: The **Ngrok URL** you just copied.
+    - `DATABASE_URL`: Leave as is (it's pre-configured for local Docker).
+
+4.  **Configure Test Bot:**
+    Go to @BotFather -> Select your Test Bot -> `Mini apps` -> `Menu Button & Main app`.
+    Set the URL to your **Ngrok URL**.
+
+5.  **Run Dev Environment:**
+    This starts the App (with reload) and a local Postgres DB.
+
+    ```bash
+    docker compose -f docker-compose.dev.yml up --build
+    ```
+
+6.  **Set Webhook:**
+    In a new terminal window, tell Telegram to send updates to your local machine:
+    ```bash
+    docker exec -it sana_dev_app python setup_bot.py
+    ```
+
+🎉 **Ready!** Open your Test Bot in Telegram and start coding. Changes in `main.py` or frontend files will be applied automatically.
 
 ---
 

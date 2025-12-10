@@ -1,0 +1,38 @@
+version: "3.8"
+
+services:
+  app:
+    build: .
+    container_name: sana_dev_app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/app # <--- ГЛАВНАЯ МАГИЯ: Любое изменение файла тут же летит в контейнер
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env.dev
+    depends_on:
+      - db
+    networks:
+      - sana_net
+
+  db:
+    image: postgres:15-alpine
+    container_name: sana_dev_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: sana_local
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    networks:
+      - sana_net
+
+volumes:
+  postgres_data_dev:
+
+networks:
+  sana_net:

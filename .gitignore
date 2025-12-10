@@ -1,7 +1,7 @@
 # Виртуальное окружение
 venv/
 
-# Секреты
+# Секреты (Prod)
 .env
 
 # Файлы Python
@@ -13,3 +13,6 @@ __pycache__/
 
 # Мусор macOS
 .DS_Store
+
+# Секреты (Local Dev)
+.env.dev
