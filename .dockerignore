@@ -1,0 +1,29 @@
+# Игнорируем виртуальное окружение (КРИТИЧНО!)
+venv
+env
+.venv
+
+# Игнорируем кэш питона (мусор)
+__pycache__
+*/__pycache__
+*.pyc
+*.pyo
+
+# Игнорируем секреты (КРИТИЧНО!)
+.env
+.env.dev
+.env.prod
+
+# Игнорируем Git
+.git
+.gitignore
+
+# Игнорируем настройки IDE
+.idea
+.vscode
+
+# Игнорируем файлы конфигурации докера (им нечего делать внутри контейнера)
+Dockerfile
+docker-compose.yml
+docker-compose.dev.yml
+.dockerignore

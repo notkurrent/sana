@@ -1,11 +1,13 @@
 # Виртуальное окружение
 venv/
+env/
 
 # Секреты (Prod)
 .env
 
 # Файлы Python
 __pycache__/
+*.pyc
 
 # Базы данных SQLite (мусор)
 *.db
@@ -16,3 +18,7 @@ __pycache__/
 
 # Секреты (Local Dev)
 .env.dev
+
+# Настройки IDE (VS Code / PyCharm)
+.vscode/
+.idea/

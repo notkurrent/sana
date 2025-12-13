@@ -30,8 +30,9 @@ It combines a modern, responsive **SPA frontend** with a robust **Python backend
 ### Backend
 
 - **Framework:** Python (FastAPI).
-- **Server:** Uvicorn / Gunicorn.
-- **Database:** PostgreSQL (via Supabase).
+- **Validation:** Pydantic (Strong Typing).
+- **Database:** PostgreSQL 15 (via Supabase / Docker).
+- **Driver:** `psycopg2` with Custom **Connection Pool** & Health Checks.
 - **AI:** Google Generative AI (Gemini 2.5 Flash).
 - **Security:** HMAC Data Validation & Dependency Injection.
 
@@ -48,17 +49,30 @@ It combines a modern, responsive **SPA frontend** with a robust **Python backend
 
 ```text
 Sana-Project/
-├── webapp/                 # Frontend Source (SPA)
+├── app/                    # 🐍 Backend Logic (Modular)
+│   ├── routers/            # API Endpoints
+│   │   ├── __init__.py
+│   │   ├── transactions.py
+│   │   ├── categories.py
+│   │   └── ai.py           # Gemini Logic is here
+│   ├── models/             # Pydantic Schemas
+│   │   ├── __init__.py
+│   │   └── schemas.py
+│   ├── __init__.py
+│   ├── database.py         # DB Connection Pool
+│   ├── dependencies.py     # Auth & Security
+│   └── config.py           # Environment Config
+├── webapp/                 # 🎨 Frontend Source (SPA)
 │   ├── index.html          # Main entry point
 │   ├── style.css           # Adaptive styles
 │   └── script.js           # UI Logic & API integration
-├── main.py                 # FastAPI Backend Entry point
-├── constants.py            # AI Prompts & Configuration
+├── main.py                 # 🚀 App Entry Point
 ├── setup_bot.py            # Webhook setup utility
 ├── requirements.txt        # Python dependencies
 ├── Dockerfile              # Docker image configuration
 ├── docker-compose.yml      # Production orchestration config
 ├── docker-compose.dev.yml  # Local Development orchestration (Hot-reload)
+├── .dockerignore           # Excludes files from Docker build
 ├── .env.example            # Environment variables template
 ├── .gitignore              # Git configuration
 └── README.md               # Project Documentation
@@ -154,11 +168,12 @@ To develop comfortably with **Hot-Reload** (changes in code apply instantly) and
 
 ## 🛡️ Security & Architecture
 
-This project was built with a focus on **security** and **performance**:
+This project was built with a focus on **security**, **scalability**, and **performance**:
 
-1.  **Consolidated Architecture:** Uses a single service for API, Webhook, and Static files to eliminate cold starts and reduce latency.
-2.  **HMAC Validation:** Every API request is authenticated using Telegram's `initData` hash to ensure requests originate from a verified Telegram session.
-3.  **CORS Protection:** Strict Allow-Origin policies restricted to the app's domain.
+1.  **Clean Architecture:** Refactored from a flat monolith to a modular structure (`routers`, `models`, `dependencies`) to separate concerns and improve maintainability.
+2.  **Robust Database Layer:** Implements a custom **Connection Pool** with automatic health checks (`SELECT 1`) to prevent connection drops and ensure stability.
+3.  **HMAC Validation:** Every API request is authenticated using Telegram's `initData` hash (HMAC SHA-256) to ensure requests originate from a verified Telegram session.
+4.  **Timezone Awareness:** The backend intelligently adjusts UTC data based on the user's `X-Timezone-Offset` header to ensure analytics and calendars reflect local time correctly.
 
 ---
 

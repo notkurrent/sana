@@ -2,17 +2,23 @@ document.addEventListener("DOMContentLoaded", () => {
   const tg = window.Telegram.WebApp;
   const tgInitData = tg.initData;
 
+  // Инициализация Telegram
   tg.ready();
   tg.expand();
-  tg.disableVerticalSwipes();
+  try {
+    tg.disableVerticalSwipes();
+  } catch (e) {
+    console.log("Vertical swipes disable not supported");
+  }
 
+  // --- CONFIG ---
   const API_URLS = {
-    TRANSACTIONS: "/transactions",
-    CATEGORIES: "/categories",
-    AI_ADVICE: "/ai-advice",
-    ANALYTICS_SUMMARY: "/analytics/summary",
-    ANALYTICS_CALENDAR: "/analytics/calendar",
-    USER_RESET: "/users/me/reset",
+    TRANSACTIONS: "/api/transactions",
+    CATEGORIES: "/api/categories",
+    AI_ADVICE: "/api/ai/advice",
+    ANALYTICS_SUMMARY: "/api/analytics/summary",
+    ANALYTICS_CALENDAR: "/api/analytics/calendar",
+    USER_RESET: "/api/users/me/reset",
   };
 
   // --- STATE ---
@@ -35,12 +41,48 @@ document.addEventListener("DOMContentLoaded", () => {
     isLoading: false,
   };
 
-  let swipeStartX = 0;
-  let swipeStartY = 0;
-  let currentSwipeElement = null;
-  let isSwiping = false;
-  const SWIPE_DELETE_BG_WIDTH = 90;
-  const SWIPE_THRESHOLD = -80;
+  // --- HELPERS & FORMATTERS ---
+
+  async function apiRequest(url, options = {}) {
+    if (!tgInitData) {
+      console.error("CRITICAL: tgInitData is missing.");
+      tg.showAlert("Authentication data is missing. Please restart the app.");
+      throw new Error("No init data");
+    }
+
+    const headers = {
+      "X-Telegram-Init-Data": tgInitData,
+      "X-Timezone-Offset": String(new Date().getTimezoneOffset()),
+      "Content-Type": "application/json",
+      ...options.headers,
+    };
+
+    const config = {
+      ...options,
+      headers: headers,
+    };
+
+    try {
+      const response = await fetch(url, config);
+
+      // Обработка 401/403 как в старом коде
+      if (response.status === 401 || response.status === 403) {
+        tg.showAlert("Authentication Failed. Please try restarting the app inside Telegram.");
+      }
+
+      return response;
+    } catch (error) {
+      console.error("Network Error:", error);
+      throw error;
+    }
+  }
+
+  function parseDateFromUTC(dateString) {
+    if (dateString && !dateString.endsWith("Z")) {
+      return new Date(dateString + "Z");
+    }
+    return new Date(dateString);
+  }
 
   const defaultEmojis = {
     Food: "🍔",
@@ -53,11 +95,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const defaultIconExpense = "📦";
   const defaultIconIncome = "💎";
 
-  const timeFormatter = new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
+  const timeFormatter = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
   const headerDateFormatter = new Intl.DateTimeFormat("en-US", {
     weekday: "long",
     year: "numeric",
@@ -73,15 +111,51 @@ document.addEventListener("DOMContentLoaded", () => {
   const formatDateForTitle = (date) => headerDateFormatter.format(date);
   const formatTime = (date) => timeFormatter.format(date);
 
-  // ⭐ НОВАЯ ФУНКЦИЯ: Парсит дату, принудительно считая её UTC
-  // Это решает проблему с часовыми поясами (27 vs 28 число)
-  function parseDateFromUTC(dateString) {
-    if (dateString && !dateString.endsWith("Z")) {
-      return new Date(dateString + "Z");
-    }
-    return new Date(dateString);
+  function getLocalDateString(date) {
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, "0");
+    const day = date.getDate().toString().padStart(2, "0");
+    return `${year}-${month}-${day}`;
   }
 
+  function parseCategory(fullName) {
+    if (!fullName) return { icon: null, name: "" };
+    const emojiRegex = /^(\p{Extended_Pictographic}|\p{Emoji})(\p{Emoji_Modifier}|\uFE0F)*/u;
+    const match = fullName.match(emojiRegex);
+    if (match && match[0]) {
+      return { icon: match[0], name: fullName.substring(match[0].length).trim() };
+    }
+    return { icon: null, name: fullName.trim() };
+  }
+
+  function formatCurrency(amount) {
+    if (typeof amount !== "number") amount = 0;
+    return `${state.currencySymbol}${amount.toFixed(2)}`;
+  }
+
+  function formatCurrencyForSummary(amount) {
+    if (typeof amount !== "number") amount = 0;
+    const sign = amount < 0 ? "-" : amount > 0 ? "+" : "";
+    const absAmount = Math.abs(amount);
+    let formattedAmount;
+    if (absAmount >= 1000000) formattedAmount = (absAmount / 1000000).toFixed(2) + "M";
+    else if (absAmount >= 10000) formattedAmount = (absAmount / 1000).toFixed(0) + "K";
+    else if (absAmount >= 1000) formattedAmount = (absAmount / 1000).toFixed(1) + "K";
+    else formattedAmount = absAmount.toFixed(2);
+
+    return amount === 0 ? `${state.currencySymbol}0.00` : `${sign}${state.currencySymbol}${formattedAmount}`;
+  }
+
+  function formatForDayMarker(amount) {
+    if (!amount) return "";
+    const absAmount = Math.abs(Math.round(amount));
+    const sign = amount < 0 ? "-" : "+";
+    if (absAmount >= 1000000) return `${sign}${(absAmount / 1000000).toFixed(1)}M`;
+    if (absAmount >= 1000) return `${sign}${(absAmount / 1000).toFixed(0)}K`;
+    return `${sign}${absAmount}`;
+  }
+
+  // --- DOM ELEMENTS ---
   const DOM = {
     screens: document.querySelectorAll(".screen"),
     backdrop: document.getElementById("backdrop"),
@@ -193,142 +267,42 @@ document.addEventListener("DOMContentLoaded", () => {
     },
   };
 
-  function getAuthHeaders(isJson = true) {
-    if (!tgInitData) {
-      console.error("CRITICAL: tgInitData is missing.");
-      tg.showAlert("Authentication data is missing. Please restart the app.");
-    }
-    const headers = {
-      "X-Telegram-InitData": tgInitData,
-      "X-Timezone-Offset": String(new Date().getTimezoneOffset()),
-    };
-    if (isJson) {
-      headers["Content-Type"] = "application/json";
-    }
-    return headers;
-  }
-
-  function getLocalDateString(date) {
-    const year = date.getFullYear();
-    const month = (date.getMonth() + 1).toString().padStart(2, "0");
-    const day = date.getDate().toString().padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  }
-
-  function parseCategory(fullName) {
-    if (!fullName) return { icon: null, name: "" };
-    const emojiRegex = /^(\p{Extended_Pictographic}|\p{Emoji})(\p{Emoji_Modifier}|\uFE0F)*/u;
-    const match = fullName.match(emojiRegex);
-    if (match && match[0]) {
-      const icon = match[0];
-      const name = fullName.substring(icon.length).trim();
-      return { icon, name };
-    } else {
-      return { icon: null, name: fullName.trim() };
-    }
-  }
-
-  function formatCurrency(amount) {
-    if (typeof amount !== "number") amount = 0;
-    return `${state.currencySymbol}${amount.toFixed(2)}`;
-  }
-
-  function formatCurrencyForSummary(amount) {
-    if (typeof amount !== "number") amount = 0;
-    const sign = amount < 0 ? "-" : amount > 0 ? "+" : "";
-    const absAmount = Math.abs(amount);
-    let formattedAmount;
-
-    if (absAmount >= 1000000) {
-      formattedAmount = (absAmount / 1000000).toFixed(2) + "M";
-    } else if (absAmount >= 10000) {
-      formattedAmount = (absAmount / 1000).toFixed(0) + "K";
-    } else if (absAmount >= 1000) {
-      formattedAmount = (absAmount / 1000).toFixed(1) + "K";
-    } else {
-      formattedAmount = absAmount.toFixed(2);
-    }
-    if (amount === 0) return `${state.currencySymbol}0.00`;
-    return `${sign}${state.currencySymbol}${formattedAmount}`;
-  }
-
-  function formatForDayMarker(amount) {
-    if (typeof amount !== "number" || amount === 0) return "";
-    const absAmount = Math.abs(Math.round(amount));
-    const sign = amount < 0 ? "-" : "+";
-    if (absAmount >= 1000000) return `${sign}${(absAmount / 1000000).toFixed(1)}M`;
-    if (absAmount >= 1000) return `${sign}${(absAmount / 1000).toFixed(0)}K`;
-    return `${sign}${absAmount}`;
-  }
+  // --- LOGIC ---
 
   function updateBalance() {
     const container = DOM.home.balanceAmount.closest(".total-container");
     const oldBalanceText = DOM.home.balanceAmount.textContent;
-
-    // Считаем баланс
     const newBalance = state.transactions.reduce((acc, tx) => {
       return tx.type === "income" ? acc + tx.amount : acc - tx.amount;
     }, 0);
-
     const sign = newBalance < 0 ? "-" : "";
     const absBalance = Math.abs(newBalance);
-
     const hasCents = absBalance % 1 !== 0;
-
     const balanceFormatter = new Intl.NumberFormat("en-US", {
       minimumFractionDigits: hasCents ? 2 : 0,
       maximumFractionDigits: 2,
     });
-
     const newBalanceText = `${sign}${state.currencySymbol}${balanceFormatter.format(absBalance)}`;
 
     DOM.home.balanceAmount.textContent = newBalanceText;
 
-    // Анимация (мигание)
-    if (newBalanceText === oldBalanceText || !container || state.isInitialLoad) {
-      return;
-    }
+    if (newBalanceText === oldBalanceText || !container || state.isInitialLoad) return;
 
     const oldBalance = parseFloat(oldBalanceText.replace(/[^0-9.-]+/g, "")) || 0;
     const classToAdd = newBalance > oldBalance ? "balance-flash-positive" : "balance-flash-negative";
-
     container.classList.remove("balance-flash-positive", "balance-flash-negative");
-    requestAnimationFrame(() => {
-      container.classList.add(classToAdd);
-    });
-    container.addEventListener(
-      "animationend",
-      () => {
-        container.classList.remove(classToAdd);
-      },
-      { once: true }
-    );
-  }
-
-  async function handleFetchError(response, defaultErrorMsg = "An error occurred") {
-    let errorMsg = defaultErrorMsg;
-    try {
-      const errorData = await response.json();
-      errorMsg = errorData.detail || errorData.message || defaultErrorMsg;
-    } catch (e) {}
-
-    if (response.status === 403) {
-      errorMsg = "Authentication Failed. Please try restarting the app inside Telegram.";
-    }
-    console.error("Fetch Error:", errorMsg);
-    tg.showAlert(errorMsg);
-    return errorMsg;
+    requestAnimationFrame(() => container.classList.add(classToAdd));
+    container.addEventListener("animationend", () => container.classList.remove(classToAdd), { once: true });
   }
 
   function renderErrorState(container, retryCallback, message = "Failed to load data.") {
     container.innerHTML = `
-            <div class="list-placeholder">
-                <span class="icon">☁️</span>
-                <h3>Couldn't Connect</h3>
-                <p>${message} Please check your connection and try again.</p>
-                <button class="placeholder-btn">Retry</button>
-            </div>
-        `;
+        <div class="list-placeholder">
+            <span class="icon">☁️</span>
+            <h3>Couldn't Connect</h3>
+            <p>${message} Please check your connection and try again.</p>
+            <button class="placeholder-btn">Retry</button>
+        </div>`;
     const retryBtn = container.querySelector(".placeholder-btn");
     if (retryBtn) {
       retryBtn.addEventListener("click", () => {
@@ -342,6 +316,7 @@ document.addEventListener("DOMContentLoaded", () => {
     DOM.screens.forEach((s) => s.classList.add("hidden"));
     const screenToShow = document.getElementById(screenId);
     if (screenToShow) screenToShow.classList.remove("hidden");
+
     DOM.tabs.home.classList.toggle("active", screenId === "home-screen");
     DOM.tabs.analytics.classList.toggle("active", screenId === "analytics-screen");
     DOM.tabs.ai.classList.toggle("active", screenId === "ai-screen");
@@ -350,10 +325,12 @@ document.addEventListener("DOMContentLoaded", () => {
       "active",
       ["quick-add-screen", "full-form-screen", "categories-screen"].includes(screenId)
     );
+
     if (["home-screen", "analytics-screen", "ai-screen", "settings-screen", "quick-add-screen"].includes(screenId)) {
       sessionStorage.setItem("lastActiveScreen", screenId);
-      state.lastActiveScreen = screenId; // State
+      state.lastActiveScreen = screenId;
     }
+
     if (screenId === "analytics-screen") {
       const lastAnalyticsTab = sessionStorage.getItem("lastAnalyticsTab") || "summary";
       if (lastAnalyticsTab === "calendar") {
@@ -378,19 +355,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // --- Loaders ---
-
+  // --- LOADERS ---
   async function loadAllCategories() {
-    if (!tgInitData) return;
     try {
       const [expenseRes, incomeRes] = await Promise.all([
-        fetch(`${API_URLS.CATEGORIES}?type=expense`, { headers: getAuthHeaders(false) }),
-        fetch(`${API_URLS.CATEGORIES}?type=income`, { headers: getAuthHeaders(false) }),
+        apiRequest(`${API_URLS.CATEGORIES}?type=expense`),
+        apiRequest(`${API_URLS.CATEGORIES}?type=income`),
       ]);
 
-      if (!expenseRes.ok || !incomeRes.ok) {
-        throw new Error("Network response was not ok for categories");
-      }
+      if (!expenseRes.ok || !incomeRes.ok) throw new Error("Categories load error");
 
       const expenseCats = await expenseRes.json();
       const incomeCats = await incomeRes.json();
@@ -399,14 +372,12 @@ document.addEventListener("DOMContentLoaded", () => {
         ...expenseCats.map((c) => ({ ...c, type: "expense" })),
         ...incomeCats.map((c) => ({ ...c, type: "income" })),
       ];
-
       renderQuickAddGrids();
     } catch (error) {
-      console.error("Failed to load categories:", error);
       renderErrorState(
         DOM.quickAdd.gridExpense,
         () => {
-          DOM.quickAdd.gridExpense.innerHTML = `<p class="list-placeholder" style="grid-column: 1 / -1;">Loading...</p>`;
+          DOM.quickAdd.gridExpense.innerHTML = `<p class="list-placeholder" style="grid-column:1/-1;">Loading...</p>`;
           loadAllCategories();
         },
         "Failed to load your categories."
@@ -435,17 +406,15 @@ document.addEventListener("DOMContentLoaded", () => {
   function createTransactionElement(tx) {
     const item = document.createElement("div");
     item.className = "expense-item " + tx.type;
-
     const editIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" /></svg>`;
     const trashIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path fill-rule="evenodd" d="M16.5 4.478v.227a48.816 48.816 0 0 1 3.878.512.75.75 0 1 1-.256 1.478l-.209-.035-1.005 13.07a3 3 0 0 1-2.991 2.77H8.084a3 3 0 0 1-2.991-2.77L4.087 6.66l-.209.035a.75.75 0 0 1-.256-1.478A48.567 48.567 0 0 1 7.5 4.705v-.227c0-1.564 1.213-2.9 2.816-2.951a52.662 52.662 0 0 1 3.369 0c1.603.051 2.815 1.387 2.815 2.951Zm-6.136-1.452a51.196 51.196 0 0 1 3.273 0C14.39 3.05 15 3.684 15 4.478v.113a49.488 49.488 0 0 0-6 0v-.113c0-.794.609-1.428 1.364-1.452Zm-.355 5.945a.75.75 0 1 0-1.5.058l.347 9a.75.75 0 1 0 1.499-.058l-.346-9Zm5.48.058a.75.75 0 1 0-1.498-.058l-.347 9a.75.75 0 0 0 1.5.058l.345-9Z" clip-rule="evenodd" /></svg>`;
 
-    // ⭐ ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ
     const txDate = parseDateFromUTC(tx.date);
     const formattedTime = formatTime(txDate);
-
     const { icon: customEmoji, name: categoryName } = parseCategory(tx.category);
-    let categoryDisplay;
 
+    // Эмодзи с фоллбэком
+    let categoryDisplay;
     if (customEmoji) {
       categoryDisplay = `${customEmoji} ${categoryName}`;
     } else if (defaultEmojis[categoryName]) {
@@ -456,50 +425,40 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     item.innerHTML = `
-            <div class="expense-item-delete-bg">
-                ${trashIconSvg}
-            </div>
-            <div class="expense-item-content">
-                <div class="tx-info">
-                    <span class="tx-category">${categoryDisplay}</span>
-                    <span class="tx-time">${formattedTime}</span>
-                </div>
-                <div class="expense-item-details">
-                    <span class="tx-amount ${tx.type}">
-                        ${tx.type === "income" ? "+" : "-"}${formatCurrency(tx.amount)} 
-                    </span>
-                    <button class="edit-btn" data-tx-id="${tx.id}">${editIconSvg}</button>
-                </div>
-            </div>
-        `;
+        <div class="expense-item-delete-bg">${trashIconSvg}</div>
+        <div class="expense-item-content">
+          <div class="tx-info">
+            <span class="tx-category">${categoryDisplay}</span>
+            <span class="tx-time">${formattedTime}</span>
+          </div>
+          <div class="expense-item-details">
+            <span class="tx-amount ${tx.type}">${tx.type === "income" ? "+" : "-"}${formatCurrency(tx.amount)}</span>
+            <button class="edit-btn" data-tx-id="${tx.id}">${editIconSvg}</button>
+          </div>
+        </div>`;
     return item;
   }
 
   function renderTransactions(transactions = [], highlightId = null) {
     DOM.home.listContainer.innerHTML = "";
-
     if (transactions.length === 0) {
       DOM.home.listContainer.innerHTML = `
-                <div class="list-placeholder">
-                    <span class="icon">📁</span>
-                    <h3>All Clear!</h3>
-                    <p>
-                        Your new transactions will appear here.
-                        Tap the <strong>(+)</strong> button below to add your first one.
-                    </p>
-                </div>
-            `;
+          <div class="list-placeholder">
+            <span class="icon">📁</span>
+            <h3>All Clear!</h3>
+            <p>
+              Your new transactions will appear here.
+              Tap the <strong>(+)</strong> button below to add your first one.
+            </p>
+          </div>`;
       updateBalance();
       return;
     }
 
     let currentHeaderDate = "";
-
     transactions.forEach((tx) => {
-      // ⭐ ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ
       const txDate = parseDateFromUTC(tx.date);
       const dateHeader = formatDateForTitle(txDate);
-
       if (dateHeader !== currentHeaderDate) {
         const headerEl = document.createElement("div");
         headerEl.className = "date-header";
@@ -507,46 +466,30 @@ document.addEventListener("DOMContentLoaded", () => {
         DOM.home.listContainer.appendChild(headerEl);
         currentHeaderDate = dateHeader;
       }
-
       const item = createTransactionElement(tx);
-
       if (tx.id === highlightId) {
         item.classList.add("new-item-animation");
-        item.addEventListener(
-          "animationend",
-          () => {
-            item.classList.remove("new-item-animation");
-          },
-          { once: true }
-        );
+        item.addEventListener("animationend", () => item.classList.remove("new-item-animation"), { once: true });
       }
-
       DOM.home.listContainer.appendChild(item);
     });
-
     updateBalance();
   }
 
   function renderSkeleton() {
-    const skeletonHtml = `
-            <div class="skeleton-loader">
-                <div class="skeleton-item skeleton-header"></div>
-                <div class="skeleton-item skeleton-tx"></div>
-                <div class="skeleton-item skeleton-tx"></div>
-                <div class="skeleton-item skeleton-tx"></div>
-            </div>
-        `;
-    DOM.home.listContainer.innerHTML = skeletonHtml;
+    DOM.home.listContainer.innerHTML = `
+        <div class="skeleton-loader">
+          <div class="skeleton-item skeleton-header"></div>
+          <div class="skeleton-item skeleton-tx"></div>
+          <div class="skeleton-item skeleton-tx"></div>
+          <div class="skeleton-item skeleton-tx"></div>
+        </div>`;
   }
 
   async function loadTransactions(highlightId = null) {
-    if (!tgInitData) return;
     try {
-      const response = await fetch(API_URLS.TRANSACTIONS, { headers: getAuthHeaders(false) });
-
-      if (!response.ok) {
-        throw new Error("Network response was not ok");
-      }
+      const response = await apiRequest(API_URLS.TRANSACTIONS);
+      if (!response.ok) throw new Error("Network response was not ok");
       state.transactions = await response.json();
       renderTransactions(state.transactions, highlightId);
       state.isInitialLoad = false;
@@ -565,11 +508,10 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderQuickAddGrids() {
     DOM.quickAdd.gridExpense.innerHTML = "";
     DOM.quickAdd.gridIncome.innerHTML = "";
-
     state.categories.forEach((cat) => {
       const { icon: customEmoji, name: categoryName } = parseCategory(cat.name);
+      // Эмодзи для кнопок
       let emojiToShow;
-
       if (customEmoji) {
         emojiToShow = customEmoji;
       } else if (defaultEmojis[categoryName]) {
@@ -580,35 +522,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const btn = document.createElement("button");
       btn.className = "category-grid-btn";
-      btn.innerHTML = `
-                <span class="icon">${emojiToShow}</span>
-                <span>${categoryName}</span>
-            `;
-
-      btn.addEventListener("click", () => {
-        openQuickModal(cat);
-      });
-
-      if (cat.type === "income") {
-        DOM.quickAdd.gridIncome.appendChild(btn);
-      } else {
-        DOM.quickAdd.gridExpense.appendChild(btn);
-      }
+      btn.innerHTML = `<span class="icon">${emojiToShow}</span><span>${categoryName}</span>`;
+      btn.addEventListener("click", () => openQuickModal(cat));
+      if (cat.type === "income") DOM.quickAdd.gridIncome.appendChild(btn);
+      else DOM.quickAdd.gridExpense.appendChild(btn);
     });
   }
 
-  // --- Forms (Add/Edit) ---
+  // --- FORMS ---
 
   function handleEditTransactionClick(e) {
     const editBtn = e.target.closest(".edit-btn");
     if (!editBtn) return;
-
     const txId = parseInt(editBtn.dataset.txId, 10);
     const transactionToEdit = state.transactions.find((tx) => tx.id === txId);
-
-    if (transactionToEdit) {
-      openEditScreen(transactionToEdit);
-    }
+    if (transactionToEdit) openEditScreen(transactionToEdit);
   }
 
   async function openEditScreen(tx) {
@@ -616,10 +544,7 @@ document.addEventListener("DOMContentLoaded", () => {
     DOM.fullForm.title.textContent = "Edit Transaction";
     DOM.fullForm.saveBtn.textContent = "Save Changes";
     DOM.fullForm.deleteBtn.classList.remove("hidden");
-
-    if (DOM.fullForm.typeWrapper) {
-      DOM.fullForm.typeWrapper.classList.add("hidden");
-    }
+    if (DOM.fullForm.typeWrapper) DOM.fullForm.typeWrapper.classList.add("hidden");
 
     if (tx.type === "income") {
       DOM.fullForm.typeIncome.classList.add("active");
@@ -630,14 +555,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     DOM.fullForm.amountInput.value = tx.amount;
-
-    // ⭐ ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ для подстановки даты в форму
     const dateObj = parseDateFromUTC(tx.date);
     DOM.fullForm.dateInput.value = dateObj.toISOString().split("T")[0];
-
     await loadCategoriesForForm(tx.type);
     DOM.fullForm.categorySelect.value = tx.category_id;
-
     closeBottomSheet();
     showScreen("full-form-screen");
   }
@@ -652,10 +573,7 @@ document.addEventListener("DOMContentLoaded", () => {
     DOM.fullForm.title.textContent = type === "income" ? "New Income" : "New Expense";
     DOM.fullForm.saveBtn.textContent = "Save Transaction";
     DOM.fullForm.deleteBtn.classList.add("hidden");
-
-    if (DOM.fullForm.typeWrapper) {
-      DOM.fullForm.typeWrapper.classList.add("hidden");
-    }
+    if (DOM.fullForm.typeWrapper) DOM.fullForm.typeWrapper.classList.add("hidden");
 
     DOM.fullForm.amountInput.value = "";
     DOM.fullForm.dateInput.valueAsDate = new Date();
@@ -667,20 +585,14 @@ document.addEventListener("DOMContentLoaded", () => {
       DOM.fullForm.typeExpense.classList.add("active");
       DOM.fullForm.typeIncome.classList.remove("active");
     }
-
     await loadCategoriesForForm(type);
     showScreen("full-form-screen");
   }
 
   async function deleteTransaction(txId) {
-    if (!tgInitData) return false;
     try {
-      const response = await fetch(`${API_URLS.TRANSACTIONS}/${txId}`, {
-        method: "DELETE",
-        headers: getAuthHeaders(false),
-      });
+      const response = await apiRequest(`${API_URLS.TRANSACTIONS}/${txId}`, { method: "DELETE" });
       if (!response.ok) {
-        await handleFetchError(response, "Failed to delete transaction");
         return false;
       }
       return true;
@@ -693,20 +605,17 @@ document.addEventListener("DOMContentLoaded", () => {
   function showDeleteConfirmation() {
     if (!state.editTransaction) return;
     const txId = state.editTransaction.id;
-
+    // 🔥 ФИКС: Возвращаем "душевный" текст
     tg.showConfirm("Are you sure you want to delete this transaction?", async (confirmed) => {
       if (confirmed) {
         DOM.fullForm.saveBtn.disabled = true;
         DOM.fullForm.deleteBtn.disabled = true;
-
         const success = await deleteTransaction(txId);
-
         if (success) {
           tg.HapticFeedback.notificationOccurred("success");
           await loadTransactions();
           showScreen("home-screen");
         }
-
         DOM.fullForm.saveBtn.disabled = false;
         DOM.fullForm.deleteBtn.disabled = false;
         state.editTransaction = null;
@@ -722,26 +631,20 @@ document.addEventListener("DOMContentLoaded", () => {
     if (txId) {
       url = `${API_URLS.TRANSACTIONS}/${txId}`;
       method = "PATCH";
-      body = {
-        category_id: txData.category_id,
-        amount: txData.amount,
-        date: txData.date,
-      };
+      body = { category_id: txData.category_id, amount: txData.amount, date: txData.date };
     }
 
     try {
-      const response = await fetch(url, {
+      const response = await apiRequest(url, {
         method: method,
-        headers: getAuthHeaders(true),
         body: JSON.stringify(body),
       });
+
       if (!response.ok) {
-        await handleFetchError(response, "Failed to save transaction.");
         return null;
       }
       return await response.json();
     } catch (error) {
-      console.error("Save transaction failed:", error);
       tg.showAlert("An error occurred while saving.");
       return null;
     }
@@ -754,19 +657,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const date = DOM.fullForm.dateInput.value;
 
     if (!categoryId || isNaN(amount) || amount <= 0 || !date) {
+      // 🔥 ФИКС: Возвращаем "friendly" текст
       tg.showAlert("Please fill all fields with valid data.");
       return;
     }
-    if (!tgInitData) return;
-
     DOM.fullForm.saveBtn.disabled = true;
 
-    const txData = {
-      category_id: parseInt(categoryId),
-      amount: amount,
-      date: date,
-    };
-
+    const txData = { category_id: parseInt(categoryId), amount: amount, date: date };
     const txId = state.editTransaction ? state.editTransaction.id : null;
     const savedTransaction = await _saveTransaction(txData, txId);
 
@@ -775,60 +672,47 @@ document.addEventListener("DOMContentLoaded", () => {
       await loadTransactions(txId ? null : savedTransaction.id);
       showScreen("home-screen");
     }
-
     DOM.fullForm.saveBtn.disabled = false;
     state.editTransaction = null;
   }
 
-  // --- Bottom Sheets ---
-
+  // --- SHEETS & MODALS ---
   function openBottomSheet(sheetElement) {
     if (!sheetElement) return;
-
     if (state.activeBottomSheet && state.activeBottomSheet !== sheetElement) {
       state.activeBottomSheet.style.transform = "translateY(100%)";
       setTimeout(() => state.activeBottomSheet.classList.add("hidden"), 300);
     }
-
     DOM.backdrop.classList.remove("hidden");
     sheetElement.classList.remove("hidden");
     document.body.classList.add("is-sheet-open");
-
     setTimeout(() => {
       DOM.backdrop.classList.add("shown");
       sheetElement.style.transform = "translateY(0)";
     }, 10);
-
     state.activeBottomSheet = sheetElement;
     tg.HapticFeedback.impactOccurred("light");
   }
 
   function closeBottomSheet() {
     if (!state.activeBottomSheet) return;
-
     document.body.classList.remove("is-sheet-open");
     DOM.backdrop.classList.remove("shown");
     state.activeBottomSheet.style.transform = "translateY(100%)";
-
     const sheetToHide = state.activeBottomSheet;
     state.activeBottomSheet = null;
-
     setTimeout(() => {
       sheetToHide.classList.add("hidden");
-      if (!state.activeBottomSheet) {
-        DOM.backdrop.classList.add("hidden");
-      }
+      if (!state.activeBottomSheet) DOM.backdrop.classList.add("hidden");
     }, 300);
   }
 
   function openQuickModal(category) {
     state.quickCategory = category;
-
     const { name: categoryName } = parseCategory(category.name);
     DOM.quickModal.title.textContent = categoryName;
     DOM.quickModal.currency.textContent = state.currencySymbol;
     DOM.quickModal.amountInput.value = "";
-
     DOM.quickModal.saveBtn.className = "save-btn";
     if (category.type === "expense") {
       DOM.quickModal.saveBtn.classList.add("expense");
@@ -837,7 +721,6 @@ document.addEventListener("DOMContentLoaded", () => {
       DOM.quickModal.saveBtn.classList.add("income");
       DOM.quickModal.saveBtn.textContent = "Save Income";
     }
-
     openBottomSheet(DOM.quickModal.sheet);
     setTimeout(() => DOM.quickModal.amountInput.focus(), 300);
   }
@@ -845,64 +728,41 @@ document.addEventListener("DOMContentLoaded", () => {
   async function saveQuickModal() {
     const amountStr = DOM.quickModal.amountInput.value.replace(",", ".");
     const amount = parseFloat(amountStr);
-
     if (!state.quickCategory) return;
-
-    const categoryId = state.quickCategory.id;
-    const date = getLocalDateString(new Date());
-
     if (isNaN(amount) || amount <= 0) {
       tg.showAlert("Please enter a valid amount.");
       return;
     }
-    if (!tgInitData) return;
-
     DOM.quickModal.saveBtn.disabled = true;
-
     const txData = {
-      category_id: parseInt(categoryId),
+      category_id: parseInt(state.quickCategory.id),
       amount: amount,
-      date: date,
+      date: getLocalDateString(new Date()),
     };
-
     const savedTransaction = await _saveTransaction(txData);
-
     if (savedTransaction) {
       tg.HapticFeedback.notificationOccurred("success");
       closeBottomSheet();
       await loadTransactions(savedTransaction.id);
       showScreen("home-screen");
     }
-
     DOM.quickModal.saveBtn.disabled = false;
   }
 
   function openDaySheet(date) {
     DOM.daySheet.title.textContent = formatDateForTitle(date);
-
-    // Получаем строку даты в формате "YYYY-MM-DD" для выбранного дня
-    // (функция getLocalDateString у тебя уже есть выше)
     const selectedDateString = getLocalDateString(date);
-
     const dayTransactions = state.transactions.filter((tx) => {
-      // Берем дату транзакции и парсим её с учетом сдвига (как мы делаем для заголовков)
       const txDate = parseDateFromUTC(tx.date);
-      const txDateString = getLocalDateString(txDate);
-
-      // Сравниваем просто СТРОКИ ("2025-12-01" === "2025-12-01")
-      return txDateString === selectedDateString;
+      return getLocalDateString(txDate) === selectedDateString;
     });
 
     DOM.daySheet.list.innerHTML = "";
     if (dayTransactions.length === 0) {
       DOM.daySheet.list.innerHTML = "<p class='list-placeholder'>No transactions on this day.</p>";
     } else {
-      dayTransactions.forEach((tx) => {
-        const item = createTransactionElement(tx);
-        DOM.daySheet.list.appendChild(item);
-      });
+      dayTransactions.forEach((tx) => DOM.daySheet.list.appendChild(createTransactionElement(tx)));
     }
-
     DOM.daySheet.contentWrapper.scrollTop = 0;
     openBottomSheet(DOM.daySheet.sheet);
   }
@@ -914,24 +774,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const handleTouchMove = (e) => {
       if (!isDragging) return;
-      let touchY = e.touches[0].clientY;
-      let diffY = touchY - startY;
+      let diffY = e.touches[0].clientY - startY;
       if (diffY > 0) {
         e.preventDefault();
         currentY = diffY;
         sheet.style.transform = `translateY(${diffY}px)`;
       }
     };
-
-    const handleTouchEnd = (e) => {
+    const handleTouchEnd = () => {
       if (!isDragging) return;
       isDragging = false;
       sheet.style.transition = "transform 0.3s ease-out";
-      if (currentY > 100) {
-        closeFn();
-      } else {
-        sheet.style.transform = "translateY(0)";
-      }
+      if (currentY > 100) closeFn();
+      else sheet.style.transform = "translateY(0)";
       currentY = 0;
       document.removeEventListener("touchmove", handleTouchMove);
       document.removeEventListener("touchend", handleTouchEnd);
@@ -956,8 +811,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function openSummarySheet(type, amount) {
     let title = "Total";
-    let sign = amount > 0 ? "+" : amount < 0 ? "-" : "";
     let cssClass = "net";
+    let sign = amount > 0 ? "+" : amount < 0 ? "-" : "";
 
     if (type === "income") {
       title = "Total Income";
@@ -972,24 +827,27 @@ document.addEventListener("DOMContentLoaded", () => {
       cssClass = amount >= 0 ? "net positive" : "net negative";
     }
 
-    const fullAmountText = `${sign}${state.currencySymbol}${preciseNumberFormatter.format(Math.abs(amount))}`;
-
     DOM.summarySheet.title.textContent = title;
     DOM.summarySheet.currency.textContent = "";
-    DOM.summarySheet.amountInput.value = fullAmountText;
+    DOM.summarySheet.amountInput.value = `${sign}${state.currencySymbol}${preciseNumberFormatter.format(
+      Math.abs(amount)
+    )}`;
     DOM.summarySheet.amountInput.className = cssClass;
-
     tg.HapticFeedback.impactOccurred("medium");
     openBottomSheet(DOM.summarySheet.sheet);
   }
 
-  // --- Swipes ---
+  // --- SWIPES ---
+  let swipeStartX = 0;
+  let swipeStartY = 0;
+  let currentSwipeElement = null;
+  let isSwiping = false;
+  const SWIPE_DELETE_BG_WIDTH = 90;
+  const SWIPE_THRESHOLD = -80;
 
   function handleSwipeStart(e) {
     const txItem = e.target.closest(".expense-item");
-    if (!txItem || e.target.closest(".edit-btn") || isSwiping) {
-      return;
-    }
+    if (!txItem || e.target.closest(".edit-btn") || isSwiping) return;
     currentSwipeElement = txItem;
     swipeStartX = e.touches[0].clientX;
     swipeStartY = e.touches[0].clientY;
@@ -1000,9 +858,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const diffX = e.touches[0].clientX - swipeStartX;
     const diffY = e.touches[0].clientY - swipeStartY;
     if (!isSwiping) {
-      if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 10) {
-        isSwiping = true;
-      } else if (Math.abs(diffY) > Math.abs(diffX)) {
+      if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 10) isSwiping = true;
+      else if (Math.abs(diffY) > Math.abs(diffX)) {
         currentSwipeElement = null;
         return;
       }
@@ -1010,22 +867,17 @@ document.addEventListener("DOMContentLoaded", () => {
     if (isSwiping) {
       e.preventDefault();
       const content = currentSwipeElement.querySelector(".expense-item-content");
-      if (!content) return;
-      let moveX = diffX;
-      if (moveX > 0) moveX = 0;
-      const maxSwipe = -SWIPE_DELETE_BG_WIDTH;
-      if (moveX < maxSwipe) {
-        moveX = maxSwipe - Math.pow(-moveX + maxSwipe, 0.7);
-      }
+      let moveX = diffX > 0 ? 0 : diffX;
+      if (moveX < -SWIPE_DELETE_BG_WIDTH)
+        moveX = -SWIPE_DELETE_BG_WIDTH - Math.pow(-moveX - SWIPE_DELETE_BG_WIDTH, 0.7);
       content.classList.add("swiping");
       content.style.transform = `translateX(${moveX}px)`;
     }
   }
 
-  function handleSwipeEnd(e) {
+  function handleSwipeEnd() {
     if (!currentSwipeElement) return;
     const content = currentSwipeElement.querySelector(".expense-item-content");
-    if (!content) return;
     content.classList.remove("swiping");
     const currentTransform = new DOMMatrix(getComputedStyle(content).transform).m41;
     if (isSwiping && currentTransform <= SWIPE_THRESHOLD) {
@@ -1040,9 +892,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function handleDeleteSwipe(element, content) {
     const editBtn = element.querySelector(".edit-btn");
-    if (!editBtn) return;
     const txId = parseInt(editBtn.dataset.txId, 10);
     tg.HapticFeedback.impactOccurred("medium");
+    // 🔥 ФИКС: Возвращаем "душевный" текст
     tg.showConfirm("Are you sure you want to delete this transaction?", async (confirmed) => {
       if (confirmed) {
         element.style.height = element.offsetHeight + "px";
@@ -1066,44 +918,34 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // --- Analytics ---
-
+  // --- ANALYTICS ---
   async function loadAnalyticsPage() {
-    if (!tgInitData) return;
-    if (DOM.analytics.summaryPane.classList.contains("hidden")) {
-      await loadCalendarData();
-    } else {
-      await loadSummaryData();
-    }
+    if (DOM.analytics.summaryPane.classList.contains("hidden")) await loadCalendarData();
+    else await loadSummaryData();
   }
 
   async function loadSummaryData() {
-    if (!tgInitData) return;
     if (state.isLoading) return;
     state.isLoading = true;
-
     DOM.analytics.summaryList.innerHTML = `<p class="list-placeholder">Loading summary...</p>`;
     if (state.chart) state.chart.destroy();
     DOM.analytics.doughnutChartCanvas.classList.add("hidden");
 
-    // ⭐ ЛОГИКА: Выбор API параметра и Цветов
     const isExpense = state.summaryType === "expense";
-
     const palette = isExpense
       ? ["#FFB6C1", "#FFDAB9", "#FFFFE0", "#98FB98", "#AFEEEE", "#ADD8E6", "#E6E6FA", "#FADADD", "#FDE6D2", "#FBF0D0"]
       : ["#dcfce7", "#bbf7d0", "#86efac", "#4ade80", "#22c55e", "#16a34a", "#15803d", "#14532d", "#064e3b"];
 
-    let url = new URL(API_URLS.ANALYTICS_SUMMARY, window.location.origin);
-    url.searchParams.append("type", state.summaryType);
-    url.searchParams.append("range", state.summaryRange);
-
     try {
-      const response = await fetch(url.toString(), { headers: getAuthHeaders(false) });
+      const url = new URL(API_URLS.ANALYTICS_SUMMARY, window.location.origin);
+      url.searchParams.append("type", state.summaryType);
+      url.searchParams.append("range", state.summaryRange);
+
+      const response = await apiRequest(url.toString());
       if (!response.ok) throw new Error("Failed to load summary");
       const data = await response.json();
 
       DOM.analytics.summaryList.innerHTML = "";
-
       if (data.length === 0) {
         DOM.analytics.summaryList.innerHTML = `<p class="list-placeholder">No ${state.summaryType}s found for this period.</p>`;
         return;
@@ -1116,7 +958,6 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       const totals = data.map((item) => item.total);
 
-      // 3. Подготовка данных для центра
       const totalSum = totals.reduce((a, b) => a + b, 0);
       const absTotal = Math.abs(totalSum);
       let compactTotal;
@@ -1128,69 +969,51 @@ document.addEventListener("DOMContentLoaded", () => {
       const totalLabel = isExpense ? "Expenses" : "Income";
       const totalSign = isExpense ? "-" : "+";
       const totalColor = isExpense ? "#ef4444" : "#22c55e";
-
       const formattedCenterText = `${totalSign}${state.currencySymbol}${compactTotal}`;
 
       data.forEach((item) => {
         const itemEl = document.createElement("div");
         itemEl.className = "summary-list-item";
 
+        // Логика эмодзи
         const { icon, name } = parseCategory(item.category);
         let categoryDisplay;
-
         if (icon) {
           categoryDisplay = `${icon} ${name}`;
         } else if (defaultEmojis[name]) {
           categoryDisplay = `${defaultEmojis[name]} ${name}`;
         } else {
-          categoryDisplay = `${isExpense ? defaultIconExpense : defaultIconIncome} ${name}`;
+          const defaultIcon = isExpense ? defaultIconExpense : defaultIconIncome;
+          categoryDisplay = `${defaultIcon} ${name}`;
         }
 
-        const itemSign = isExpense ? "-" : "+";
-        const itemColorClass = isExpense ? "expense" : "income";
-
         itemEl.innerHTML = `
-                    <span class="category">${categoryDisplay}</span>
-                    <span class="amount" style="color: var(--color-${itemColorClass})">${itemSign}${formatCurrency(
-          item.total
-        )}</span>
-                `;
+            <span class="category">${categoryDisplay}</span>
+            <span class="amount" style="color: var(--color-${isExpense ? "expense" : "income"})">
+              ${isExpense ? "-" : "+"}${formatCurrency(item.total)}
+            </span>`;
         DOM.analytics.summaryList.appendChild(itemEl);
       });
 
       const centerTextPlugin = {
         id: "centerText",
-        beforeDraw: function (chart) {
-          if (!chart.chartArea) return;
-
+        beforeDraw: (chart) => {
           const {
             ctx,
             chartArea: { top, bottom, left, right },
           } = chart;
           const centerX = (left + right) / 2;
           const centerY = (top + bottom) / 2;
-
           ctx.save();
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-
           const donutHeight = bottom - top;
-          const fontSizeLabel = (donutHeight / 320).toFixed(2);
-          ctx.font = `500 ${fontSizeLabel}em sans-serif`;
+          ctx.font = `500 ${(donutHeight / 320).toFixed(2)}em sans-serif`;
           ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--tg-theme-hint-color");
-
-          const textLabel = totalLabel;
-          const textXLabel = Math.round(centerX - ctx.measureText(textLabel).width / 2);
-          const textYLabel = centerY - donutHeight * 0.03;
-
-          ctx.fillText(totalLabel, centerX, centerY - donutHeight * 0.03);
-
-          const fontSizeValue = (donutHeight / 200).toFixed(2);
-          ctx.font = `bold ${fontSizeValue}em sans-serif`;
+          ctx.fillText(totalLabel, centerX, centerY - donutHeight * 0.04);
+          ctx.font = `bold ${(donutHeight / 200).toFixed(2)}em sans-serif`;
           ctx.fillStyle = totalColor;
-
-          ctx.fillText(formattedCenterText, centerX, centerY + donutHeight * 0.03);
-
+          ctx.fillText(formattedCenterText, centerX, centerY + donutHeight * 0.04);
           ctx.restore();
         },
       };
@@ -1199,14 +1022,7 @@ document.addEventListener("DOMContentLoaded", () => {
         type: "doughnut",
         data: {
           labels: labels,
-          datasets: [
-            {
-              label: state.summaryType,
-              data: totals,
-              backgroundColor: palette,
-              borderWidth: 0,
-            },
-          ],
+          datasets: [{ data: totals, backgroundColor: palette, borderWidth: 0 }],
         },
         options: {
           responsive: true,
@@ -1228,13 +1044,7 @@ document.addEventListener("DOMContentLoaded", () => {
         plugins: [centerTextPlugin],
       });
     } catch (error) {
-      renderErrorState(
-        DOM.analytics.summaryList,
-        () => {
-          loadSummaryData();
-        },
-        "Failed to load summary data."
-      );
+      renderErrorState(DOM.analytics.summaryList, () => loadSummaryData(), "Failed to load summary data.");
     } finally {
       state.isLoading = false;
     }
@@ -1243,9 +1053,8 @@ document.addEventListener("DOMContentLoaded", () => {
   function populateDatePickers() {
     const currentMonth = state.analyticsDate.getMonth();
     const currentYear = state.analyticsDate.getFullYear();
-
     DOM.calendar.monthSelect.innerHTML = "";
-    const months = [
+    [
       "January",
       "February",
       "March",
@@ -1258,130 +1067,85 @@ document.addEventListener("DOMContentLoaded", () => {
       "October",
       "November",
       "December",
-    ];
-    months.forEach((month, index) => {
-      const option = document.createElement("option");
-      option.value = index;
-      option.textContent = month;
-      if (index === currentMonth) option.selected = true;
-      DOM.calendar.monthSelect.appendChild(option);
+    ].forEach((m, i) => {
+      const opt = document.createElement("option");
+      opt.value = i;
+      opt.textContent = m;
+      if (i === currentMonth) opt.selected = true;
+      DOM.calendar.monthSelect.appendChild(opt);
     });
-
     DOM.calendar.yearSelect.innerHTML = "";
-    for (let year = currentYear - 5; year <= currentYear + 1; year++) {
-      const option = document.createElement("option");
-      option.value = year;
-      option.textContent = year;
-      if (year === currentYear) option.selected = true;
-      DOM.calendar.yearSelect.appendChild(option);
+    for (let y = currentYear - 5; y <= currentYear + 1; y++) {
+      const opt = document.createElement("option");
+      opt.value = y;
+      opt.textContent = y;
+      if (y === currentYear) opt.selected = true;
+      DOM.calendar.yearSelect.appendChild(opt);
     }
   }
 
   async function loadCalendarData() {
-    if (!tgInitData) return;
-
     const year = state.analyticsDate.getFullYear();
     const month = state.analyticsDate.getMonth() + 1;
-
     populateDatePickers();
     DOM.calendar.summaryIncome.textContent = "...";
-    DOM.calendar.summaryExpense.textContent = "...";
-    DOM.calendar.summaryNet.textContent = "...";
     DOM.calendar.container.innerHTML = '<p class="list-placeholder">Loading calendar...</p>';
 
-    state.calendarSummary = { income: 0, expense: 0, net: 0 };
-
     try {
-      const response = await fetch(`${API_URLS.ANALYTICS_CALENDAR}?month=${month}&year=${year}`, {
-        headers: getAuthHeaders(false),
-      });
-
-      if (!response.ok) throw new Error("Failed to load calendar data");
+      const response = await apiRequest(`${API_URLS.ANALYTICS_CALENDAR}?month=${month}&year=${year}`);
+      if (!response.ok) throw new Error("Load failed");
       const data = await response.json();
 
       state.calendarSummary = data.month_summary;
-
       DOM.calendar.summaryIncome.textContent = formatCurrencyForSummary(data.month_summary.income);
       DOM.calendar.summaryExpense.textContent = formatCurrencyForSummary(data.month_summary.expense * -1);
       DOM.calendar.summaryNet.textContent = formatCurrencyForSummary(data.month_summary.net);
-
       DOM.calendar.summaryNet.style.color =
         data.month_summary.net >= 0 ? "var(--color-income)" : "var(--color-expense)";
 
       DOM.calendar.container.innerHTML = "";
+      const firstDay = new Date(year, month - 1, 1);
+      const lastDay = new Date(year, month, 0);
+      const todayString = new Date().toDateString();
 
-      const firstDayOfMonth = new Date(year, month - 1, 1);
-      const lastDayOfMonth = new Date(year, month, 0);
-      const today = new Date();
-      const todayString = today.toDateString();
-
-      const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-      weekdays.forEach((day) => {
-        const headerEl = document.createElement("div");
-        headerEl.className = "calendar-day-header";
-        headerEl.textContent = day;
-        DOM.calendar.container.appendChild(headerEl);
+      ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].forEach((d) => {
+        const el = document.createElement("div");
+        el.className = "calendar-day-header";
+        el.textContent = d;
+        DOM.calendar.container.appendChild(el);
       });
-
-      let startDayOfWeek = (firstDayOfMonth.getDay() + 6) % 7;
+      const startDayOfWeek = (firstDay.getDay() + 6) % 7;
       for (let i = 0; i < startDayOfWeek; i++) {
-        const emptyEl = document.createElement("div");
-        emptyEl.className = "calendar-day is-other-month";
-        DOM.calendar.container.appendChild(emptyEl);
+        const el = document.createElement("div");
+        el.className = "calendar-day is-other-month";
+        DOM.calendar.container.appendChild(el);
       }
-
-      for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
-        const currentDate = new Date(year, month - 1, day);
+      for (let day = 1; day <= lastDay.getDate(); day++) {
+        const current = new Date(year, month - 1, day);
         const dayEl = document.createElement("div");
         dayEl.className = "calendar-day";
-
-        if (currentDate.toDateString() === todayString) {
-          dayEl.classList.add("is-today");
-        }
+        if (current.toDateString() === todayString) dayEl.classList.add("is-today");
 
         const dayKey = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-
-        let markersHtml = "";
+        let markers = "";
         if (data.days[dayKey]) {
-          const dayData = data.days[dayKey];
-          if (dayData.income > 0) markersHtml += `<span class="income">${formatForDayMarker(dayData.income)}</span>`;
-          if (dayData.expense > 0)
-            markersHtml += `<span class="expense">${formatForDayMarker(dayData.expense * -1)}</span>`;
+          if (data.days[dayKey].income > 0)
+            markers += `<span class="income">${formatForDayMarker(data.days[dayKey].income)}</span>`;
+          if (data.days[dayKey].expense > 0)
+            markers += `<span class="expense">${formatForDayMarker(data.days[dayKey].expense * -1)}</span>`;
         }
-
-        dayEl.innerHTML = `
-                    <div class="day-number">${day}</div>
-                    <div class="day-marker">${markersHtml}</div>
-                `;
-
-        dayEl.addEventListener("click", () => {
-          openDaySheet(currentDate);
-        });
-
+        dayEl.innerHTML = `<div class="day-number">${day}</div><div class="day-marker">${markers}</div>`;
+        dayEl.addEventListener("click", () => openDaySheet(current));
         DOM.calendar.container.appendChild(dayEl);
       }
     } catch (error) {
-      renderErrorState(
-        DOM.calendar.container,
-        () => {
-          DOM.calendar.container.innerHTML = '<p class="list-placeholder">Loading calendar...</p>';
-          loadCalendarData();
-        },
-        "Failed to load calendar data."
-      );
+      renderErrorState(DOM.calendar.container, () => loadCalendarData(), "Failed to load calendar data.");
     }
   }
 
-  // --- AI Advisor ---
-
+  // --- AI ADVISOR ---
   async function fetchAiData(promptType, title) {
-    if (!tgInitData) {
-      tg.showAlert("User ID not found.");
-      return;
-    }
-
     tg.HapticFeedback.impactOccurred("medium");
-
     DOM.ai.featuresList.classList.add("hidden");
     DOM.ai.resultContainer.classList.remove("hidden");
     DOM.ai.resultTitle.textContent = title;
@@ -1389,24 +1153,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       const url = `${API_URLS.AI_ADVICE}?range=${state.aiRange}&prompt_type=${promptType}`;
-
-      const response = await fetch(url, { headers: getAuthHeaders(false) });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to get response from AI.");
-      }
+      const response = await apiRequest(url, { method: "POST" });
+      if (!response.ok) throw new Error("AI Error");
       const data = await response.json();
       DOM.ai.resultBody.textContent = data.advice;
     } catch (error) {
       DOM.ai.resultBody.innerHTML = `
-                <div class="list-placeholder" style="padding: 20px 0;">
-                    <span class="icon">☁️</span>
-                    <h3 style="font-size: 1.1rem;">Couldn't Connect</h3>
-                    <p>${error.message || "Failed to get response from AI."}</p>
-                    <button class="placeholder-btn">Retry</button>
-                </div>
-            `;
+        <div class="list-placeholder" style="padding: 20px 0;">
+            <span class="icon">☁️</span>
+            <h3 style="font-size: 1.1rem;">Couldn't Connect</h3>
+            <p>Failed to get response from AI.</p>
+            <button class="placeholder-btn">Retry</button>
+        </div>`;
       const retryBtn = DOM.ai.resultBody.querySelector(".placeholder-btn");
       if (retryBtn) {
         retryBtn.addEventListener("click", () => {
@@ -1417,35 +1175,25 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // --- Settings & Categories ---
-
+  // --- SETTINGS ---
   async function handleResetData() {
-    if (!tgInitData) return;
-
     DOM.settings.resetDataBtn.disabled = true;
     DOM.settings.resetDataBtn.textContent = "Resetting...";
-
     try {
-      const response = await fetch(API_URLS.USER_RESET, {
-        method: "DELETE",
-        headers: getAuthHeaders(false),
-      });
-      if (!response.ok) {
-        await handleFetchError(response, "Failed to reset data");
-        throw new Error("Reset failed");
-      }
-
+      const response = await apiRequest(API_URLS.USER_RESET, { method: "DELETE" });
+      if (!response.ok) throw new Error("Reset failed");
       tg.HapticFeedback.notificationOccurred("success");
       await loadTransactions();
       await loadAllCategories();
       showScreen("home-screen");
-
+      // 🔥 ФИКС: Возвращаем "душевный" текст
       tg.showPopup({
         title: "Data Reset",
-        message: `Your account has been successfully reset.`,
+        message: "Your account has been successfully reset.",
         buttons: [{ type: "ok" }],
       });
     } catch (error) {
+      tg.showAlert("Failed to reset data.");
     } finally {
       DOM.settings.resetDataBtn.disabled = false;
       DOM.settings.resetDataBtn.textContent = "Reset All Data";
@@ -1455,29 +1203,30 @@ document.addEventListener("DOMContentLoaded", () => {
   function loadCategoriesScreen() {
     DOM.categories.list.innerHTML = "";
     const categories = state.categories.filter((c) => c.type === state.categoryType);
-    renderCategoriesList(categories);
-  }
-
-  function renderCategoriesList(categories = []) {
-    DOM.categories.list.innerHTML = "";
-
     if (categories.length === 0) {
       DOM.categories.list.innerHTML = `
-                <div class="list-placeholder" style="padding: 40px 20px;">
-                    <span class="icon">🏷️</span>
-                    <h3>No Categories Yet</h3>
-                    <p>
-                        Use the form above to add your
-                        first ${state.categoryType} category.
-                    </p>
-                </div>
-            `;
+        <div class="list-placeholder" style="padding: 40px 20px;">
+            <span class="icon">🏷️</span>
+            <h3>No Categories Yet</h3>
+            <p>Use the form above to add your first ${state.categoryType} category.</p>
+        </div>`;
       return;
     }
-
     categories.forEach((cat) => {
       const item = document.createElement("div");
       item.className = "category-item";
+
+      const { icon, name } = parseCategory(cat.name);
+      let displayName = name;
+
+      if (!icon && defaultEmojis[name]) {
+        displayName = `${defaultEmojis[name]} ${name}`;
+      } else if (icon) {
+        displayName = `${icon} ${name}`;
+      } else {
+        const defIcon = state.categoryType === "income" ? defaultIconIncome : defaultIconExpense;
+        displayName = `${defIcon} ${name}`;
+      }
 
       let badgeHtml = "";
       let deleteButtonHtml = "";
@@ -1486,22 +1235,21 @@ document.addEventListener("DOMContentLoaded", () => {
         badgeHtml = `<span class="default-badge">Default</span>`;
       } else {
         deleteButtonHtml = `
-                    <button class="delete-category-btn" data-id="${cat.id}">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                `;
+              <button class="delete-category-btn" data-id="${cat.id}">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+              </button>
+          `;
       }
 
       item.innerHTML = `
-                <div style="display: flex; align-items: center;">
-                    <span>${cat.name}</span>
-                    ${badgeHtml}
-                </div>
-                ${deleteButtonHtml}
-            `;
-
+            <div style="display: flex; align-items: center;">
+                <span>${displayName}</span>
+                ${badgeHtml}
+            </div>
+            ${deleteButtonHtml}
+        `;
       DOM.categories.list.appendChild(item);
     });
   }
@@ -1510,60 +1258,44 @@ document.addEventListener("DOMContentLoaded", () => {
     const icon = DOM.categories.newIconInput.value.trim();
     const name = DOM.categories.newNameInput.value.trim();
 
+    // 🔥 ФИКС: Текст
     if (!name) {
       tg.showAlert("Please enter a category name.");
       return;
     }
-
     const fullName = icon ? `${icon} ${name}` : name;
 
-    if (!tgInitData) return;
-
     tg.HapticFeedback.impactOccurred("light");
+
     DOM.categories.addBtn.disabled = true;
-
     try {
-      const response = await fetch(API_URLS.CATEGORIES, {
+      const response = await apiRequest(API_URLS.CATEGORIES, {
         method: "POST",
-        headers: getAuthHeaders(true),
-        body: JSON.stringify({
-          name: fullName,
-          type: state.categoryType, // state
-        }),
+        body: JSON.stringify({ name: fullName, type: state.categoryType }),
       });
-      if (!response.ok) {
-        await handleFetchError(response, "Failed to add category");
-        throw new Error("Add failed");
-      }
-
+      if (!response.ok) throw new Error("Add failed");
       DOM.categories.newIconInput.value = "";
       DOM.categories.newNameInput.value = "";
-
       await loadAllCategories();
       loadCategoriesScreen();
-    } catch (error) {
+    } catch (e) {
     } finally {
       DOM.categories.addBtn.disabled = false;
     }
   }
 
   async function handleDeleteCategory(categoryId) {
+    // 🔥 ФИКС: ВОССТАНОВЛЕНА ПОЛНАЯ ЛОГИКА WARNING
     let transactionCount = 0;
     let message = "Are you sure you want to delete this category?";
 
-    if (!tgInitData) return;
-
     try {
-      const checkResponse = await fetch(`${API_URLS.CATEGORIES}/${categoryId}/check`, {
-        headers: getAuthHeaders(false),
-      });
-      if (!checkResponse.ok) {
-        await handleFetchError(checkResponse, "Failed to check category");
-        return;
+      const check = await apiRequest(`${API_URLS.CATEGORIES}/${categoryId}/check`);
+      if (check.ok) {
+        const data = await check.json();
+        transactionCount = data.transaction_count;
       }
-      const checkData = await checkResponse.json();
-      transactionCount = checkData.transaction_count;
-    } catch (error) {
+    } catch (e) {
       tg.showAlert("Failed to check category.");
       return;
     }
@@ -1576,49 +1308,37 @@ document.addEventListener("DOMContentLoaded", () => {
     tg.showConfirm(message, async (confirmed) => {
       if (confirmed) {
         try {
-          const deleteResponse = await fetch(`${API_URLS.CATEGORIES}/${categoryId}`, {
-            method: "DELETE",
-            headers: getAuthHeaders(false),
-          });
-          if (!deleteResponse.ok) {
-            await handleFetchError(deleteResponse, "Failed to delete");
-            throw new Error("Delete failed");
-          }
+          const deleteResponse = await apiRequest(`${API_URLS.CATEGORIES}/${categoryId}`, { method: "DELETE" });
+          if (!deleteResponse.ok) throw new Error("Delete failed");
 
           tg.HapticFeedback.notificationOccurred("success");
           await loadAllCategories();
           loadCategoriesScreen();
-
           await loadTransactions();
-        } catch (error) {
-          console.error(error);
+        } catch (e) {
+          console.error(e);
         }
       }
     });
   }
 
-  // --- Initialization ---
-
-  function applyTelegramThemeColors() {
-    if (tg.colorScheme === "dark") {
-      tg.setHeaderColor("#1C1C1E");
-      tg.setBackgroundColor("#1C1C1E");
-    } else {
-      const lightBgColor = "#FFFFFF";
-      tg.setHeaderColor(lightBgColor);
-      tg.setBackgroundColor(lightBgColor);
-    }
-  }
-
+  // --- INIT ---
   function init() {
-    if (tg.platform === "android" || tg.platform === "android_x") {
-      document.body.classList.add("platform-android");
-    }
+    if (tg.platform === "android" || tg.platform === "android_x") document.body.classList.add("platform-android");
 
-    applyTelegramThemeColors();
-    tg.onEvent("themeChanged", applyTelegramThemeColors);
+    const applyTheme = () => {
+      if (tg.colorScheme === "dark") {
+        tg.setHeaderColor("#1C1C1E");
+        tg.setBackgroundColor("#1C1C1E");
+      } else {
+        tg.setHeaderColor("#FFFFFF");
+        tg.setBackgroundColor("#FFFFFF");
+      }
+    };
+    applyTheme();
+    tg.onEvent("themeChanged", applyTheme);
 
-    // Navigation
+    // Navigation Listeners
     DOM.tabs.home.addEventListener("click", () => {
       showScreen("home-screen");
       tg.HapticFeedback.impactOccurred("light");
@@ -1640,18 +1360,16 @@ document.addEventListener("DOMContentLoaded", () => {
       tg.HapticFeedback.impactOccurred("medium");
     });
 
-    // Forms
+    // UI Listeners
     DOM.fullForm.cancelBtn.addEventListener("click", () => {
-      tg.HapticFeedback.impactOccurred("light");
       showScreen(state.lastActiveScreen);
+      tg.HapticFeedback.impactOccurred("light");
     });
-    DOM.fullForm.saveBtn.addEventListener("click", () => handleSaveForm());
+    DOM.fullForm.saveBtn.addEventListener("click", handleSaveForm);
     DOM.fullForm.deleteBtn.addEventListener("click", () => {
       tg.HapticFeedback.impactOccurred("heavy");
       showDeleteConfirmation();
     });
-
-    // Quick Add
     DOM.quickAdd.manualExpense.addEventListener("click", () => {
       tg.HapticFeedback.impactOccurred("medium");
       openFullForm("expense");
@@ -1665,22 +1383,27 @@ document.addEventListener("DOMContentLoaded", () => {
       showScreen("categories-screen");
     });
     DOM.quickModal.saveBtn.addEventListener("click", saveQuickModal);
-
-    // Sheets
     DOM.backdrop.addEventListener("click", closeBottomSheet);
+
+    // Swipe & Drag Setup
     setupSheetDrag(DOM.daySheet.sheet, DOM.daySheet.header, DOM.daySheet.contentWrapper, closeBottomSheet);
     setupSheetDrag(DOM.quickModal.sheet, DOM.quickModal.header, null, closeBottomSheet);
     setupSheetDrag(DOM.summarySheet.sheet, DOM.summarySheet.header, null, closeBottomSheet);
+    [DOM.home.listContainer, DOM.daySheet.list].forEach((list) => {
+      list.addEventListener("touchstart", handleSwipeStart, { passive: true });
+      list.addEventListener("touchmove", handleSwipeMove, { passive: false });
+      list.addEventListener("touchend", handleSwipeEnd);
+    });
 
-    // Analytics
+    // Analytics Listeners
     DOM.analytics.segBtnSummary.addEventListener("click", () => {
       tg.HapticFeedback.impactOccurred("light");
       DOM.analytics.summaryPane.classList.remove("hidden");
       DOM.analytics.calendarPane.classList.add("hidden");
       DOM.analytics.segBtnSummary.classList.add("active");
       DOM.analytics.segBtnCalendar.classList.remove("active");
-      sessionStorage.setItem("lastAnalyticsTab", "summary");
       loadAnalyticsPage();
+      sessionStorage.setItem("lastAnalyticsTab", "summary");
     });
     DOM.analytics.segBtnCalendar.addEventListener("click", () => {
       tg.HapticFeedback.impactOccurred("light");
@@ -1691,32 +1414,22 @@ document.addEventListener("DOMContentLoaded", () => {
       sessionStorage.setItem("lastAnalyticsTab", "calendar");
       loadAnalyticsPage();
     });
-
-    // ⭐ Обработчик Expense / Income
     DOM.analytics.summaryTypeFilter.addEventListener("click", (e) => {
-      const target = e.target.closest(".seg-button");
-      if (!target) return;
-      const type = target.dataset.type;
-      if (!type) return;
-
+      const t = e.target.closest(".seg-button");
+      if (!t) return;
       tg.HapticFeedback.impactOccurred("light");
-
-      DOM.analytics.summaryTypeFilter.querySelectorAll(".seg-button").forEach((btn) => btn.classList.remove("active"));
-      target.classList.add("active");
-
-      state.summaryType = type;
+      DOM.analytics.summaryTypeFilter.querySelectorAll(".seg-button").forEach((b) => b.classList.remove("active"));
+      t.classList.add("active");
+      state.summaryType = t.dataset.type;
       loadSummaryData();
     });
-
     DOM.analytics.summaryRangeFilter.addEventListener("click", (e) => {
-      const target = e.target.closest(".seg-button");
-      if (!target) return;
-      const range = target.dataset.range;
-      if (!range) return;
+      const t = e.target.closest(".seg-button");
+      if (!t) return;
       tg.HapticFeedback.impactOccurred("light");
-      DOM.analytics.summaryRangeFilter.querySelectorAll(".seg-button").forEach((btn) => btn.classList.remove("active"));
-      target.classList.add("active");
-      state.summaryRange = range;
+      DOM.analytics.summaryRangeFilter.querySelectorAll(".seg-button").forEach((b) => b.classList.remove("active"));
+      t.classList.add("active");
+      state.summaryRange = t.dataset.range;
       loadSummaryData();
     });
     DOM.calendar.prevMonthBtn.addEventListener("click", () => {
@@ -1729,72 +1442,55 @@ document.addEventListener("DOMContentLoaded", () => {
       state.analyticsDate.setMonth(state.analyticsDate.getMonth() + 1);
       loadCalendarData();
     });
-    DOM.calendar.monthSelect.addEventListener("change", () => {
-      tg.HapticFeedback.impactOccurred("light");
-      state.analyticsDate.setMonth(parseInt(DOM.calendar.monthSelect.value));
-      loadCalendarData();
-    });
-    DOM.calendar.yearSelect.addEventListener("change", () => {
-      tg.HapticFeedback.impactOccurred("light");
-      state.analyticsDate.setFullYear(parseInt(DOM.calendar.yearSelect.value));
-      loadCalendarData();
-    });
+    DOM.calendar.boxIncome.addEventListener("click", () => openSummarySheet("income", state.calendarSummary.income));
+    DOM.calendar.boxExpense.addEventListener("click", () =>
+      openSummarySheet("expense", state.calendarSummary.expense * -1)
+    );
+    DOM.calendar.boxNet.addEventListener("click", () => openSummarySheet("net", state.calendarSummary.net));
 
-    DOM.calendar.boxIncome.addEventListener("click", () => {
-      openSummarySheet("income", state.calendarSummary.income);
-    });
-    DOM.calendar.boxExpense.addEventListener("click", () => {
-      openSummarySheet("expense", state.calendarSummary.expense * -1);
-    });
-    DOM.calendar.boxNet.addEventListener("click", () => {
-      openSummarySheet("net", state.calendarSummary.net);
-    });
-
-    // AI Advisor
+    // AI & Settings Listeners
     DOM.ai.dateFilter.addEventListener("click", (e) => {
       const target = e.target.closest(".seg-button");
       if (!target) return;
-      const range = target.dataset.range;
-      if (!range) return;
       tg.HapticFeedback.impactOccurred("light");
       DOM.ai.dateFilter.querySelectorAll(".seg-button").forEach((btn) => btn.classList.remove("active"));
       target.classList.add("active");
-      state.aiRange = range; // state
+
+      const range = target.dataset.range;
+      state.aiRange = range;
       const periodText = range === "all" ? "all-time" : `this ${range}'s`;
+
       DOM.ai.btnAdvice.querySelector("p").textContent = `An actionable tip based on ${periodText} spending.`;
       DOM.ai.btnSummary.querySelector("p").textContent = `A quick summary of totals for ${periodText}.`;
       DOM.ai.btnAnomaly.querySelector("p").textContent = `Find the largest single expense for ${periodText}.`;
     });
+
     DOM.ai.btnAdvice.addEventListener("click", () => fetchAiData("advice", "Here's your Advice"));
+
     DOM.ai.btnSummary.addEventListener("click", () => {
       const rangeText = state.aiRange.charAt(0).toUpperCase() + state.aiRange.slice(1);
       fetchAiData("summary", `Here's your ${rangeText} Summary`);
     });
+
     DOM.ai.btnAnomaly.addEventListener("click", () => {
       const rangeText = state.aiRange.charAt(0).toUpperCase() + state.aiRange.slice(1);
       fetchAiData("anomaly", `Largest Expense This ${rangeText}`);
     });
+
     DOM.ai.resultBackBtn.addEventListener("click", () => {
       tg.HapticFeedback.impactOccurred("light");
       DOM.ai.resultContainer.classList.add("hidden");
       DOM.ai.featuresList.classList.remove("hidden");
     });
-
-    // Settings
     DOM.settings.currencySelect.addEventListener("change", (e) => {
-      const newSymbol = e.target.value;
       tg.HapticFeedback.impactOccurred("light");
-      tg.CloudStorage.setItem("currency_symbol", newSymbol, (err, success) => {
-        if (err) {
-          tg.showAlert("Error saving currency: ".concat(err));
-          return;
-        }
-        if (success) {
-          state.currencySymbol = newSymbol; // state
+      tg.CloudStorage.setItem("currency_symbol", e.target.value, (e, s) => {
+        if (s) {
+          state.currencySymbol = e.target.value;
           loadTransactions();
           tg.showPopup({
             title: "Currency Updated",
-            message: `Your default currency is now ${newSymbol}.`,
+            message: `Your default currency is now ${state.currencySymbol}.`,
             buttons: [{ type: "ok" }],
           });
         }
@@ -1802,72 +1498,55 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     DOM.settings.resetDataBtn.addEventListener("click", () => {
       tg.HapticFeedback.impactOccurred("heavy");
-      tg.showConfirm(
-        "Are you sure? All your transactions and custom categories will be deleted. This action cannot be undone.",
-        (confirmed) => {
-          if (confirmed) handleResetData();
+
+      // 1. Первая проверка
+      tg.showConfirm("Are you sure? All your transactions and custom categories will be deleted.", (firstConfirm) => {
+        if (firstConfirm) {
+          // 2. Вторая проверка (запускается только если нажали ОК в первой)
+          tg.showConfirm("Are you 100% sure? This action CANNOT be undone!", (secondConfirm) => {
+            if (secondConfirm) {
+              // 3. Выполняем сброс только после ДВУХ подтверждений
+              handleResetData();
+            }
+          });
         }
-      );
+      });
     });
 
-    // Categories
+    // Delegated Clicks
+    document.body.addEventListener("click", handleEditTransactionClick);
     DOM.categories.backBtn.addEventListener("click", () => {
-      tg.HapticFeedback.impactOccurred("light");
       showScreen(state.lastActiveScreen);
+      tg.HapticFeedback.impactOccurred("light");
     });
     DOM.categories.segBtnExpense.addEventListener("click", () => {
       tg.HapticFeedback.impactOccurred("light");
-      state.categoryType = "expense"; // state
+      state.categoryType = "expense";
       DOM.categories.segBtnExpense.classList.add("active");
       DOM.categories.segBtnIncome.classList.remove("active");
       loadCategoriesScreen();
     });
     DOM.categories.segBtnIncome.addEventListener("click", () => {
       tg.HapticFeedback.impactOccurred("light");
-      state.categoryType = "income"; // state
-      DOM.categories.segBtnExpense.classList.remove("active");
+      state.categoryType = "income";
       DOM.categories.segBtnIncome.classList.add("active");
+      DOM.categories.segBtnExpense.classList.remove("active");
       loadCategoriesScreen();
     });
     DOM.categories.addBtn.addEventListener("click", handleAddCategory);
     DOM.categories.list.addEventListener("click", (e) => {
-      const deleteBtn = e.target.closest(".delete-category-btn");
-      if (deleteBtn) {
-        const categoryId = deleteBtn.dataset.id;
-        handleDeleteCategory(categoryId);
-      }
+      const btn = e.target.closest(".delete-category-btn");
+      if (btn) handleDeleteCategory(btn.dataset.id);
     });
 
-    // Delegated Listeners
-    document.body.addEventListener("click", handleEditTransactionClick);
-    [DOM.home.listContainer, DOM.daySheet.list].forEach((list) => {
-      list.addEventListener("touchstart", handleSwipeStart, { passive: true });
-      list.addEventListener("touchmove", handleSwipeMove, { passive: false });
-      list.addEventListener("touchend", handleSwipeEnd);
-    });
-
-    // Startup
-    if (!tgInitData) {
-      showScreen("home-screen");
-      DOM.home.listContainer.innerHTML =
-        "<p class='list-placeholder'>Authentication data not found. Please run this app inside Telegram.</p>";
-      return;
-    }
-
+    // Start
     const lastScreenId = sessionStorage.getItem("lastActiveScreen") || "home-screen";
     showScreen(lastScreenId);
-    if (lastScreenId === "home-screen") {
-      renderSkeleton();
-    }
+    if (lastScreenId === "home-screen") renderSkeleton();
 
     tg.CloudStorage.getItem("currency_symbol", async (err, value) => {
-      if (value) {
-        state.currencySymbol = value;
-      } else {
-        state.currencySymbol = "$";
-      }
+      state.currencySymbol = value || "$";
       DOM.settings.currencySelect.value = state.currencySymbol;
-
       await Promise.all([loadAllCategories(), loadTransactions()]);
     });
   }

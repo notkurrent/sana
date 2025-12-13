@@ -1,714 +1,106 @@
-import psycopg2
-from psycopg2 import pool
-from psycopg2.extras import RealDictCursor
 import os
-import uvicorn
-import logging
-from datetime import datetime, timedelta, timezone
-from typing import Optional, List, Tuple, Dict, Any
-from collections import defaultdict
-from contextlib import contextmanager, asynccontextmanager
-from pathlib import Path
-
-# --- Безопасность ---
-import hmac
-import hashlib
-import json
-import urllib.parse
-
-from fastapi import FastAPI, Query, HTTPException, Depends, Request, Header
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
-import google.generativeai as genai
+from fastapi.responses import HTMLResponse
 
-from telegram import Update
+# Telegram imports
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-# --- ⬇️ ИМПОРТ КОНСТАНТ ⬇️ ---
-from constants import PROMPTS
+# App imports
+from app.config import WEB_APP_URL, BOT_TOKEN
+from app.database import init_db_pool, close_db_pool
+from app.routers import transactions, categories, ai
 
-# --- Константы ---
-BASE_DIR = Path(__file__).resolve().parent
-WEBAPP_DIR = BASE_DIR / "webapp"
-
-# --- Загрузка окружения ---
-load_dotenv()
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-DATABASE_URL = os.getenv("DATABASE_URL")
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-WEB_APP_URL = os.getenv("WEB_APP_URL")
-BASE_URL = os.getenv("BASE_URL")
-
-# --- Логирование ---
-logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# --- Глобальный пул соединений ---
-db_pool = None
+# --- Инициализация Бота ---
+ptb_app = None
+if BOT_TOKEN:
+    ptb_app = Application.builder().token(BOT_TOKEN).build()
 
 
-# ---
-# --- Управление Базой Данных (Postgres)
-# ---
-@contextmanager
-def get_db_connection():
-    if not db_pool:
-        raise ValueError("Пул соединений не инициализирован!")
-
-    conn = None
-    try:
-        conn = db_pool.getconn()  # БЕРЕМ горячее соединение
-        yield conn.cursor(cursor_factory=RealDictCursor)
-        conn.commit()
-    except Exception as e:
-        if conn:
-            conn.rollback()  # Откат при ошибке
-        raise e
-    finally:
-        if conn:
-            db_pool.putconn(conn)  # ВОЗВРАЩАЕМ в пул (не закрываем!)
-
-
-def get_db():
-    with get_db_connection() as cursor:
-        yield cursor
-
-
-def setup_database():
-    try:
-        with get_db_connection() as cursor:
-            cursor.execute(
-                """
-            CREATE TABLE IF NOT EXISTS categories (
-                id SERIAL PRIMARY KEY,
-                name TEXT NOT NULL,
-                type TEXT NOT NULL,
-                user_id TEXT, 
-                UNIQUE(name, type, user_id)
-            )
-            """
-            )
-            cursor.execute(
-                """
-            CREATE TABLE IF NOT EXISTS transactions (
-                id SERIAL PRIMARY KEY,
-                user_id TEXT NOT NULL, 
-                amount REAL NOT NULL,
-                date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                category_id INTEGER NOT NULL, 
-                FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE CASCADE
-            )
-            """
-            )
-            cursor.execute("SELECT COUNT(*) FROM categories")
-            try:
-                cursor.execute("SELECT count(*) FROM categories")
-                if cursor.fetchone()["count"] == 0:
-                    default_expenses = ["Food", "Transport", "Housing", "Other"]
-                    for cat in default_expenses:
-                        cursor.execute("INSERT INTO categories (name, type) VALUES (%s, 'expense')", (cat,))
-                    default_incomes = ["Salary", "Freelance", "Gifts", "Other"]
-                    for cat in default_incomes:
-                        cursor.execute("INSERT INTO categories (name, type) VALUES (%s, 'income')", (cat,))
-            except psycopg2.ProgrammingError as pe:
-                pass
-    except Exception as e:
-        print(f"--- [DB Setup ERROR]: Не удалось инициализировать БД: {e}")
-
-
-# ---
-# --- Логика Telegram Bot
-# ---
-if not BOT_TOKEN:
-    logger.warning("ВНИМАНИЕ: BOT_TOKEN не найден. Bot-часть не будет инициализирована.")
-    ptb_app = None
-else:
-    try:
-        ptb_app = Application.builder().token(BOT_TOKEN).build()
-    except Exception as e:
-        logger.critical(f"Не удалось инициализировать Telegram Application: {e}")
-        ptb_app = None
-
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not update.effective_user:
-        return
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_name = update.effective_user.first_name
-    welcome_text = f"Hello, {user_name}! 🚀\n\n" "Welcome to Sana — your personal finance assistant in Telegram."
-    if not WEB_APP_URL:
-        logger.error("WEB_APP_URL не установлен! Кнопка не будет работать.")
-        await update.message.reply_text(f"Hello, {user_name}! Ошибка конфигурации: WEB_APP_URL не найден.")
-        return
-    from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+    welcome_text = f"Hello, {user_name}! 🚀\nWelcome to Sana — your personal finance assistant."
 
     keyboard = [[InlineKeyboardButton("✨ Open Sana", web_app=WebAppInfo(url=WEB_APP_URL))]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(welcome_text, reply_markup=reply_markup)
+    await update.message.reply_text(welcome_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 
 if ptb_app:
-    ptb_app.add_handler(CommandHandler("start", start))
-else:
-    logger.warning("Обработчик /start НЕ добавлен, так как ptb_app не инициализирован.")
+    ptb_app.add_handler(CommandHandler("start", start_command))
 
 
-# ---
-# --- FastAPI Lifespan
-# ---
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global db_pool
-    print("--- [Lifespan]: 🚀 Запуск сервера...")
+# --- Инициализация FastAPI ---
+app = FastAPI(title="Sana Finance API")
 
-    # 1. Инициализация Пула БД
-    try:
-        print("--- [Lifespan]: Подключаемся к базе данных (создаем пул)...")
-        # Создаем от 1 до 20 соединений
-        db_pool = psycopg2.pool.SimpleConnectionPool(minconn=1, maxconn=20, dsn=DATABASE_URL)
-        if db_pool:
-            print("--- [Lifespan]: ✅ Пул соединений готов!")
-            setup_database()  # Создаем таблицы, если их нет
-    except Exception as e:
-        print(f"--- [Lifespan ERROR]: Ошибка подключения к БД: {e}")
-
-    # 2. Инициализация Бота
-    if ptb_app:
-        print("--- [Lifespan]: Инициализация Telegram Bot...")
-        await ptb_app.initialize()
-
-    yield  # <-- Тут работает приложение
-
-    # 3. Завершение работы
-    if ptb_app:
-        print("--- [Lifespan]: Остановка бота...")
-        await ptb_app.shutdown()
-
-    if db_pool:
-        print("--- [Lifespan]: Закрываем соединения с БД...")
-        db_pool.closeall()
-    print("--- [Lifespan]: Сервер выключен.")
-
-
-# ---
-# --- 🚀 Инициализация ЕДИНОГО FastAPI App
-# ---
-app = FastAPI(lifespan=lifespan)
-
-# --- Настройка Gemini ---
-if GOOGLE_API_KEY:
-    genai.configure(api_key=GOOGLE_API_KEY)
-    print("Google AI SDK настроен.")
-else:
-    print("ВНИМАНИЕ: GOOGLE_API_KEY не найден.")
-
-# --- Middleware ---
-BASE_URL = os.getenv("BASE_URL")
-
-origins = [BASE_URL, "https://*.telegram-web-app.com", "https://*.web.telegram.org"]
-
-if not BASE_URL:
-    logger.critical("КРИТИЧЕСКАЯ ОШИБКА: BASE_URL не найден!")
-
+# --- CORS ---
+origins = ["*"]  # Для разработки разрешаем всё
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*", "X-Telegram-InitData", "X-Timezone-Offset"],
+    allow_headers=["*"],
 )
 
-# ---
-# --- 🚀 БЕЗОПАСНОСТЬ: ВАЛИДАЦИЯ INITDATA
-# ---
+
+# --- Жизненный цикл (Startup/Shutdown) ---
+@app.on_event("startup")
+async def startup_event():
+    # 1. База данных
+    init_db_pool()
+    # 2. Бот
+    if ptb_app:
+        await ptb_app.initialize()
+        print("--- [Bot]: Initialized successfully")
 
 
-def _validate_hash(init_data: str, bot_token: str) -> Tuple[Optional[str], Optional[str]]:
-    if not bot_token:
-        return None, "BOT_TOKEN не сконфигурирован на бэкенде."
+@app.on_event("shutdown")
+async def shutdown_event():
+    # 1. Бот
+    if ptb_app:
+        await ptb_app.shutdown()
+    # 2. База данных
+    close_db_pool()
 
+
+# --- Подключение роутеров API ---
+app.include_router(transactions.router, prefix="/api")
+app.include_router(categories.router, prefix="/api")
+app.include_router(ai.router, prefix="/api")
+
+
+# --- Webhook для Telegram ---
+@app.post("/webhook")
+async def telegram_webhook(request: Request):
+    if not ptb_app:
+        return {"error": "Bot not initialized"}
     try:
-        parsed_data = dict(urllib.parse.parse_qsl(init_data))
-        received_hash = parsed_data.pop("hash", None)
-        if received_hash is None:
-            return None, "В initData отсутствует поле 'hash'."
-
-        auth_date_str = parsed_data.get("auth_date", "0")
-        auth_date = int(auth_date_str)
-        current_time = int(datetime.now(timezone.utc).timestamp())
-
-        if (current_time - auth_date) > 3600:
-            return None, f"Данные аутентификации устарели (старше 1 часа)."
-
-        sorted_pairs = sorted(parsed_data.items(), key=lambda x: x[0])
-        data_check_string = "\n".join(f"{k}={v}" for k, v in sorted_pairs)
-
-        secret_key = hmac.new("WebAppData".encode(), bot_token.encode(), hashlib.sha256).digest()
-        calculated_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
-
-        if calculated_hash != received_hash:
-            logger.warning(f"INVALID HASH! Recv: {received_hash} | Calc: {calculated_hash}")
-            return None, "Неверный хеш. Запрос не от Telegram."
-
-        user_data_str = parsed_data.get("user")
-        if not user_data_str:
-            return None, "В initData отсутствует поле 'user'."
-
-        user_data = json.loads(urllib.parse.unquote(user_data_str))
-        user_id = user_data.get("id")
-
-        if not user_id:
-            return None, "ID пользователя не найден в 'user data'."
-
-        return str(user_id), None
-
-    except json.JSONDecodeError:
-        logger.error("Ошибка JSON-декодирования user data.")
-        return None, "Ошибка парсинга 'user data'."
+        data = await request.json()
+        update = Update.de_json(data, ptb_app.bot)
+        await ptb_app.process_update(update)
+        return {"status": "ok"}
     except Exception as e:
-        logger.error(f"Неизвестная ошибка валидации: {e}")
-        return None, f"Внутренняя ошибка валидации: {e}"
+        print(f"Webhook error: {e}")
+        return {"status": "error"}
 
 
-async def get_validated_user_id(x_telegram_initdata: str = Header(...)) -> str:
-    user_id, error = _validate_hash(x_telegram_initdata, BOT_TOKEN)
+# --- 🔥 ВАЖНО: Статика и Frontend (SPA) ---
+# Обслуживаем папку webapp
+app.mount("/static", StaticFiles(directory="webapp"), name="static")
 
-    if error or not user_id:
-        raise HTTPException(status_code=403, detail=f"Доступ запрещен: {error}")
-    return user_id
 
-
-# ---
-# --- Модели Pydantic
-# ---
-
-
-class Transaction(BaseModel):
-    amount: float
-    category_id: int
-    date: Optional[str] = None
-
-
-class TransactionUpdate(BaseModel):
-    amount: Optional[float] = None
-    category_id: Optional[int] = None
-    date: Optional[str] = None
-
-
-class CategoryCreate(BaseModel):
-    name: str
-    type: str
-
-
-# ---
-# --- API Эндпоинты
-# ---
-
-
-@app.get("/categories", response_model=List[Dict[str, Any]])
-def get_categories(type: str = Query("expense"), cursor=Depends(get_db), user_id: str = Depends(get_validated_user_id)):
-    query = """
-    SELECT id, name, user_id 
-    FROM categories 
-    WHERE type = %s AND (user_id = %s OR user_id IS NULL)
-    ORDER BY name
-    """
-    cursor.execute(query, (type, user_id))
-    rows = cursor.fetchall()
-    return rows
-
-
-@app.post("/categories")
-def add_category(category: CategoryCreate, cursor=Depends(get_db), user_id: str = Depends(get_validated_user_id)):
-    try:
-        cursor.execute(
-            "INSERT INTO categories (user_id, name, type) VALUES (%s, %s, %s) RETURNING id",
-            (user_id, category.name, category.type),
-        )
-        last_id_row = cursor.fetchone()
-        last_id = last_id_row["id"] if last_id_row else None
-
-        return {"status": "success", "id": last_id, "name": category.name, "user_id": user_id}
-    except psycopg2.Error as e:
-        if e.pgcode == "23505":
-            raise HTTPException(status_code=409, detail="Category with this name already exists")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/categories/{category_id}/check")
-def get_category_check(category_id: int, cursor=Depends(get_db), user_id: str = Depends(get_validated_user_id)):
-    cursor.execute(
-        "SELECT id FROM categories WHERE id = %s AND (user_id = %s OR user_id IS NULL)", (category_id, user_id)
-    )
-    if cursor.fetchone() is None:
-        raise HTTPException(status_code=404, detail="Category not found or access denied")
-
-    cursor.execute(
-        "SELECT COUNT(*) as count FROM transactions WHERE category_id = %s AND user_id = %s", (category_id, user_id)
-    )
-    row = cursor.fetchone()
-    return {"transaction_count": row["count"]}
-
-
-@app.delete("/categories/{category_id}")
-def delete_category(category_id: int, cursor=Depends(get_db), user_id: str = Depends(get_validated_user_id)):
-    try:
-        cursor.execute("SELECT user_id FROM categories WHERE id = %s AND user_id = %s", (category_id, user_id))
-        if cursor.fetchone() is None:
-            raise HTTPException(
-                status_code=404, detail="Category not found or access denied. Default categories cannot be deleted."
-            )
-
-        cursor.execute("DELETE FROM categories WHERE id = %s AND user_id = %s", (category_id, user_id))
-        return {"status": "success", "message": "Category and all associated transactions deleted"}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An error occurred during deletion: {e}")
-
-
-# --- Глобальная поддержка часовых поясов ---
-def _get_date_for_storage(date_str: str, timezone_offset_str: Optional[str]) -> str:
-    if not date_str:
-        raise HTTPException(status_code=400, detail="Date is required.")
-    try:
-        selected_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-        server_now_utc = datetime.now(timezone.utc)
-
-        user_now = server_now_utc
-        if timezone_offset_str and timezone_offset_str.lstrip("-").isdigit():
-            offset_minutes = int(timezone_offset_str)
-            user_now = server_now_utc - timedelta(minutes=offset_minutes)
-
-        if selected_date == user_now.date():
-            return server_now_utc.isoformat()
-
-        return date_str
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="Invalid date format. YYYY-MM-DD expected.")
-
-
-@app.post("/transactions")
-def add_transaction(
-    transaction: Transaction,
-    cursor=Depends(get_db),
-    user_id: str = Depends(get_validated_user_id),
-    x_timezone_offset: Optional[str] = Header(None),
-):
-    tx_date_str = _get_date_for_storage(transaction.date, x_timezone_offset)
-
-    try:
-        query = "INSERT INTO transactions (user_id, amount, category_id, date) VALUES (%s, %s, %s, %s) RETURNING id"
-        params = (user_id, transaction.amount, transaction.category_id, tx_date_str)
-        cursor.execute(query, params)
-        last_id_row = cursor.fetchone()
-        last_id = last_id_row["id"] if last_id_row else None
-        return {"status": "success", "id": last_id}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Could not save transaction: {e}")
-
-
-@app.get("/transactions", response_model=List[Dict[str, Any]])
-def get_transactions(cursor=Depends(get_db), user_id: str = Depends(get_validated_user_id)):
-    query = """
-    SELECT 
-        t.id, c.type, c.name AS category, t.category_id, t.amount, t.date 
-    FROM transactions t 
-    JOIN categories c ON t.category_id = c.id
-    WHERE t.user_id = %s
-    ORDER BY t.date DESC
-    """
-    cursor.execute(query, (user_id,))
-    rows = cursor.fetchall()
-    return rows
-
-
-@app.delete("/transactions/{transaction_id}")
-def delete_transaction(transaction_id: int, cursor=Depends(get_db), user_id: str = Depends(get_validated_user_id)):
-    cursor.execute("DELETE FROM transactions WHERE id = %s AND user_id = %s", (transaction_id, user_id))
-    rowcount = cursor.rowcount
-    if rowcount == 0:
-        raise HTTPException(status_code=404, detail="Transaction not found or access denied")
-    return {"status": "success", "message": "Transaction deleted"}
-
-
-@app.patch("/transactions/{transaction_id}")
-def update_transaction(
-    transaction_id: int,
-    update: TransactionUpdate,
-    cursor=Depends(get_db),
-    user_id: str = Depends(get_validated_user_id),
-    x_timezone_offset: Optional[str] = Header(None),
-):
-    fields_to_update = []
-    values = []
-
-    if update.amount is not None:
-        fields_to_update.append("amount = %s")
-        values.append(update.amount)
-    if update.category_id is not None:
-        fields_to_update.append("category_id = %s")
-        values.append(update.category_id)
-    if update.date is not None:
-        cursor.execute("SELECT date FROM transactions WHERE id = %s AND user_id = %s", (transaction_id, user_id))
-        original_tx = cursor.fetchone()
-
-        if original_tx:
-            original_dt = original_tx["date"]
-            new_date_obj = datetime.strptime(update.date, "%Y-%m-%d").date()
-            final_dt = original_dt.replace(year=new_date_obj.year, month=new_date_obj.month, day=new_date_obj.day)
-            fields_to_update.append("date = %s")
-            values.append(final_dt.isoformat())
-        else:
-            tx_date_str = _get_date_for_storage(update.date, x_timezone_offset)
-            fields_to_update.append("date = %s")
-            values.append(tx_date_str)
-
-    if not fields_to_update:
-        raise HTTPException(status_code=400, detail="No fields to update")
-
-    query = f"UPDATE transactions SET {', '.join(fields_to_update)} WHERE id = %s AND user_id = %s"
-    values.extend([transaction_id, user_id])
-
-    cursor.execute(query, tuple(values))
-    rowcount = cursor.rowcount
-    if rowcount == 0:
-        raise HTTPException(status_code=404, detail="Transaction not found or access denied")
-
-    return {"status": "success", "message": "Transaction updated"}
-
-
-# 🔥 ФИКС: Поддержка UTC и Local Time для фильтров
-def _get_date_range_filter(range_str: str, timezone_offset_str: Optional[str] = None) -> Tuple[str, List[str]]:
-    if range_str == "all":
-        return "", []
-
-    # 1. Берем серверное время (UTC)
-    server_now = datetime.now(timezone.utc)
-
-    offset_minutes = 0
-    if timezone_offset_str and timezone_offset_str.lstrip("-").isdigit():
-        offset_minutes = int(timezone_offset_str)
-        # 2. Вычисляем локальное время пользователя для определения границ
-        user_now = server_now - timedelta(minutes=offset_minutes)
-    else:
-        user_now = server_now
-
-    # 3. Считаем границы на основе ВРЕМЕНИ ПОЛЬЗОВАТЕЛЯ
-    start_date_dt = None
-
-    if range_str == "day":
-        start_date_dt = user_now.replace(hour=0, minute=0, second=0, microsecond=0)
-    elif range_str == "week":
-        start_date_dt = (user_now - timedelta(days=user_now.weekday())).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
-    elif range_str == "month":
-        start_date_dt = user_now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    elif range_str == "year":
-        start_date_dt = user_now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
-
-    if start_date_dt:
-        # 4. 🔥 ГЛАВНЫЙ ФИКС: Переводим локальную границу обратно в UTC для запроса к БД
-        query_start_utc = start_date_dt + timedelta(minutes=offset_minutes)
-
-        # Убираем tzinfo для чистого сравнения в SQL
-        query_start_utc = query_start_utc.replace(tzinfo=None)
-
-        start_date_str_formatted = query_start_utc.strftime("%Y-%m-%d %H:%M:%S")
-        return " AND t.date >= %s", [start_date_str_formatted]
-    return "", []
-
-
-@app.get("/ai-advice")
-def get_ai_advice(
-    range: str = Query("month"),
-    prompt_type: str = Query("advice"),
-    cursor=Depends(get_db),
-    user_id: str = Depends(get_validated_user_id),
-    x_timezone_offset: Optional[str] = Header(None),
-):
-    if not GOOGLE_API_KEY:
-        raise HTTPException(status_code=500, detail="AI service is not configured.")
-
-    query_base = """
-    SELECT c.type, c.name AS category, t.amount, t.date 
-    FROM transactions t 
-    JOIN categories c ON t.category_id = c.id 
-    WHERE t.user_id = %s
-    """
-    params = [user_id]
-
-    # Передаем offset в функцию фильтрации
-    date_filter_sql, date_params = _get_date_range_filter(range, x_timezone_offset)
-    query_base += date_filter_sql
-    params.extend(date_params)
-    query_base += " ORDER BY t.date DESC"
-
-    cursor.execute(query_base, tuple(params))
-    rows = cursor.fetchall()
-
-    if len(rows) < 3 and prompt_type != "summary":
-        return {
-            "advice": f"I need at least 3 transactions for this {range} to give you good advice. Keep tracking your finances!"
-        }
-    if len(rows) == 0:
-        return {"advice": f"You have no transactions for this {range}."}
-
-    transaction_list_str = "\n".join(
-        [
-            f"- Date: {row['date'].strftime('%Y-%m-%d %H:%M')}, Type: {row['type']}, Category: {row['category']}, Amount: {row['amount']}"
-            for row in rows
-        ]
-    )
-
-    prompt_template = PROMPTS.get(prompt_type, PROMPTS["advice"])
-    prompt = prompt_template.format(range=range, transaction_list_str=transaction_list_str)
-
-    try:
-        model = genai.GenerativeModel("gemini-2.5-flash")
-        response = model.generate_content(prompt)
-        return {"advice": response.text}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get advice from AI: {e}")
-
-
-@app.get("/analytics/summary")
-def get_analytics_summary(
-    type: str = Query("expense"),
-    range: str = Query("month"),
-    cursor=Depends(get_db),
-    user_id: str = Depends(get_validated_user_id),
-    x_timezone_offset: Optional[str] = Header(None),
-):
-    query_base = """
-    SELECT c.name AS category, SUM(t.amount) AS total
-    FROM transactions t
-    JOIN categories c ON t.category_id = c.id
-    WHERE t.user_id = %s AND c.type = %s
-    """
-    params = [user_id, type]
-
-    # Передаем offset в функцию фильтрации
-    date_filter_sql, date_params = _get_date_range_filter(range, x_timezone_offset)
-    query_base += date_filter_sql
-    params.extend(date_params)
-
-    query_base += " GROUP BY c.name HAVING SUM(t.amount) > 0 ORDER BY total DESC"
-
-    cursor.execute(query_base, tuple(params))
-    rows = cursor.fetchall()
-    return rows
-
-
-@app.get("/analytics/calendar")
-def get_analytics_calendar(
-    month: int = Query(...),
-    year: int = Query(...),
-    cursor=Depends(get_db),
-    user_id: str = Depends(get_validated_user_id),
-    x_timezone_offset: Optional[str] = Header(None),  # 🔥 ДОБАВЛЕН HEADER
-):
-    month_str = str(month).zfill(2)
-    year_str = str(year)
-
-    # 🔥 FIX КАЛЕНДАРЯ: Сдвигаем время транзакций перед группировкой по дням
-    # Используем offset, чтобы сервер сгруппировал транзакции так, как их видит пользователь.
-    # Postgres позволяет вычитать интервалы.
-    # Если offset = -180 (UTC+3), то: t.date - (-180 minutes) = t.date + 3 hours.
-
-    offset_minutes = 0
-    if x_timezone_offset and x_timezone_offset.lstrip("-").isdigit():
-        offset_minutes = int(x_timezone_offset)
-
-    # В запросе мы используем параметризацию (%s) для интервала.
-    # Формула: date - (offset * interval '1 minute')
-    # Если offset -180, то мы делаем: date - (-180 мин) = date + 180 мин.
-
-    query_month = """
-    SELECT 
-        TO_CHAR(t.date - (%s * INTERVAL '1 minute'), 'YYYY-MM-DD') AS day_key,
-        c.type,
-        SUM(t.amount) AS daily_total
-    FROM transactions t
-    JOIN categories c ON t.category_id = c.id
-    WHERE 
-        t.user_id = %s 
-        AND TO_CHAR(t.date - (%s * INTERVAL '1 minute'), 'YYYY') = %s
-        AND TO_CHAR(t.date - (%s * INTERVAL '1 minute'), 'MM') = %s
-    GROUP BY day_key, c.type
-    """
-
-    # Порядок параметров: offset, user_id, offset, year, offset, month
-    cursor.execute(query_month, (offset_minutes, user_id, offset_minutes, year_str, offset_minutes, month_str))
-    rows_month = cursor.fetchall()
-
-    month_summary = {"income": 0, "expense": 0, "net": 0}
-    days_summary = defaultdict(lambda: {"income": 0, "expense": 0})
-
-    for row in rows_month:
-        day_key = row["day_key"]
-        amount = row["daily_total"]
-
-        if row["type"] == "income":
-            month_summary["income"] += amount
-            days_summary[day_key]["income"] += amount
-        elif row["type"] == "expense":
-            month_summary["expense"] += amount
-            days_summary[day_key]["expense"] += amount
-
-    month_summary["net"] = month_summary["income"] - month_summary["expense"]
-
-    return {"month_summary": month_summary, "days": days_summary}
-
-
-@app.delete("/users/me/reset")
-def reset_user_data(cursor=Depends(get_db), user_id: str = Depends(get_validated_user_id)):
-    try:
-        cursor.execute("DELETE FROM transactions WHERE user_id = %s", (user_id,))
-        cursor.execute("DELETE FROM categories WHERE user_id = %s", (user_id,))
-        return {"status": "success", "message": "All transactions and custom categories have been reset."}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An error occurred during data reset: {e}")
-
-
-# ---
-# --- 🚀 Telegram Webhook Эндпоинты
-# ---
-if BOT_TOKEN and ptb_app:
-
-    @app.post("/webhook")
-    async def telegram_webhook(request: Request):
-        try:
-            update_json = await request.json()
-            update = Update.de_json(update_json, ptb_app.bot)
-            await ptb_app.process_update(update)
-            return {"message": "ok"}
-        except Exception as e:
-            logger.error(f"Ошибка обработки Webhook: {e}")
-            return {"message": "error"}, 500
-
-else:
-    logger.warning("Эндпоинт Webhook'а НЕ будет создан (BOT_TOKEN или ptb_app отсутствуют).")
-
-
-# ---
-# --- Статика и SPA
-# ---
-app.mount("/static", StaticFiles(directory=WEBAPP_DIR), name="static")
-
-
+# Catch-all route: Любой запрос, не попавший в API, отдает index.html
 @app.get("/{full_path:path}", response_class=HTMLResponse)
-def catch_all(full_path: str):
-    html_path = WEBAPP_DIR / "index.html"
-    if not html_path.exists():
-        raise HTTPException(status_code=404, detail="index.html not found")
-    with open(html_path, "r", encoding="utf-8") as f:
-        return HTMLResponse(content=f.read())
+async def serve_spa(full_path: str):
+    # Если запрашивают файл API, которого нет - 404
+    if full_path.startswith("api/"):
+        raise HTTPException(status_code=404)
 
-
-if __name__ == "__main__":
-    print("--- [Startup]: Запуск Uvicorn-сервера (консолидированного)...")
-    port = int(os.environ.get("PORT", "8000"))
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
+    # Иначе отдаем index.html
+    html_path = "webapp/index.html"
+    if os.path.exists(html_path):
+        with open(html_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    return HTMLResponse(content="<h1>Error: index.html not found</h1>", status_code=404)
