@@ -893,10 +893,13 @@ document.addEventListener("DOMContentLoaded", () => {
   function handleDeleteSwipe(element, content) {
     const editBtn = element.querySelector(".edit-btn");
     const txId = parseInt(editBtn.dataset.txId, 10);
+
     tg.HapticFeedback.impactOccurred("medium");
-    // 🔥 ФИКС: Возвращаем "душевный" текст
+
     tg.showConfirm("Are you sure you want to delete this transaction?", async (confirmed) => {
       if (confirmed) {
+        tg.HapticFeedback.notificationOccurred("success");
+
         element.style.height = element.offsetHeight + "px";
         requestAnimationFrame(() => {
           element.classList.add("deleting");
