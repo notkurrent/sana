@@ -8,7 +8,7 @@ from app.models.schemas import Transaction, TransactionCreate, TransactionUpdate
 router = APIRouter(tags=["transactions"])
 
 
-# --- Helper: Фильтрация дат ---
+# --- Helper: Фильтрация дат (для аналитики) ---
 def _get_date_range_filter(range_str: str, timezone_offset_str: Optional[str] = None):
     if range_str == "all":
         return "", []
@@ -64,19 +64,17 @@ def _get_date_for_storage(date_str: str, timezone_offset_str: Optional[str]) -> 
 
 
 @router.get("/transactions", response_model=List[Transaction])
-async def get_transactions(
-    limit: int = 50, offset: int = 0, user=Depends(verify_telegram_authentication), db=Depends(get_db)
-):
+async def get_transactions(user=Depends(verify_telegram_authentication), db=Depends(get_db)):
     user_id = user["id"]
+    # Грузим ВСЁ (без LIMIT), чтобы фронтенд правильно считал баланс
     query = """
         SELECT t.id, t.amount, c.name as category, c.type, t.date, t.category_id 
         FROM transactions t
         JOIN categories c ON t.category_id = c.id
         WHERE t.user_id = %s 
-        ORDER BY t.date DESC, t.id DESC 
-        LIMIT %s OFFSET %s
+        ORDER BY t.date DESC, t.id DESC
     """
-    db.execute(query, (user_id, limit, offset))
+    db.execute(query, (user_id,))
     return db.fetchall()
 
 
@@ -127,32 +125,29 @@ async def update_transaction(
         values.append(update.category_id)
 
     if update.date is not None:
-        # 🔥 ФИКС: Сначала получаем оригинальную транзакцию, чтобы сохранить время!
+        # 1. Получаем старую дату из БД
         db.execute("SELECT date FROM transactions WHERE id = %s AND user_id = %s", (tx_id, user_id))
         original_tx = db.fetchone()
 
         if original_tx:
-            original_dt = original_tx["date"]  # datetime из БД
+            original_dt = original_tx["date"]
 
-            # Приводим новую дату к объекту date (она может прийти строкой или datetime)
+            # 2. Обрабатываем новую дату
             new_date_val = update.date
             if isinstance(new_date_val, str):
                 try:
-                    # Отрезаем время, если оно вдруг прилетело в строке, берем только дату
                     new_date_val = datetime.strptime(new_date_val.split("T")[0], "%Y-%m-%d").date()
                 except ValueError:
-                    # Если формат странный, пробуем стандартный парсер или fallback
                     new_date_val = datetime.now().date()
             elif isinstance(new_date_val, datetime):
                 new_date_val = new_date_val.date()
 
-            # 🛠 ГЛАВНАЯ МАГИЯ: Берем старое время и склеиваем с новой датой
+            # 3. Сохраняем старое время, меняем только день
             final_dt = original_dt.replace(year=new_date_val.year, month=new_date_val.month, day=new_date_val.day)
-
             fields.append("date = %s")
             values.append(final_dt)
         else:
-            # Если вдруг транзакцию не нашли (странно, но бывает), используем старый метод
+            # Fallback
             final_date = _get_date_for_storage(str(update.date), x_timezone_offset)
             fields.append("date = %s")
             values.append(final_date)
@@ -167,7 +162,7 @@ async def update_transaction(
     db.execute(query, tuple(values))
 
     if db.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Transaction not found or access denied")
+        raise HTTPException(status_code=404, detail="Transaction not found")
 
     return {"status": "updated"}
 
