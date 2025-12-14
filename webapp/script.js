@@ -43,7 +43,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 🔥 НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ INFINITY SCROLL
     offset: 0,
-    limit: 50,
+    limit: 100,
     isAllLoaded: false,
     isLoadingMore: false,
   };
@@ -1402,7 +1402,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const scrollPosition = window.innerHeight + window.scrollY;
     const bodyHeight = document.body.offsetHeight;
 
-    if (scrollPosition >= bodyHeight - 200) {
+    if (scrollPosition >= bodyHeight - 1000) {
       if (!state.isLoadingMore && !state.isAllLoaded) {
         loadTransactions(true); // true = append
       }
@@ -1640,6 +1640,7 @@ document.addEventListener("DOMContentLoaded", () => {
         loadTransactions(false), // false = грузить с нуля
         fetchAndRenderBalance(),
       ]);
+      state.isInitialLoad = false;
     });
   }
 

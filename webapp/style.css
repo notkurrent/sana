@@ -161,22 +161,31 @@ body {
   position: sticky;
   top: calc(env(safe-area-inset-top) + 50px + 65px + 10px);
   z-index: 4;
-  background-color: rgba(var(--tg-theme-secondary-bg-color-rgb), 0.75);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow: inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.15);
+
+  /* 🔥 ИЗМЕНЕНИЯ: Цвет как у блоков + Рамка */
+  background-color: var(--tg-theme-secondary-bg-color);
+  border: 1px solid rgba(var(--tg-theme-hint-color-rgb), 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+/* Для темной темы убираем лишнее, цвет берется из основного класса выше */
+@media (prefers-color-scheme: dark) {
+  .date-header {
+    background-color: var(--tg-theme-secondary-bg-color);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
-  .total-container,
-  #analytics-screen > .segmented-control:first-of-type {
-    background-color: rgba(var(--tg-theme-tertiary-bg-color-rgb), 0.75);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3), inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.2);
-  }
-
   .date-header {
-    background-color: rgba(var(--tg-theme-tertiary-bg-color-rgb), 0.75);
-    box-shadow: inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.2);
+    background-color: var(--tg-theme-secondary-bg-color) !important;
+
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+
+    color: var(--tg-theme-text-color);
+    border: 1px solid rgba(var(--tg-theme-hint-color-rgb), 0.2);
   }
 }
 
