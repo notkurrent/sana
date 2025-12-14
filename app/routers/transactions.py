@@ -63,19 +63,41 @@ def _get_date_for_storage(date_str: str, timezone_offset_str: Optional[str]) -> 
 # --- Endpoints ---
 
 
+# 🔥 ИЗМЕНЕНИЕ: Добавили limit и offset для бесконечной прокрутки
 @router.get("/transactions", response_model=List[Transaction])
-async def get_transactions(user=Depends(verify_telegram_authentication), db=Depends(get_db)):
+async def get_transactions(
+    limit: int = 50, offset: int = 0, user=Depends(verify_telegram_authentication), db=Depends(get_db)
+):
     user_id = user["id"]
-    # Грузим ВСЁ (без LIMIT), чтобы фронтенд правильно считал баланс
     query = """
         SELECT t.id, t.amount, c.name as category, c.type, t.date, t.category_id 
         FROM transactions t
         JOIN categories c ON t.category_id = c.id
         WHERE t.user_id = %s 
         ORDER BY t.date DESC, t.id DESC
+        LIMIT %s OFFSET %s
+    """
+    db.execute(query, (user_id, limit, offset))
+    return db.fetchall()
+
+
+# 🔥 НОВЫЙ ЭНДПОИНТ: Считает точный баланс (чтобы цифра сверху была правильной)
+@router.get("/balance")
+async def get_total_balance(user=Depends(verify_telegram_authentication), db=Depends(get_db)):
+    user_id = user["id"]
+    query = """
+        SELECT 
+            SUM(CASE WHEN c.type = 'income' THEN t.amount ELSE -t.amount END) as total_balance
+        FROM transactions t
+        JOIN categories c ON t.category_id = c.id
+        WHERE t.user_id = %s
     """
     db.execute(query, (user_id,))
-    return db.fetchall()
+    result = db.fetchone()
+
+    # Если транзакций нет, вернет None -> превращаем в 0.0
+    balance = result["total_balance"] if result and result["total_balance"] is not None else 0.0
+    return {"balance": balance}
 
 
 @router.post("/transactions")

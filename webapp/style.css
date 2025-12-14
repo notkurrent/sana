@@ -326,6 +326,8 @@ body {
   height: auto;
   content-visibility: auto;
   contain-intrinsic-size: 56px;
+  transform: translateZ(0);
+  will-change: transform;
 }
 .expense-item.expense {
   border-left-color: var(--color-expense);

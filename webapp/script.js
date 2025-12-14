@@ -14,6 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- CONFIG ---
   const API_URLS = {
     TRANSACTIONS: "/api/transactions",
+    BALANCE: "/api/balance", // 🔥 НОВОЕ: Отдельный URL для баланса
     CATEGORIES: "/api/categories",
     AI_ADVICE: "/api/ai/advice",
     ANALYTICS_SUMMARY: "/api/analytics/summary",
@@ -39,6 +40,12 @@ document.addEventListener("DOMContentLoaded", () => {
     aiRange: "month",
     calendarSummary: { income: 0, expense: 0, net: 0 },
     isLoading: false,
+
+    // 🔥 НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ INFINITY SCROLL
+    offset: 0,
+    limit: 50,
+    isAllLoaded: false,
+    isLoadingMore: false,
   };
 
   // --- HELPERS & FORMATTERS ---
@@ -64,12 +71,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       const response = await fetch(url, config);
-
-      // Обработка 401/403 как в старом коде
       if (response.status === 401 || response.status === 403) {
         tg.showAlert("Authentication Failed. Please try restarting the app inside Telegram.");
       }
-
       return response;
     } catch (error) {
       console.error("Network Error:", error);
@@ -269,30 +273,39 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- LOGIC ---
 
-  function updateBalance() {
+  // 🔥 НОВАЯ ФУНКЦИЯ: Грузит баланс отдельно с сервера
+  async function fetchAndRenderBalance() {
     const container = DOM.home.balanceAmount.closest(".total-container");
     const oldBalanceText = DOM.home.balanceAmount.textContent;
-    const newBalance = state.transactions.reduce((acc, tx) => {
-      return tx.type === "income" ? acc + tx.amount : acc - tx.amount;
-    }, 0);
-    const sign = newBalance < 0 ? "-" : "";
-    const absBalance = Math.abs(newBalance);
-    const hasCents = absBalance % 1 !== 0;
-    const balanceFormatter = new Intl.NumberFormat("en-US", {
-      minimumFractionDigits: hasCents ? 2 : 0,
-      maximumFractionDigits: 2,
-    });
-    const newBalanceText = `${sign}${state.currencySymbol}${balanceFormatter.format(absBalance)}`;
 
-    DOM.home.balanceAmount.textContent = newBalanceText;
+    try {
+      const response = await apiRequest(API_URLS.BALANCE);
+      if (!response.ok) return;
+      const data = await response.json();
+      const serverBalance = data.balance;
 
-    if (newBalanceText === oldBalanceText || !container || state.isInitialLoad) return;
+      const sign = serverBalance < 0 ? "-" : "";
+      const absBalance = Math.abs(serverBalance);
+      const hasCents = absBalance % 1 !== 0;
+      const balanceFormatter = new Intl.NumberFormat("en-US", {
+        minimumFractionDigits: hasCents ? 2 : 0,
+        maximumFractionDigits: 2,
+      });
+      const newBalanceText = `${sign}${state.currencySymbol}${balanceFormatter.format(absBalance)}`;
 
-    const oldBalance = parseFloat(oldBalanceText.replace(/[^0-9.-]+/g, "")) || 0;
-    const classToAdd = newBalance > oldBalance ? "balance-flash-positive" : "balance-flash-negative";
-    container.classList.remove("balance-flash-positive", "balance-flash-negative");
-    requestAnimationFrame(() => container.classList.add(classToAdd));
-    container.addEventListener("animationend", () => container.classList.remove(classToAdd), { once: true });
+      DOM.home.balanceAmount.textContent = newBalanceText;
+
+      if (newBalanceText === oldBalanceText || !container || state.isInitialLoad) return;
+
+      const oldBalanceVal = parseFloat(oldBalanceText.replace(/[^0-9.-]+/g, "")) || 0;
+      const classToAdd = serverBalance > oldBalanceVal ? "balance-flash-positive" : "balance-flash-negative";
+
+      container.classList.remove("balance-flash-positive", "balance-flash-negative");
+      requestAnimationFrame(() => container.classList.add(classToAdd));
+      container.addEventListener("animationend", () => container.classList.remove(classToAdd), { once: true });
+    } catch (e) {
+      console.error("Balance load error", e);
+    }
   }
 
   function renderErrorState(container, retryCallback, message = "Failed to load data.") {
@@ -405,9 +418,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function createTransactionElement(tx) {
     const item = document.createElement("div");
-    // Используем класс как в оригинале, чтобы старые стили работали
     item.className = "expense-item " + tx.type;
-    item.dataset.txId = tx.id; // Важно для поиска при клике
+    item.dataset.txId = tx.id;
 
     const editIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" /></svg>`;
     const trashIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path fill-rule="evenodd" d="M16.5 4.478v.227a48.816 48.816 0 0 1 3.878.512.75.75 0 1 1-.256 1.478l-.209-.035-1.005 13.07a3 3 0 0 1-2.991 2.77H8.084a3 3 0 0 1-2.991-2.77L4.087 6.66l-.209.035a.75.75 0 0 1-.256-1.478A48.567 48.567 0 0 1 7.5 4.705v-.227c0-1.564 1.213-2.9 2.816-2.951a52.662 52.662 0 0 1 3.369 0c1.603.051 2.815 1.387 2.815 2.951Zm-6.136-1.452a51.196 51.196 0 0 1 3.273 0C14.39 3.05 15 3.684 15 4.478v.113a49.488 49.488 0 0 0-6 0v-.113c0-.794.609-1.428 1.364-1.452Zm-.355 5.945a.75.75 0 1 0-1.5.058l.347 9a.75.75 0 1 0 1.499-.058l-.346-9Zm5.48.058a.75.75 0 1 0-1.498-.058l-.347 9a.75.75 0 0 0 1.5.058l.345-9Z" clip-rule="evenodd" /></svg>`;
@@ -446,11 +458,12 @@ document.addEventListener("DOMContentLoaded", () => {
     return item;
   }
 
-  function renderTransactions(transactions = [], highlightId = null) {
+  // 🔥 ОБНОВЛЕННАЯ ФУНКЦИЯ: Поддержка догрузки (Append)
+  function renderTransactions(transactions = [], highlightId = null, isAppend = false) {
     const list = DOM.home.listContainer;
-    list.innerHTML = "";
+    if (!isAppend) list.innerHTML = "";
 
-    if (transactions.length === 0) {
+    if (!isAppend && transactions.length === 0) {
       list.innerHTML = `
                 <div class="list-placeholder">
                     <span class="icon">📁</span>
@@ -458,12 +471,16 @@ document.addEventListener("DOMContentLoaded", () => {
                     <p>Your new transactions will appear here.</p>
                 </div>
             `;
-      updateBalance();
       return;
     }
 
     const fragment = document.createDocumentFragment();
-    let currentHeaderDate = "";
+    let lastRenderedDate = null;
+    if (isAppend) {
+      const lastHeader = list.querySelector(".date-header:last-of-type");
+      if (lastHeader) lastRenderedDate = lastHeader.textContent;
+    }
+    let currentHeaderDate = lastRenderedDate || "";
 
     transactions.forEach((tx) => {
       const txDate = parseDateFromUTC(tx.date);
@@ -481,20 +498,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (tx.id === highlightId) {
         item.classList.add("new-item-animation");
-        item.addEventListener(
-          "animationend",
-          () => {
-            item.classList.remove("new-item-animation");
-          },
-          { once: true }
-        );
+        item.addEventListener("animationend", () => item.classList.remove("new-item-animation"), { once: true });
       }
 
       fragment.appendChild(item);
     });
 
     list.appendChild(fragment);
-    updateBalance();
   }
 
   function renderSkeleton() {
@@ -507,22 +517,45 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>`;
   }
 
-  async function loadTransactions(highlightId = null) {
+  // 🔥 ОБНОВЛЕННАЯ ФУНКЦИЯ: Умная загрузка с OFFSET
+  async function loadTransactions(isAppend = false) {
+    if (state.isLoadingMore && isAppend) return;
+    if (state.isAllLoaded && isAppend) return;
+
+    state.isLoadingMore = true;
+    if (!isAppend) {
+      state.offset = 0;
+      state.isAllLoaded = false;
+      state.transactions = [];
+    }
+
     try {
-      const response = await apiRequest(API_URLS.TRANSACTIONS);
+      const url = `${API_URLS.TRANSACTIONS}?limit=${state.limit}&offset=${state.offset}`;
+      const response = await apiRequest(url);
       if (!response.ok) throw new Error("Network response was not ok");
-      state.transactions = await response.json();
-      renderTransactions(state.transactions, highlightId);
+
+      const newTransactions = await response.json();
+
+      if (newTransactions.length < state.limit) {
+        state.isAllLoaded = true;
+      }
+
+      if (isAppend) {
+        state.transactions = [...state.transactions, ...newTransactions];
+        state.offset += newTransactions.length;
+        renderTransactions(newTransactions, null, true);
+      } else {
+        state.transactions = newTransactions;
+        state.offset = newTransactions.length;
+        renderTransactions(newTransactions, null, false);
+      }
       state.isInitialLoad = false;
     } catch (error) {
-      renderErrorState(
-        DOM.home.listContainer,
-        () => {
-          renderSkeleton();
-          loadTransactions();
-        },
-        "Failed to load your transactions."
-      );
+      if (!isAppend) {
+        renderErrorState(DOM.home.listContainer, () => loadTransactions(false), "Failed to load transactions.");
+      }
+    } finally {
+      state.isLoadingMore = false;
     }
   }
 
@@ -531,7 +564,6 @@ document.addEventListener("DOMContentLoaded", () => {
     DOM.quickAdd.gridIncome.innerHTML = "";
     state.categories.forEach((cat) => {
       const { icon: customEmoji, name: categoryName } = parseCategory(cat.name);
-      // Эмодзи для кнопок
       let emojiToShow;
       if (customEmoji) {
         emojiToShow = customEmoji;
@@ -626,7 +658,6 @@ document.addEventListener("DOMContentLoaded", () => {
   function showDeleteConfirmation() {
     if (!state.editTransaction) return;
     const txId = state.editTransaction.id;
-    // 🔥 ФИКС: Возвращаем "душевный" текст
     tg.showConfirm("Are you sure you want to delete this transaction?", async (confirmed) => {
       if (confirmed) {
         DOM.fullForm.saveBtn.disabled = true;
@@ -635,6 +666,9 @@ document.addEventListener("DOMContentLoaded", () => {
         if (success) {
           tg.HapticFeedback.notificationOccurred("success");
           await loadTransactions();
+
+          await fetchAndRenderBalance(); // 🔥 ОБНОВЛЯЕМ БАЛАНС
+
           showScreen("home-screen");
         }
         DOM.fullForm.saveBtn.disabled = false;
@@ -678,7 +712,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const date = DOM.fullForm.dateInput.value;
 
     if (!categoryId || isNaN(amount) || amount <= 0 || !date) {
-      // 🔥 ФИКС: Возвращаем "friendly" текст
       tg.showAlert("Please fill all fields with valid data.");
       return;
     }
@@ -691,6 +724,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (savedTransaction) {
       tg.HapticFeedback.notificationOccurred("success");
       await loadTransactions(txId ? null : savedTransaction.id);
+
+      await fetchAndRenderBalance(); // 🔥 ОБНОВЛЯЕМ БАЛАНС
+
       showScreen("home-screen");
     }
     DOM.fullForm.saveBtn.disabled = false;
@@ -765,6 +801,9 @@ document.addEventListener("DOMContentLoaded", () => {
       tg.HapticFeedback.notificationOccurred("success");
       closeBottomSheet();
       await loadTransactions(savedTransaction.id);
+
+      await fetchAndRenderBalance(); // 🔥 ОБНОВЛЯЕМ БАЛАНС
+
       showScreen("home-screen");
     }
     DOM.quickModal.saveBtn.disabled = false;
@@ -876,6 +915,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function handleSwipeMove(e) {
     if (!currentSwipeElement) return;
+
+    // 🔥 ОПТИМИЗАЦИЯ: Не свайпаем боком, если идет вертикальный скролл
+    if (!isSwiping && window.scrollY > 0) {
+      return;
+    }
+
     const diffX = e.touches[0].clientX - swipeStartX;
     const diffY = e.touches[0].clientY - swipeStartY;
     if (!isSwiping) {
@@ -933,6 +978,8 @@ document.addEventListener("DOMContentLoaded", () => {
           async () => {
             await deleteTransaction(txId);
             await loadTransactions();
+
+            await fetchAndRenderBalance(); // 🔥 ОБНОВЛЯЕМ БАЛАНС
           },
           { once: true }
         );
@@ -1209,8 +1256,10 @@ document.addEventListener("DOMContentLoaded", () => {
       tg.HapticFeedback.notificationOccurred("success");
       await loadTransactions();
       await loadAllCategories();
+
+      await fetchAndRenderBalance(); // 🔥 ОБНОВЛЯЕМ БАЛАНС
+
       showScreen("home-screen");
-      // 🔥 ФИКС: Возвращаем "душевный" текст
       tg.showPopup({
         title: "Data Reset",
         message: "Your account has been successfully reset.",
@@ -1282,7 +1331,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const icon = DOM.categories.newIconInput.value.trim();
     const name = DOM.categories.newNameInput.value.trim();
 
-    // 🔥 ФИКС: Текст
     if (!name) {
       tg.showAlert("Please enter a category name.");
       return;
@@ -1309,7 +1357,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function handleDeleteCategory(categoryId) {
-    // 🔥 ФИКС: ВОССТАНОВЛЕНА ПОЛНАЯ ЛОГИКА WARNING
     let transactionCount = 0;
     let message = "Are you sure you want to delete this category?";
 
@@ -1339,11 +1386,27 @@ document.addEventListener("DOMContentLoaded", () => {
           await loadAllCategories();
           loadCategoriesScreen();
           await loadTransactions();
+
+          await fetchAndRenderBalance(); // 🔥 ОБНОВЛЯЕМ БАЛАНС
         } catch (e) {
           console.error(e);
         }
       }
     });
+  }
+
+  // 🔥 НОВАЯ ФУНКЦИЯ: Слушаем скролл для подгрузки
+  function handleScroll() {
+    if (state.activeBottomSheet || document.getElementById("home-screen").classList.contains("hidden")) return;
+
+    const scrollPosition = window.innerHeight + window.scrollY;
+    const bodyHeight = document.body.offsetHeight;
+
+    if (scrollPosition >= bodyHeight - 200) {
+      if (!state.isLoadingMore && !state.isAllLoaded) {
+        loadTransactions(true); // true = append
+      }
+    }
   }
 
   // --- INIT ---
@@ -1361,6 +1424,9 @@ document.addEventListener("DOMContentLoaded", () => {
     };
     applyTheme();
     tg.onEvent("themeChanged", applyTheme);
+
+    // 🔥 ДОБАВЛЕНО: Слушатель скролла
+    window.addEventListener("scroll", handleScroll);
 
     // Navigation Listeners
     DOM.tabs.home.addEventListener("click", () => {
@@ -1511,7 +1577,7 @@ document.addEventListener("DOMContentLoaded", () => {
       tg.CloudStorage.setItem("currency_symbol", e.target.value, (e, s) => {
         if (s) {
           state.currencySymbol = e.target.value;
-          loadTransactions();
+          loadTransactions(false); // перезагружаем список (сброс)
           tg.showPopup({
             title: "Currency Updated",
             message: `Your default currency is now ${state.currencySymbol}.`,
@@ -1522,14 +1588,10 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     DOM.settings.resetDataBtn.addEventListener("click", () => {
       tg.HapticFeedback.impactOccurred("heavy");
-
-      // 1. Первая проверка
       tg.showConfirm("Are you sure? All your transactions and custom categories will be deleted.", (firstConfirm) => {
         if (firstConfirm) {
-          // 2. Вторая проверка (запускается только если нажали ОК в первой)
           tg.showConfirm("Are you 100% sure? This action CANNOT be undone!", (secondConfirm) => {
             if (secondConfirm) {
-              // 3. Выполняем сброс только после ДВУХ подтверждений
               handleResetData();
             }
           });
@@ -1571,7 +1633,13 @@ document.addEventListener("DOMContentLoaded", () => {
     tg.CloudStorage.getItem("currency_symbol", async (err, value) => {
       state.currencySymbol = value || "$";
       DOM.settings.currencySelect.value = state.currencySymbol;
-      await Promise.all([loadAllCategories(), loadTransactions()]);
+
+      // 🔥 ГРУЗИМ ВСЕ ПАРАЛЛЕЛЬНО (Категории, Список, Баланс)
+      await Promise.all([
+        loadAllCategories(),
+        loadTransactions(false), // false = грузить с нуля
+        fetchAndRenderBalance(),
+      ]);
     });
   }
 
