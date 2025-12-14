@@ -1603,3 +1603,11 @@ a.settings-btn {
     grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
   }
 }
+
+/* --- FIX FOR MAC/DESKTOP OVERSCROLL (HORIZONTAL & VERTICAL) --- */
+@media (hover: hover) and (pointer: fine) {
+  html,
+  body {
+    overscroll-behavior: none;
+  }
+}
