@@ -532,7 +532,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // 🔥 ОБНОВЛЕННАЯ ФУНКЦИЯ: Умная загрузка с OFFSET
-  async function loadTransactions(isAppend = false) {
+  async function loadTransactions(isAppend = false, highlightId = null) {
     if (state.isLoadingMore && isAppend) return;
     if (state.isAllLoaded && isAppend) return;
 
@@ -561,7 +561,8 @@ document.addEventListener("DOMContentLoaded", () => {
       } else {
         state.transactions = newTransactions;
         state.offset = newTransactions.length;
-        renderTransactions(newTransactions, null, false);
+        // 🔥 ИСПРАВЛЕНО: Передаем highlightId, чтобы подсветить новую транзакцию
+        renderTransactions(newTransactions, highlightId, false);
       }
     } catch (error) {
       if (!isAppend) {
@@ -736,7 +737,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (savedTransaction) {
       tg.HapticFeedback.notificationOccurred("success");
-      await loadTransactions(txId ? null : savedTransaction.id);
+
+      // 🔥 ИСПРАВЛЕНО:
+      // 1. false -> это полная перезагрузка (не append)
+      // 2. highlightId -> передаем ID новой транзакции (если это не редактирование)
+      const highlightId = txId ? null : savedTransaction.id;
+      await loadTransactions(false, highlightId);
 
       await fetchAndRenderBalance(); // 🔥 ОБНОВЛЯЕМ БАЛАНС
 
@@ -813,7 +819,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (savedTransaction) {
       tg.HapticFeedback.notificationOccurred("success");
       closeBottomSheet();
-      await loadTransactions(savedTransaction.id);
+
+      // 🔥 ИСПРАВЛЕНО: false (перезагрузка), savedTransaction.id (подсветка)
+      await loadTransactions(false, savedTransaction.id);
 
       await fetchAndRenderBalance(); // 🔥 ОБНОВЛЯЕМ БАЛАНС
 
