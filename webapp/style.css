@@ -92,7 +92,7 @@ body {
   justify-content: center;
   align-items: center;
   background: linear-gradient(to bottom, var(--tg-theme-bg-color) 70%, rgba(0, 0, 0, 0) 100%);
-  z-index: 5;
+  z-index: 100 !important; /* Всегда поверх всего */
   pointer-events: none;
 }
 
@@ -116,19 +116,24 @@ body {
   display: none;
 }
 
-/* Стили "липких" (Glassmorphism) элементов */
+/* --- Стили "липких" (Glassmorphism) элементов --- */
+
+/* 1. БАЛАНС (ВТОРОЙ СЛОЙ, ВЫШЕ ТРАНЗАКЦИЙ) */
 .total-container {
   padding: 20px;
   border-radius: 12px;
   font-size: 1.2rem;
   font-weight: 600;
   margin-bottom: var(--space-lg);
+
   position: sticky;
   top: calc(env(safe-area-inset-top) + 50px);
-  z-index: 5;
+  z-index: 50 !important; /* Выше, чем .date-header (10) */
+
   background-color: rgba(var(--tg-theme-secondary-bg-color-rgb), 0.75);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15), inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.15);
   height: 65px;
   box-sizing: border-box;
@@ -141,7 +146,7 @@ body {
 #analytics-screen > .segmented-control:first-of-type {
   position: sticky;
   top: calc(env(safe-area-inset-top) + 50px);
-  z-index: 5;
+  z-index: 50 !important;
   background-color: rgba(var(--tg-theme-secondary-bg-color-rgb), 0.75);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -150,41 +155,36 @@ body {
   border: none;
 }
 
+/* 2. ЗАГОЛОВКИ ДАТ (ТРЕТИЙ СЛОЙ, ПОД БАЛАНСОМ) */
 .date-header {
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--tg-theme-text-color);
   padding: 10px 15px 8px 15px;
-  margin-top: var(--space-lg);
-  margin-bottom: 0;
+
+  margin-top: 0;
+  margin-bottom: 0; /* Отступы контролирует группа */
   border-radius: 12px;
+
   position: sticky;
   top: calc(env(safe-area-inset-top) + 50px + 65px + 10px);
-  z-index: 4;
+  z-index: 10 !important; /* Ниже баланса */
 
-  /* 🔥 ИЗМЕНЕНИЯ: Цвет как у блоков + Рамка */
-  background-color: var(--tg-theme-secondary-bg-color);
+  /* 🔥 СТЕКЛО (Светлая тема) */
+  background-color: rgba(var(--tg-theme-secondary-bg-color-rgb), 0.75) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+
   border: 1px solid rgba(var(--tg-theme-hint-color-rgb), 0.15);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
-/* Для темной темы убираем лишнее, цвет берется из основного класса выше */
+/* 🔥 ВОЗВРАЩЕНО СТЕКЛО В ТЕМНУЮ ТЕМУ */
 @media (prefers-color-scheme: dark) {
   .date-header {
-    background-color: var(--tg-theme-secondary-bg-color);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  .date-header {
-    background-color: var(--tg-theme-secondary-bg-color) !important;
-
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-
-    color: var(--tg-theme-text-color);
+    background-color: rgba(var(--tg-theme-secondary-bg-color-rgb), 0.75) !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
     border: 1px solid rgba(var(--tg-theme-hint-color-rgb), 0.2);
   }
 }
@@ -293,12 +293,22 @@ body {
 .transactions-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+  gap: 0; /* Группы касаются друг друга */
   margin-bottom: var(--space-lg);
 }
-.transactions-list .date-header:first-of-type {
-  margin-top: 0;
+
+/* ГРУППА ТРАНЗАКЦИЙ (ОДИН ДЕНЬ) */
+.transaction-group {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm); /* Расстояние между транзакциями (8px) */
+
+  /* 🔥 ВАЖНО: Отступ снизу ВНУТРИ группы. Вернули --space-lg */
+  padding-bottom: var(--space-lg);
+  z-index: 1;
 }
+
 .list-placeholder {
   text-align: center;
   padding: 80px 20px;
@@ -883,6 +893,7 @@ body {
   padding-left: var(--space-xs);
 }
 
+/* 🔥 ФИКС ДЛЯ КНОПОК НАСТРОЕК (Чтобы были карточками) */
 .settings-btn {
   background-color: var(--tg-theme-secondary-bg-color);
   color: var(--tg-theme-text-color);
@@ -894,15 +905,20 @@ body {
   font-size: 1rem;
   text-align: left;
   width: 100%;
+  display: block; /* Важно */
+  box-sizing: border-box;
 
   display: flex;
   align-items: center;
+  justify-content: space-between;
   line-height: 1.3;
 }
 
 a.settings-btn {
   text-decoration: none;
-  display: block;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   box-sizing: border-box;
 }
 

@@ -459,10 +459,16 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // 🔥 ОБНОВЛЕННАЯ ФУНКЦИЯ: Поддержка догрузки (Append)
+  // 🔥 НОВАЯ ВЕРСИЯ: С группировкой (Native Pushing)
   function renderTransactions(transactions = [], highlightId = null, isAppend = false) {
     const list = DOM.home.listContainer;
-    if (!isAppend) list.innerHTML = "";
 
+    // Если это не догрузка, очищаем список
+    if (!isAppend) {
+      list.innerHTML = "";
+    }
+
+    // Если пусто
     if (!isAppend && transactions.length === 0) {
       list.innerHTML = `
                 <div class="list-placeholder">
@@ -474,26 +480,36 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const fragment = document.createDocumentFragment();
-    let lastRenderedDate = null;
-    if (isAppend) {
-      const lastHeader = list.querySelector(".date-header:last-of-type");
-      if (lastHeader) lastRenderedDate = lastHeader.textContent;
-    }
-    let currentHeaderDate = lastRenderedDate || "";
-
     transactions.forEach((tx) => {
       const txDate = parseDateFromUTC(tx.date);
-      const dateHeader = formatDateForTitle(txDate);
+      const dateHeaderStr = formatDateForTitle(txDate);
 
-      if (dateHeader !== currentHeaderDate) {
+      // 1. Проверяем последнюю группу
+      let currentGroup = list.lastElementChild;
+      let groupToAppend;
+
+      // 2. Если последняя группа совпадает по дате — добавляем в неё
+      if (
+        currentGroup &&
+        currentGroup.classList.contains("transaction-group") &&
+        currentGroup.dataset.date === dateHeaderStr
+      ) {
+        groupToAppend = currentGroup;
+      } else {
+        // 3. Иначе создаем новую группу + заголовок
+        groupToAppend = document.createElement("div");
+        groupToAppend.className = "transaction-group";
+        groupToAppend.dataset.date = dateHeaderStr;
+
         const headerEl = document.createElement("div");
         headerEl.className = "date-header";
-        headerEl.textContent = dateHeader;
-        fragment.appendChild(headerEl);
-        currentHeaderDate = dateHeader;
+        headerEl.textContent = dateHeaderStr;
+
+        groupToAppend.appendChild(headerEl);
+        list.appendChild(groupToAppend);
       }
 
+      // 4. Создаем транзакцию и кладем ВНУТРЬ группы
       const item = createTransactionElement(tx);
 
       if (tx.id === highlightId) {
@@ -501,10 +517,8 @@ document.addEventListener("DOMContentLoaded", () => {
         item.addEventListener("animationend", () => item.classList.remove("new-item-animation"), { once: true });
       }
 
-      fragment.appendChild(item);
+      groupToAppend.appendChild(item);
     });
-
-    list.appendChild(fragment);
   }
 
   function renderSkeleton() {
@@ -549,7 +563,6 @@ document.addEventListener("DOMContentLoaded", () => {
         state.offset = newTransactions.length;
         renderTransactions(newTransactions, null, false);
       }
-      state.isInitialLoad = false;
     } catch (error) {
       if (!isAppend) {
         renderErrorState(DOM.home.listContainer, () => loadTransactions(false), "Failed to load transactions.");
@@ -1634,13 +1647,12 @@ document.addEventListener("DOMContentLoaded", () => {
       state.currencySymbol = value || "$";
       DOM.settings.currencySelect.value = state.currencySymbol;
 
-      // 🔥 ГРУЗИМ ВСЕ ПАРАЛЛЕЛЬНО (Категории, Список, Баланс)
-      await Promise.all([
-        loadAllCategories(),
-        loadTransactions(false), // false = грузить с нуля
-        fetchAndRenderBalance(),
-      ]);
-      state.isInitialLoad = false;
+      // 1. Грузим данные
+      await Promise.all([loadAllCategories(), loadTransactions(false), fetchAndRenderBalance()]);
+
+      setTimeout(() => {
+        state.isInitialLoad = false;
+      }, 100);
     });
   }
 
