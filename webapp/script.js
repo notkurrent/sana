@@ -405,7 +405,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function createTransactionElement(tx) {
     const item = document.createElement("div");
+    // Используем класс как в оригинале, чтобы старые стили работали
     item.className = "expense-item " + tx.type;
+    item.dataset.txId = tx.id; // Важно для поиска при клике
+
     const editIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" /></svg>`;
     const trashIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path fill-rule="evenodd" d="M16.5 4.478v.227a48.816 48.816 0 0 1 3.878.512.75.75 0 1 1-.256 1.478l-.209-.035-1.005 13.07a3 3 0 0 1-2.991 2.77H8.084a3 3 0 0 1-2.991-2.77L4.087 6.66l-.209.035a.75.75 0 0 1-.256-1.478A48.567 48.567 0 0 1 7.5 4.705v-.227c0-1.564 1.213-2.9 2.816-2.951a52.662 52.662 0 0 1 3.369 0c1.603.051 2.815 1.387 2.815 2.951Zm-6.136-1.452a51.196 51.196 0 0 1 3.273 0C14.39 3.05 15 3.684 15 4.478v.113a49.488 49.488 0 0 0-6 0v-.113c0-.794.609-1.428 1.364-1.452Zm-.355 5.945a.75.75 0 1 0-1.5.058l.347 9a.75.75 0 1 0 1.499-.058l-.346-9Zm5.48.058a.75.75 0 1 0-1.498-.058l-.347 9a.75.75 0 0 0 1.5.058l.345-9Z" clip-rule="evenodd" /></svg>`;
 
@@ -413,7 +416,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const formattedTime = formatTime(txDate);
     const { icon: customEmoji, name: categoryName } = parseCategory(tx.category);
 
-    // Эмодзи с фоллбэком
     let categoryDisplay;
     if (customEmoji) {
       categoryDisplay = `${customEmoji} ${categoryName}`;
@@ -425,54 +427,73 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     item.innerHTML = `
-        <div class="expense-item-delete-bg">${trashIconSvg}</div>
-        <div class="expense-item-content">
-          <div class="tx-info">
-            <span class="tx-category">${categoryDisplay}</span>
-            <span class="tx-time">${formattedTime}</span>
-          </div>
-          <div class="expense-item-details">
-            <span class="tx-amount ${tx.type}">${tx.type === "income" ? "+" : "-"}${formatCurrency(tx.amount)}</span>
-            <button class="edit-btn" data-tx-id="${tx.id}">${editIconSvg}</button>
-          </div>
-        </div>`;
+            <div class="expense-item-delete-bg">
+                ${trashIconSvg}
+            </div>
+            <div class="expense-item-content">
+                <div class="tx-info">
+                    <span class="tx-category">${categoryDisplay}</span>
+                    <span class="tx-time">${formattedTime}</span>
+                </div>
+                <div class="expense-item-details">
+                    <span class="tx-amount ${tx.type}">
+                        ${tx.type === "income" ? "+" : "-"}${formatCurrency(tx.amount)} 
+                    </span>
+                    <button class="edit-btn" data-tx-id="${tx.id}">${editIconSvg}</button>
+                </div>
+            </div>
+        `;
     return item;
   }
 
   function renderTransactions(transactions = [], highlightId = null) {
-    DOM.home.listContainer.innerHTML = "";
+    const list = DOM.home.listContainer;
+    list.innerHTML = "";
+
     if (transactions.length === 0) {
-      DOM.home.listContainer.innerHTML = `
-          <div class="list-placeholder">
-            <span class="icon">📁</span>
-            <h3>All Clear!</h3>
-            <p>
-              Your new transactions will appear here.
-              Tap the <strong>(+)</strong> button below to add your first one.
-            </p>
-          </div>`;
+      list.innerHTML = `
+                <div class="list-placeholder">
+                    <span class="icon">📁</span>
+                    <h3>All Clear!</h3>
+                    <p>Your new transactions will appear here.</p>
+                </div>
+            `;
       updateBalance();
       return;
     }
 
+    const fragment = document.createDocumentFragment();
     let currentHeaderDate = "";
+
     transactions.forEach((tx) => {
       const txDate = parseDateFromUTC(tx.date);
       const dateHeader = formatDateForTitle(txDate);
+
       if (dateHeader !== currentHeaderDate) {
         const headerEl = document.createElement("div");
         headerEl.className = "date-header";
         headerEl.textContent = dateHeader;
-        DOM.home.listContainer.appendChild(headerEl);
+        fragment.appendChild(headerEl);
         currentHeaderDate = dateHeader;
       }
+
       const item = createTransactionElement(tx);
+
       if (tx.id === highlightId) {
         item.classList.add("new-item-animation");
-        item.addEventListener("animationend", () => item.classList.remove("new-item-animation"), { once: true });
+        item.addEventListener(
+          "animationend",
+          () => {
+            item.classList.remove("new-item-animation");
+          },
+          { once: true }
+        );
       }
-      DOM.home.listContainer.appendChild(item);
+
+      fragment.appendChild(item);
     });
+
+    list.appendChild(fragment);
     updateBalance();
   }
 
