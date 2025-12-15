@@ -475,6 +475,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     <span class="icon">📁</span>
                     <h3>All Clear!</h3>
                     <p>Your new transactions will appear here.</p>
+                    <p>Tap the <b>(+)</b> button to add your first transaction.</p>
                 </div>
             `;
       return;
@@ -1394,7 +1395,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (transactionCount > 0) {
       const txWord = transactionCount === 1 ? "transaction" : "transactions";
-      message = `Warning: This category is linked to ${transactionCount} ${txWord}. Deleting it will also delete all associated transactions.\n\nAre you sure you want to proceed?`;
+      message = `This category is linked to ${transactionCount} ${txWord}.\n\nIt will be hidden from the list, but your past history will remain safe.\n\n(Tip: You can restore it anytime by creating a category with the exact same name).`;
     }
 
     tg.showConfirm(message, async (confirmed) => {
