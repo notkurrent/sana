@@ -10,7 +10,8 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 
 # App imports
 from app.config import WEB_APP_URL, BOT_TOKEN
-from app.database import init_db_pool, close_db_pool
+
+# ❌ Убрали импорт init_db_pool, так как их больше нет
 from app.routers import transactions, categories, ai
 
 # --- Инициализация Бота ---
@@ -35,7 +36,7 @@ if ptb_app:
 app = FastAPI(title="Sana Finance API")
 
 # --- CORS ---
-origins = ["*"]  # Для разработки разрешаем всё
+origins = ["*"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -48,9 +49,8 @@ app.add_middleware(
 # --- Жизненный цикл (Startup/Shutdown) ---
 @app.on_event("startup")
 async def startup_event():
-    # 1. База данных
-    init_db_pool()
-    # 2. Бот
+    # 1. База данных: Теперь инициализируется автоматически при первом запросе
+    # 2. Бот: Запускаем
     if ptb_app:
         await ptb_app.initialize()
         print("--- [Bot]: Initialized successfully")
@@ -58,11 +58,10 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    # 1. Бот
+    # 1. Бот: Останавливаем
     if ptb_app:
         await ptb_app.shutdown()
-    # 2. База данных
-    close_db_pool()
+    # 2. База данных: Закрывается сама
 
 
 # --- Подключение роутеров API ---
@@ -86,19 +85,15 @@ async def telegram_webhook(request: Request):
         return {"status": "error"}
 
 
-# --- 🔥 ВАЖНО: Статика и Frontend (SPA) ---
-# Обслуживаем папку webapp
+# --- Статика и Frontend (SPA) ---
 app.mount("/static", StaticFiles(directory="webapp"), name="static")
 
 
-# Catch-all route: Любой запрос, не попавший в API, отдает index.html
 @app.get("/{full_path:path}", response_class=HTMLResponse)
 async def serve_spa(full_path: str):
-    # Если запрашивают файл API, которого нет - 404
     if full_path.startswith("api/"):
         raise HTTPException(status_code=404)
 
-    # Иначе отдаем index.html
     html_path = "webapp/index.html"
     if os.path.exists(html_path):
         with open(html_path, "r", encoding="utf-8") as f:

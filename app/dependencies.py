@@ -2,14 +2,22 @@ import hmac
 import hashlib
 import json
 import urllib.parse
+from typing import AsyncGenerator
 from fastapi import Header, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import BOT_TOKEN
+from app.database import async_session_maker
 
 
-async def verify_telegram_authentication(
-    # 🔥 ВАЖНО: В твоем JS (строка 61) хедер с дефисом, поэтому тут alias тоже с дефисом
-    x_telegram_init_data: str = Header(None, alias="X-Telegram-Init-Data")
-):
+# --- DATABASE DEPENDENCY ---
+# Эту функцию мы будем вставлять во все роутеры, чтобы получить доступ к БД
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
+    async with async_session_maker() as session:
+        yield session
+
+
+# --- AUTHENTICATION ---
+async def verify_telegram_authentication(x_telegram_init_data: str = Header(None, alias="X-Telegram-Init-Data")):
     if not x_telegram_init_data:
         raise HTTPException(status_code=401, detail="Missing auth header")
 

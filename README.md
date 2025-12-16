@@ -30,11 +30,12 @@ It combines a modern, responsive **SPA frontend** with a robust **Python backend
 ### Backend
 
 - **Framework:** Python (FastAPI).
-- **Validation:** Pydantic (Strong Typing).
+- **Architecture:** Modular Monolith (Clean Architecture).
+- **ORM:** **SQLAlchemy v2** (Async) + **Alembic** (Migrations).
 - **Database:** PostgreSQL 15 (via Supabase / Docker).
-- **Driver:** `psycopg2` with Custom **Connection Pool** & Health Checks.
+- **Driver:** `asyncpg` (High-performance Asynchronous Driver).
+- **Validation:** Pydantic (Strong Typing).
 - **AI:** Google Generative AI (Gemini 2.5 Flash).
-- **Security:** HMAC Data Validation & Dependency Injection.
 
 ### Deployment
 
@@ -49,18 +50,20 @@ It combines a modern, responsive **SPA frontend** with a robust **Python backend
 
 ```text
 Sana-Project/
+├── alembic/                # 🗄️ Database Migrations (Versions)
 ├── app/                    # 🐍 Backend Logic (Modular)
 │   ├── routers/            # API Endpoints
 │   │   ├── __init__.py
 │   │   ├── transactions.py
 │   │   ├── categories.py
-│   │   └── ai.py           # Gemini Logic is here
-│   ├── models/             # Pydantic Schemas
+│   │   └── ai.py           # Gemini Logic
+│   ├── models/             # Data Models
 │   │   ├── __init__.py
-│   │   └── schemas.py
+│   │   ├── schemas.py      # Pydantic Schemas (API Contract)
+│   │   └── sql.py          # SQLAlchemy Models (DB Tables)
 │   ├── __init__.py
-│   ├── database.py         # DB Connection Pool
-│   ├── dependencies.py     # Auth & Security
+│   ├── database.py         # Async Engine & Session Maker
+│   ├── dependencies.py     # Auth & DB Dependency Injection
 │   └── config.py           # Environment Config
 ├── webapp/                 # 🎨 Frontend Source (SPA)
 │   ├── index.html          # Main entry point
@@ -69,6 +72,7 @@ Sana-Project/
 ├── main.py                 # 🚀 App Entry Point
 ├── setup_bot.py            # Webhook setup utility
 ├── requirements.txt        # Python dependencies
+├── alembic.ini             # Alembic Config
 ├── Dockerfile              # Docker image configuration
 ├── docker-compose.yml      # Production orchestration config
 ├── docker-compose.dev.yml  # Local Development orchestration (Hot-reload)
@@ -170,10 +174,12 @@ To develop comfortably with **Hot-Reload** (changes in code apply instantly) and
 
 This project was built with a focus on **security**, **scalability**, and **performance**:
 
-1.  **Clean Architecture:** Refactored from a flat monolith to a modular structure (`routers`, `models`, `dependencies`) to separate concerns and improve maintainability.
-2.  **Robust Database Layer:** Implements a custom **Connection Pool** with automatic health checks (`SELECT 1`) to prevent connection drops and ensure stability.
-3.  **HMAC Validation:** Every API request is authenticated using Telegram's `initData` hash (HMAC SHA-256) to ensure requests originate from a verified Telegram session.
-4.  **Timezone Awareness:** The backend intelligently adjusts UTC data based on the user's `X-Timezone-Offset` header to ensure analytics and calendars reflect local time correctly.
+1.  **Modern Async Stack:** Fully migrated to **SQLAlchemy (Async)** and **asyncpg**. This allows the server to handle high concurrency without blocking, ensuring the interface remains snappy even under load.
+2.  **Resilient Database Connections:** Uses `pool_pre_ping=True` and connection recycling strategies to handle cloud database (Supabase) idle timeouts gracefully. The app automatically recovers lost connections without user errors.
+3.  **Soft Delete Pattern:** Categories are never physically deleted. Instead, they are marked `is_active=False`. This preserves transaction history and allows for "resurrection" of categories without data integrity issues.
+4.  **Database Migrations:** All database schema changes are managed by **Alembic**, ensuring smooth updates and version control for the DB structure.
+5.  **HMAC Validation:** Every API request is authenticated using Telegram's `initData` hash (HMAC SHA-256) to ensure requests originate from a verified Telegram session.
+6.  **Timezone Awareness:** The backend intelligently adjusts UTC data based on the user's `X-Timezone-Offset` header to ensure analytics and calendars reflect local time correctly.
 
 ---
 

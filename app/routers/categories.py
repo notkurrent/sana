@@ -1,91 +1,97 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List
-from app.database import get_db
-from app.dependencies import verify_telegram_authentication
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, update, func
+from sqlalchemy.dialects.postgresql import insert
+
+from app.dependencies import verify_telegram_authentication, get_session
 from app.models.schemas import Category, CategoryCreate
+from app.models.sql import CategoryDB, TransactionDB
 
 router = APIRouter(tags=["categories"])
 
 
 @router.get("/categories", response_model=List[Category])
-async def get_categories(type: str = Query(None), user=Depends(verify_telegram_authentication), db=Depends(get_db)):
+async def get_categories(
+    type: str = Query(None), user=Depends(verify_telegram_authentication), session: AsyncSession = Depends(get_session)
+):
     user_id = user["id"]
 
-    # 🔥 CHANGE: Добавили фильтр is_active = TRUE
-    # Мы показываем только активные категории
-    query = """
-        SELECT id, name, type, user_id 
-        FROM categories 
-        WHERE (user_id = %s OR user_id IS NULL)
-          AND is_active = TRUE
-    """
-    params = [user_id]
+    # Строим запрос: Ищем категории пользователя (или общие) + Активные
+    stmt = select(CategoryDB).where(
+        ((CategoryDB.user_id == user_id) | (CategoryDB.user_id.is_(None))) & (CategoryDB.is_active == True)
+    )
 
     if type:
-        query += " AND type = %s"
-        params.append(type)
+        stmt = stmt.where(CategoryDB.type == type)
 
-    query += " ORDER BY id ASC"
+    stmt = stmt.order_by(CategoryDB.id.asc())
 
-    db.execute(query, tuple(params))
-    return db.fetchall()
+    result = await session.execute(stmt)
+    return result.scalars().all()
 
 
 @router.post("/categories")
-async def add_category(category: CategoryCreate, user=Depends(verify_telegram_authentication), db=Depends(get_db)):
+async def add_category(
+    category: CategoryCreate, user=Depends(verify_telegram_authentication), session: AsyncSession = Depends(get_session)
+):
     user_id = user["id"]
+
+    # 🔥 CHANGE: "Resurrection Pattern" на SQLAlchemy
+    # Используем нативный PostgreSQL функционал INSERT ... ON CONFLICT
+    insert_stmt = insert(CategoryDB).values(user_id=user_id, name=category.name, type=category.type, is_active=True)
+
+    # Если конфликт (такая уже была) -> Делаем UPDATE is_active = True
+    do_update_stmt = insert_stmt.on_conflict_do_update(
+        index_elements=["name", "type", "user_id"], set_=dict(is_active=True)  # Наш Unique Constraint
+    ).returning(CategoryDB.id)
+
     try:
-        # 🔥 CHANGE: "Resurrection Pattern" (Воскрешение)
-        # Если категория с таким именем уже была (но удалена), мы не создаем новую,
-        # а просто ставим старой is_active = TRUE.
-        # Это решает проблему дубликатов и ошибок уникальности.
-
-        query = """
-            INSERT INTO categories (user_id, name, type, is_active) 
-            VALUES (%s, %s, %s, TRUE) 
-            ON CONFLICT (name, type, user_id) 
-            DO UPDATE SET is_active = TRUE
-            RETURNING id
-        """
-
-        db.execute(
-            query,
-            (user_id, category.name, category.type),
-        )
-        new_id = db.fetchone()["id"]
+        result = await session.execute(do_update_stmt)
+        await session.commit()
+        new_id = result.scalar_one()
         return {"id": new_id, "status": "created"}
     except Exception as e:
+        await session.rollback()
         print(f"Error adding category: {e}")
-        # На всякий случай оставляем обработку, но ON CONFLICT должен решить 99% проблем
         raise HTTPException(status_code=500, detail="Database error")
 
 
 @router.delete("/categories/{cat_id}")
-async def delete_category(cat_id: int, user=Depends(verify_telegram_authentication), db=Depends(get_db)):
+async def delete_category(
+    cat_id: int, user=Depends(verify_telegram_authentication), session: AsyncSession = Depends(get_session)
+):
     user_id = user["id"]
 
-    # 1. Проверяем, что это категория пользователя (системные трогать нельзя)
-    db.execute("SELECT id FROM categories WHERE id = %s AND user_id = %s", (cat_id, user_id))
-    if not db.fetchone():
+    # 1. Проверяем существование и права
+    stmt = select(CategoryDB).where((CategoryDB.id == cat_id) & (CategoryDB.user_id == user_id))
+    result = await session.execute(stmt)
+    category = result.scalar_one_or_none()
+
+    if not category:
         raise HTTPException(status_code=403, detail="Cannot delete this category (Access denied or Default)")
 
-    # 🔥 CHANGE: Soft Delete Logic
-    # 1. Мы БОЛЬШЕ НЕ удаляем транзакции. История должна сохраняться!
-    # 2. Вместо DELETE делаем UPDATE is_active = FALSE
-
-    db.execute("UPDATE categories SET is_active = FALSE WHERE id = %s", (cat_id,))
+    # 🔥 CHANGE: Soft Delete (ORM Style)
+    category.is_active = False
+    # Нам не нужно делать session.add, так как объект уже отслеживается сессией
+    await session.commit()
 
     return {"status": "deleted"}
 
 
 @router.get("/categories/{cat_id}/check")
-async def check_category_usage(cat_id: int, user=Depends(verify_telegram_authentication), db=Depends(get_db)):
-    """
-    Этот эндпоинт теперь носит информационный характер.
-    При Soft Delete удалять транзакции не обязательно,
-    но предупредить юзера, что у него там есть статистика - хороший тон.
-    """
+async def check_category_usage(
+    cat_id: int, user=Depends(verify_telegram_authentication), session: AsyncSession = Depends(get_session)
+):
     user_id = user["id"]
-    db.execute("SELECT COUNT(*) as count FROM transactions WHERE category_id = %s AND user_id = %s", (cat_id, user_id))
-    result = db.fetchone()
-    return {"transaction_count": result["count"]}
+
+    # Считаем количество транзакций
+    stmt = (
+        select(func.count())
+        .select_from(TransactionDB)
+        .where((TransactionDB.category_id == cat_id) & (TransactionDB.user_id == user_id))
+    )
+    result = await session.execute(stmt)
+    count = result.scalar_one()
+
+    return {"transaction_count": count}
