@@ -27,16 +27,15 @@ body::-webkit-scrollbar,
   --tg-theme-secondary-bg-color: rgb(var(--tg-theme-secondary-bg-color-rgb));
   --tg-theme-tertiary-bg-color: rgb(var(--tg-theme-tertiary-bg-color-rgb));
 
-  /* Переменные для консистентных цветов */
   --color-expense: #ef4444;
   --color-income: #22c55e;
 
   /* --- 📏 Наша Линейка Отступов --- */
-  --space-xs: 4px; /* Очень маленький */
-  --space-sm: 8px; /* Маленький (для gap'ов внутри) */
-  --space-md: 16px; /* Средний (для полей и кнопок) */
-  --space-lg: 24px; /* Большой (для секций) */
-  --space-xl: 32px; /* Очень большой */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -59,7 +58,6 @@ body.is-sheet-open {
   overflow: hidden;
 }
 
-/* Базовые стили */
 button,
 select,
 input {
@@ -92,7 +90,7 @@ body {
   justify-content: center;
   align-items: center;
   background: linear-gradient(to bottom, var(--tg-theme-bg-color) 70%, rgba(0, 0, 0, 0) 100%);
-  z-index: 100 !important; /* Всегда поверх всего */
+  z-index: 100 !important;
   pointer-events: none;
 }
 
@@ -116,24 +114,109 @@ body {
   display: none;
 }
 
-/* --- Стили "липких" (Glassmorphism) элементов --- */
+/* --- СТИЛИ ДЛЯ NATIVE PICKER (ВЫБОР ВАЛЮТЫ) --- */
+.amount-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
 
-/* 1. БАЛАНС (ВТОРОЙ СЛОЙ, ВЫШЕ ТРАНЗАКЦИЙ) */
+.currency-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 40px;
+}
+
+.currency-label {
+  font-weight: 600;
+  color: var(--tg-theme-button-color);
+  line-height: 1;
+}
+
+.chevron {
+  color: var(--tg-theme-hint-color);
+  font-size: 0.8em;
+  margin-top: 2px;
+  pointer-events: none;
+}
+
+.native-select-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  z-index: 10;
+  cursor: pointer;
+  font-size: 16px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Полная Форма */
+#full-form-screen .currency-wrapper {
+  background-color: var(--tg-theme-secondary-bg-color);
+  border-radius: 10px;
+  height: 56px;
+  padding: 0 12px;
+}
+#full-form-screen .currency-label {
+  font-size: 1.2rem;
+}
+#full-form-screen input#transaction-amount {
+  flex-grow: 1;
+}
+
+/* Шторка Quick Add */
+.quick-add-amount-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 10px 0 30px 0;
+  border-bottom: 2px solid var(--tg-theme-secondary-bg-color);
+  padding-bottom: 20px;
+}
+#quick-add-modal-sheet .currency-label {
+  font-size: 2.5rem;
+}
+#quick-add-modal-sheet .chevron {
+  font-size: 1.5rem;
+  margin-top: 8px;
+}
+#quick-add-modal-sheet input {
+  font-size: 3rem;
+  font-weight: 700;
+  color: var(--tg-theme-text-color);
+  background: none;
+  border: none;
+  outline: none;
+  width: 100%;
+  flex-shrink: 1;
+  text-align: left;
+  padding: 0;
+  line-height: 1.2;
+}
+
+/* --- ОБЩИЕ СТИЛИ --- */
+
 .total-container {
   padding: 20px;
   border-radius: 12px;
   font-size: 1.2rem;
   font-weight: 600;
   margin-bottom: var(--space-lg);
-
   position: sticky;
   top: calc(env(safe-area-inset-top) + 50px);
-  z-index: 50 !important; /* Выше, чем .date-header (10) */
-
+  z-index: 50 !important;
   background-color: rgba(var(--tg-theme-secondary-bg-color-rgb), 0.75);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15), inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.15);
   height: 65px;
   box-sizing: border-box;
@@ -155,31 +238,24 @@ body {
   border: none;
 }
 
-/* 2. ЗАГОЛОВКИ ДАТ (ТРЕТИЙ СЛОЙ, ПОД БАЛАНСОМ) */
 .date-header {
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--tg-theme-text-color);
   padding: 10px 15px 8px 15px;
-
   margin-top: 0;
-  margin-bottom: 0; /* Отступы контролирует группа */
+  margin-bottom: 0;
   border-radius: 12px;
-
   position: sticky;
   top: calc(env(safe-area-inset-top) + 50px + 65px + 10px);
-  z-index: 10 !important; /* Ниже баланса */
-
-  /* 🔥 СТЕКЛО (Светлая тема) */
+  z-index: 10 !important;
   background-color: rgba(var(--tg-theme-secondary-bg-color-rgb), 0.75) !important;
   backdrop-filter: blur(10px) !important;
   -webkit-backdrop-filter: blur(10px) !important;
-
   border: 1px solid rgba(var(--tg-theme-hint-color-rgb), 0.15);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
-/* 🔥 ВОЗВРАЩЕНО СТЕКЛО В ТЕМНУЮ ТЕМУ */
 @media (prefers-color-scheme: dark) {
   .date-header {
     background-color: rgba(var(--tg-theme-secondary-bg-color-rgb), 0.75) !important;
@@ -189,7 +265,6 @@ body {
   }
 }
 
-/* Стили Форм и Кнопок */
 .form-title {
   font-size: 1.8rem;
   font-weight: 600;
@@ -222,6 +297,7 @@ body {
   color: var(--tg-theme-text-color);
   width: 100%;
   box-sizing: border-box;
+  height: 56px;
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
@@ -273,6 +349,7 @@ body {
   opacity: 0.8;
 }
 
+/* Кнопка удаления */
 .delete-btn {
   background-color: var(--tg-theme-secondary-bg-color);
   color: var(--color-expense);
@@ -281,30 +358,43 @@ body {
   padding: var(--space-md);
   cursor: pointer;
   font-size: 1rem;
-  transition: background 0.2s ease;
   margin-top: 0;
-}
-.delete-btn:hover {
-  background-color: var(--color-expense);
-  color: var(--tg-theme-button-text-color);
+
+  /* Анимация только для возврата в обычное состояние */
+  transition: background-color 0.3s ease, color 0.3s ease, transform 0.1s ease;
+
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* Список Транзакций (Home Screen) */
+/* Эффект нажатия (ПАЛЕЦ) - Срабатывает МГНОВЕННО */
+.delete-btn:active {
+  background-color: var(--color-expense) !important;
+  color: var(--tg-theme-button-text-color) !important;
+  transform: scale(0.96);
+
+  /* 🔥 FIX: Отключаем плавность при нажатии, чтобы цвет менялся сразу */
+  transition: none;
+}
+
+/* Эффект наведения (МЫШКА) */
+@media (hover: hover) {
+  .delete-btn:hover {
+    background-color: var(--color-expense);
+    color: var(--tg-theme-button-text-color);
+  }
+}
+
 .transactions-list {
   display: flex;
   flex-direction: column;
-  gap: 0; /* Группы касаются друг друга */
+  gap: 0;
   margin-bottom: var(--space-lg);
 }
-
-/* ГРУППА ТРАНЗАКЦИЙ (ОДИН ДЕНЬ) */
 .transaction-group {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm); /* Расстояние между транзакциями (8px) */
-
-  /* 🔥 ВАЖНО: Отступ снизу ВНУТРИ группы. Вернули --space-lg */
+  gap: var(--space-sm);
   padding-bottom: var(--space-lg);
   z-index: 1;
 }
@@ -347,6 +437,7 @@ body {
   contain-intrinsic-size: 56px;
   transform: translateZ(0);
   will-change: transform;
+  touch-action: pan-y;
 }
 .expense-item.expense {
   border-left-color: var(--color-expense);
@@ -366,32 +457,29 @@ body {
   transition: transform 0.3s ease;
 }
 
-/* 1. Контейнер текста (Категория + Время) */
+/* FIX LAG: Убираем анимацию во время перетаскивания пальцем */
+.expense-item-content.swiping {
+  transition: none !important;
+}
+
 .tx-info {
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
   align-items: flex-start;
-
-  /* 🔥 МАГИЯ: Позволяем контейнеру сжиматься, если места мало */
   flex: 1;
   min-width: 0;
-  margin-right: 10px; /* Отступ от суммы */
+  margin-right: 10px;
 }
-
-/* 2. Само название категории */
 .tx-category {
   font-size: 1rem;
   font-weight: 500;
-
-  /* 🔥 ОБРЕЗКА ТЕКСТА */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  width: 100%; /* Занимать всю ширину контейнера */
-  display: block; /* Важно для span, чтобы работала ширина */
+  width: 100%;
+  display: block;
 }
-
 .tx-time {
   font-size: 0.8rem;
   color: var(--tg-theme-hint-color);
@@ -407,13 +495,24 @@ body {
   color: var(--color-expense);
 }
 
-/* 3. Детали справа (Сумма + Карандаш) */
+.original-amount.expense {
+  color: var(--color-expense);
+}
+.original-amount.income {
+  color: var(--color-income);
+}
+.base-amount {
+  display: block;
+  line-height: 1.2;
+  color: var(--tg-theme-hint-color);
+}
+
 .expense-item-details {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
   font-size: 1rem;
-  flex-shrink: 0; /* 🔥 ЗАПРЕЩАЕМ сжимать сумму и кнопку */
+  flex-shrink: 0;
 }
 .edit-btn {
   background: none;
@@ -433,7 +532,6 @@ body {
   display: block;
 }
 
-/* Логика Swipe-to-Delete */
 .expense-item-delete-bg {
   position: absolute;
   top: 0;
@@ -453,9 +551,7 @@ body {
   width: 24px;
   height: 24px;
 }
-.expense-item-content.swiping {
-  transition: none;
-}
+
 .expense-item.deleting {
   opacity: 0;
 }
@@ -463,41 +559,30 @@ body {
   transform: translateX(-100%);
 }
 
-/* ========================================= */
-/* НАВИГАЦИЯ */
-/* ========================================= */
-
 .tab-bar {
   position: fixed;
   bottom: calc(20px + env(safe-area-inset-bottom));
   left: 25px;
   right: 25px;
-
   max-width: 400px;
   margin: 0 auto;
   height: 65px;
-
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   align-items: center;
-
   background-color: rgba(var(--tg-theme-secondary-bg-color-rgb), 0.75);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15), inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.15);
-
   border-radius: 100px;
   z-index: 10;
   transition: background-color 0.3s ease;
 }
-
 @media (prefers-color-scheme: dark) {
   .tab-bar {
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3), inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.2);
   }
 }
-
 .tab-button {
   background: none;
   border: none;
@@ -514,17 +599,14 @@ body {
   height: 100%;
   gap: 3px;
 }
-
 .tab-button svg {
   width: 24px;
   height: 24px;
   margin-bottom: 0;
 }
-
 .tab-button.active {
   color: var(--tg-theme-button-color);
 }
-
 .tab-button-add {
   background-color: var(--tg-theme-button-color);
   color: var(--tg-theme-button-text-color);
@@ -532,36 +614,28 @@ body {
   height: 44px;
   border-radius: 50%;
   border: none;
-
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
   margin: 0 auto;
-
   box-shadow: none;
   cursor: pointer;
-
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   -webkit-user-select: none;
   user-select: none;
-
   transition: filter 0.2s ease;
-
   transform: translateZ(0);
 }
-
 .tab-button-add:hover {
   filter: brightness(1.1);
 }
-
 .tab-button-add:active {
   transform: none !important;
   margin: 0 auto !important;
   padding: 0 !important;
 }
-
 .tab-button-add svg {
   width: 24px;
   height: 24px;
@@ -569,7 +643,6 @@ body {
   pointer-events: none;
 }
 
-/* Общие компоненты (Segmented Control) */
 .segmented-control {
   display: flex;
   width: 100%;
@@ -605,14 +678,12 @@ body {
   font-weight: 500;
 }
 
-/* Экран AI-Advisor */
 #ai-screen .date-filter-control {
   margin-bottom: 0;
 }
 #ai-screen .settings-group {
   margin-bottom: var(--space-md);
 }
-
 #ai-features-list {
   display: flex;
   flex-direction: column;
@@ -689,7 +760,6 @@ body {
   margin-top: var(--space-md);
 }
 
-/* Экран Аналитики (Summary) */
 .chart-container {
   width: 100%;
   max-width: 300px;
@@ -708,29 +778,22 @@ body {
   padding: var(--space-md);
   border-radius: 10px;
   font-size: 1rem;
-  gap: 15px; /* Зазор между текстом и суммой */
+  gap: 15px;
 }
-
-/* Название категории в списке */
 .summary-list-item .category {
   font-weight: 500;
-
-  /* 🔥 ОБРЕЗКА */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  flex: 1; /* Занимать всё свободное место */
-  min-width: 0; /* Разрешить сжатие */
+  flex: 1;
+  min-width: 0;
 }
-
-/* Сумма */
 .summary-list-item .amount {
   font-weight: 600;
-  white-space: nowrap; /* Сумму не переносить */
-  flex-shrink: 0; /* Сумму не сжимать */
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-/* Экран Аналитики (Calendar) */
 .calendar-controls {
   display: flex;
   justify-content: space-between;
@@ -756,7 +819,6 @@ body {
   margin-left: var(--space-md);
   margin-right: var(--space-md);
 }
-
 .month-year-picker select {
   background-color: var(--tg-theme-secondary-bg-color);
   border: none;
@@ -793,7 +855,6 @@ body {
 .summary-box:active {
   background-color: var(--tg-theme-tertiary-bg-color);
 }
-
 .summary-label {
   display: block;
   font-size: 0.8rem;
@@ -811,7 +872,6 @@ body {
 .summary-value.expense {
   color: var(--color-expense);
 }
-
 .summary-tap-hint {
   font-size: 0.8rem;
   color: var(--tg-theme-hint-color);
@@ -819,7 +879,6 @@ body {
   margin-top: var(--space-sm);
   margin-bottom: 0;
 }
-
 #calendar-container {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -879,7 +938,6 @@ body {
   color: var(--color-expense);
 }
 
-/* Экран Настроек (Settings) */
 .settings-group {
   display: flex;
   flex-direction: column;
@@ -892,8 +950,6 @@ body {
   color: var(--tg-theme-hint-color);
   padding-left: var(--space-xs);
 }
-
-/* 🔥 ФИКС ДЛЯ КНОПОК НАСТРОЕК (Чтобы были карточками) */
 .settings-btn {
   background-color: var(--tg-theme-secondary-bg-color);
   color: var(--tg-theme-text-color);
@@ -905,15 +961,14 @@ body {
   font-size: 1rem;
   text-align: left;
   width: 100%;
-  display: block; /* Важно */
+  display: block;
   box-sizing: border-box;
-
   display: flex;
   align-items: center;
   justify-content: space-between;
   line-height: 1.3;
+  height: 56px;
 }
-
 a.settings-btn {
   text-decoration: none;
   display: flex;
@@ -921,32 +976,28 @@ a.settings-btn {
   align-items: center;
   box-sizing: border-box;
 }
-
 .reset-btn {
   color: var(--color-expense);
 }
-
 .settings-group .segmented-control {
   margin-bottom: 0;
 }
 
-/* Экран Категорий (Categories) */
-
-/* ⬇️ СЕТКА (GRID) */
+/* 🔥 ОБНОВЛЕНО: Стили инпутов (общие для создания и редактирования) */
 .add-category-form {
   display: grid;
   gap: 8px;
   margin-bottom: 24px;
   align-items: center;
-  /* 1fr (Имя) | 60px (Смайл) | 54px (Кнопка) */
-  grid-template-columns: 1fr 60px 54px;
+  grid-template-columns: 1fr 60px 56px;
   width: 100%;
   box-sizing: border-box;
 }
 
-/* ⬇️ ПОЛЕ ИМЕНИ (ИСПРАВЛЕНО: display: block вместо flex) */
-#new-category-name {
-  height: 54px;
+/* Общие стили для Name инпутов */
+#new-category-name,
+#edit-category-name {
+  height: 56px;
   padding: 0 16px;
   font-size: 1rem;
   border: none;
@@ -958,12 +1009,13 @@ a.settings-btn {
   width: 100%;
   min-width: 0;
   margin: 0;
-  display: block; /* ⭐ Было flex, стало block. Это лечит Desktop */
+  display: block;
 }
 
-/* ⬇️ ПОЛЕ ЭМОДЗИ (ИСПРАВЛЕНО: display: block вместо flex) */
-#new-category-icon {
-  height: 54px;
+/* Общие стили для Icon инпутов */
+#new-category-icon,
+#edit-category-icon {
+  height: 56px;
   padding: 0;
   font-size: 1rem;
   text-align: center;
@@ -974,71 +1026,121 @@ a.settings-btn {
   color: var(--tg-theme-text-color);
   box-sizing: border-box;
   margin: 0;
-  display: block; /* ⭐ Было flex, стало block. Это лечит Desktop */
+  display: block;
 }
 
-/* ⬇️ КНОПКА */
 .add-category-btn {
   background-color: var(--tg-theme-button-color);
   color: var(--tg-theme-button-text-color);
   border: none;
   border-radius: 10px;
   cursor: pointer;
-  width: 54px;
-  height: 54px;
-  display: flex; /* У кнопки оставляем flex, ей можно */
+  width: 56px;
+  height: 56px;
+  display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
   flex-shrink: 0;
   margin: 0;
 }
-
 .category-list {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
   margin-bottom: var(--space-sm);
 }
-/* Обновленный стиль элемента списка */
-.category-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+
+/* --- ⭐ SWIPE & EDIT CATEGORIES (FIXED) --- */
+
+.category-item-wrapper {
+  position: relative;
+  background-color: var(--tg-theme-secondary-bg-color);
+  border-radius: 10px;
+  margin-bottom: 0;
+  overflow: hidden;
+  transform: translateZ(0);
+  touch-action: pan-y;
+}
+
+.category-item-content {
+  position: relative;
+  z-index: 2;
   background-color: var(--tg-theme-secondary-bg-color);
   padding: var(--space-md);
-  border-radius: 10px;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  transition: transform 0.2s ease-out;
+  width: 100%;
+  box-sizing: border-box;
   font-size: 1rem;
   font-weight: 500;
-  gap: 10px; /* Отступ между текстом и кнопкой удаления */
+  min-height: 56px;
 }
 
-/* Контейнер для Имени + Бейджа (тот самый div, который мы создали в JS) */
-.category-item > div:first-child {
-  display: flex;
-  align-items: center;
-  overflow: hidden; /* Чтобы длинный текст не ломал верстку */
-  flex-grow: 1; /* Занимать все свободное место */
+.category-item-content.swiping {
+  transition: none !important;
 }
 
-/* Название категории */
-.category-item > div:first-child span:first-child {
+.category-item-content span.cat-name {
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis; /* Длинный текст превратится в "Entertain..." */
-  flex-shrink: 1; /* Разрешаем тексту сжиматься */
+  text-overflow: ellipsis;
+  flex-grow: 0; /* Занимает ровно столько места, сколько текст */
+  max-width: 70%; /* Ограничиваем, чтобы длинное имя не ломало верстку */
 }
 
-/* Бейджик Default */
+.category-chevron {
+  font-size: 1.5rem;
+  color: var(--tg-theme-hint-color);
+  line-height: 1;
+  font-weight: 300;
+  margin-left: auto;
+}
+
+/* 🔥 FIX UI: Красивая форма редактирования (как при создании, но без кнопки) */
+#edit-category-screen .add-category-form {
+  display: flex;
+  flex-direction: row; /* В ряд, как раньше */
+  gap: 8px;
+  grid-template-columns: none;
+}
+
+/* На экране редактирования Эмодзи слева маленькое, Имя справа большое */
+#edit-category-screen #edit-category-icon {
+  width: 60px; /* Фиксированная ширина для эмодзи */
+  flex-shrink: 0;
+}
+
+#edit-category-screen #edit-category-name {
+  flex-grow: 1; /* Остальное место под имя */
+}
+
+/* Отключаем прилипание кнопок на экране редактирования, 
+   чтобы они не прыгали на клавиатуру */
+#edit-category-screen .sticky-footer {
+  position: static; /* Кнопки становятся обычным блоком */
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg); /* Отступ от полей ввода */
+  padding-bottom: 50px; /* Запас места снизу */
+  box-shadow: none; /* Убираем тень, она тут не нужна */
+  background-color: transparent; /* Убираем фон */
+  backdrop-filter: none;
+}
+/* --- КОНЕЦ НОВЫХ СТИЛЕЙ --- */
+
 .default-badge {
-  font-size: 0.75rem; /* 12px */
+  font-size: 0.75rem;
   font-weight: 500;
   color: var(--tg-theme-hint-color);
   background-color: rgba(var(--tg-theme-text-color-rgb), 0.08);
   padding: 3px 8px;
   border-radius: 6px;
   margin-left: 8px;
-  flex-shrink: 0; /* ЗАПРЕЩАЕМ бейджику сжиматься, он всегда виден целиком */
+  flex-shrink: 0;
   display: inline-block;
   line-height: 1;
 }
@@ -1056,7 +1158,6 @@ a.settings-btn {
   display: block;
 }
 
-/* Стили "Шторок" (Bottom Sheet) */
 .backdrop {
   position: fixed;
   top: 0;
@@ -1073,7 +1174,6 @@ a.settings-btn {
   opacity: 1;
   pointer-events: all;
 }
-
 .bottom-sheet {
   position: fixed;
   bottom: 0;
@@ -1092,7 +1192,6 @@ a.settings-btn {
   transform: translateY(100%);
   transition: transform 0.3s ease-out;
 }
-
 .sheet-header {
   padding: var(--space-md);
   text-align: center;
@@ -1124,7 +1223,6 @@ a.settings-btn {
   text-overflow: ellipsis;
   max-width: 80%;
 }
-
 #sheet-content-wrapper {
   background-color: transparent;
   flex-grow: 1;
@@ -1140,7 +1238,6 @@ a.settings-btn {
   padding-bottom: var(--space-lg);
 }
 
-/* Стили "Быстрого Добавления" (Quick Add) */
 .quick-add-header {
   display: flex;
   justify-content: space-between;
@@ -1150,7 +1247,6 @@ a.settings-btn {
 .quick-add-header .form-title {
   margin-bottom: 0;
 }
-
 .quick-add-manage-btn {
   background: none;
   border: 1px solid var(--tg-theme-button-color);
@@ -1167,7 +1263,6 @@ a.settings-btn {
   background-color: var(--tg-theme-button-color);
   color: var(--tg-theme-button-text-color);
 }
-
 .quick-add-subheader {
   font-size: 0.9rem;
   font-weight: 500;
@@ -1183,7 +1278,6 @@ a.settings-btn {
 #quick-add-grid-expense + .quick-add-subheader {
   margin-top: var(--space-lg);
 }
-
 .category-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(75px, 1fr));
@@ -1210,7 +1304,6 @@ a.settings-btn {
 .category-grid-btn:active {
   transform: scale(0.95);
 }
-
 .category-grid-btn .icon {
   font-size: 26px;
   line-height: 1;
@@ -1220,7 +1313,6 @@ a.settings-btn {
   height: 32px;
   width: 32px;
 }
-
 .category-grid-btn span {
   font-size: 0.8rem;
   font-weight: 500;
@@ -1250,7 +1342,7 @@ a.settings-btn {
   padding: var(--space-md);
   cursor: pointer;
   transition: filter 0.2s ease;
-  height: 60px;
+  height: 56px;
   box-sizing: border-box;
 }
 .quick-manual-btn:active {
@@ -1269,40 +1361,9 @@ a.settings-btn {
   color: white;
 }
 
-/* Стили Шторки (Quick Add Modal) */
 .quick-modal-content {
   padding: var(--space-md);
   padding-bottom: calc(var(--space-md) + env(safe-area-inset-bottom));
-}
-.quick-add-amount-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-sm);
-  margin: var(--space-sm) 0 var(--space-lg) 0;
-  border-bottom: 2px solid var(--tg-theme-secondary-bg-color);
-  padding-bottom: var(--space-lg);
-}
-.quick-add-amount-container span {
-  font-size: 2.5rem;
-  font-weight: 600;
-  color: var(--tg-theme-hint-color);
-}
-.quick-add-amount-container input {
-  font-size: 3rem;
-  font-weight: 700;
-  color: var(--tg-theme-text-color);
-  background: none;
-  border: none;
-  outline: none;
-  width: 100%;
-  text-align: left;
-  padding: 0;
-}
-.quick-add-amount-container input::-webkit-outer-spin-button,
-.quick-add-amount-container input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
 }
 
 #quick-modal-save-btn.expense {
@@ -1312,7 +1373,6 @@ a.settings-btn {
   background-color: var(--color-income);
 }
 
-/* Стили "Липкого" Футера (Sticky Footer) */
 .sticky-footer {
   position: sticky;
   bottom: calc(85px + env(safe-area-inset-bottom));
@@ -1360,7 +1420,6 @@ a.settings-btn {
   margin-top: 0;
 }
 
-/* --- ИЗМЕНЕНИЕ ДЛЯ ANDROID (С tg.expand()) --- */
 .platform-android #app-header {
   padding-top: calc(env(safe-area-inset-top) + 35px);
 }
@@ -1377,7 +1436,6 @@ a.settings-btn {
   top: calc(env(safe-area-inset-top) + 35px + 50px + 65px + 10px);
 }
 
-/* --- ФИКС СТРЕЛОК (ДЛЯ ВСЕХ SELECT'ОВ) --- */
 .custom-select-wrapper {
   position: relative;
   width: 100%;
@@ -1409,7 +1467,6 @@ a.settings-btn {
   border-width: 0 2px 2px 0;
 }
 
-/* --- АНИМАЦИИ --- */
 @keyframes slideFadeIn {
   from {
     opacity: 0;
@@ -1425,7 +1482,6 @@ a.settings-btn {
   animation-fill-mode: forwards;
 }
 
-/* --- СТИЛИ СКЕЛЕТОНА --- */
 .skeleton-loader {
   display: flex;
   flex-direction: column;
@@ -1464,7 +1520,6 @@ a.settings-btn {
   }
 }
 
-/* --- СТИЛИ ОШИБОК --- */
 .list-placeholder .placeholder-btn {
   background-color: var(--tg-theme-secondary-bg-color);
   color: var(--tg-theme-text-color);
@@ -1482,7 +1537,6 @@ a.settings-btn {
   opacity: 0.8;
 }
 
-/* --- АНИМАЦИЯ БАЛАНСА --- */
 @keyframes positiveFlash {
   50% {
     background-color: #22c55e4d;
@@ -1500,7 +1554,6 @@ a.settings-btn {
   animation: negativeFlash 0.6s ease-out;
 }
 
-/* --- ФИКС: ВЫРАВНИВАНИЕ ПЛЕЙСХОЛДЕРА В КАЛЕНДАРЕ --- */
 #calendar-container:has(> .list-placeholder:only-child) {
   display: flex;
   width: 100%;
@@ -1513,7 +1566,6 @@ a.settings-btn {
   display: none;
 }
 
-/* --- Стили для read-only инпута в шторке --- */
 .quick-add-amount-container input[readonly] {
   color: var(--tg-theme-text-color);
   font-size: 2.5rem;
@@ -1524,7 +1576,6 @@ a.settings-btn {
   line-height: 1.2;
 }
 
-/* Разный цвет для разных типов */
 #summary-sheet-amount.income {
   color: var(--color-income);
 }
@@ -1537,31 +1588,32 @@ a.settings-btn {
 #summary-sheet-amount.net.negative {
   color: var(--color-expense);
 }
-
 #summary-details-sheet .quick-add-amount-container {
   margin-bottom: 0;
   border-bottom: none;
   padding-bottom: 0;
 }
 
-/* --- Стили для кнопки поддержки --- */
+#summary-details-sheet .quick-add-amount-container input {
+  border: none;
+  outline: none;
+  box-shadow: none; /* Убираем свечение фокуса */
+  background: transparent;
+}
+
 .support-btn {
   color: var(--tg-theme-button-color);
   text-decoration: none;
   font-weight: 500;
-
   display: flex !important;
   align-items: center !important;
   justify-content: space-between;
-
   transition: opacity 0.2s ease, background-color 0.2s ease;
 }
-
 .support-btn:active {
   opacity: 0.7;
   background-color: var(--tg-theme-tertiary-bg-color);
 }
-
 .btn-icon {
   width: 20px;
   height: 20px;
@@ -1570,41 +1622,30 @@ a.settings-btn {
   margin: 0;
   transform: rotate(0deg);
 }
-
 .support-btn svg {
   fill: currentColor;
 }
 
-/* --- 📱 АДАПТАЦИЯ ПОД ПЛАНШЕТЫ И ЛАНДШАФТ (Как в Wallet) --- */
 @media (min-width: 480px) {
-  /* Растягиваем основные контейнеры */
   .screen,
   #app-header,
   .bottom-sheet {
-    max-width: 900px; /* Разрешаем ширину до 900px (как iPad) */
+    max-width: 900px;
   }
-
-  /* Растягиваем липкие элементы */
   .total-container,
   #analytics-screen > .segmented-control:first-of-type,
   .date-header {
-    /* Они должны наследовать ширину родителя, но на всякий случай */
     max-width: inherit;
   }
-
-  /* Навигацию делаем чуть уже контента, чтобы удобно было пальцами тянуться */
   .tab-bar {
     max-width: 600px;
-    bottom: 30px; /* Чуть выше от края на планшетах */
+    bottom: 30px;
   }
-
-  /* Сетка категорий в Quick Add станет плотнее (больше колонок) */
   .category-grid {
     grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
   }
 }
 
-/* --- FIX FOR MAC/DESKTOP OVERSCROLL (HORIZONTAL & VERTICAL) --- */
 @media (hover: hover) and (pointer: fine) {
   html,
   body {

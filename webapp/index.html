@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Onest:wght@700&display=swap" rel="stylesheet" />
 
-    <link rel="stylesheet" href="/static/style.css?v=4.9" />
+    <link rel="stylesheet" href="/static/style.css?v=7.4" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   </head>
@@ -189,17 +189,16 @@
         <h2 class="form-title">Settings</h2>
 
         <div class="settings-group">
-          <label for="currency-select">Currency</label>
-
+          <label for="currency-select">Default Currency</label>
           <div class="custom-select-wrapper">
             <select id="currency-select">
-              <option value="$">USD ($)</option>
-              <option value="₸">KZT (₸)</option>
-              <option value="€">EUR (€)</option>
-              <option value="₽">RUB (₽)</option>
-              <option value="£">GBP (£)</option>
-              <option value="₺">TRY (₺)</option>
-              <option value="₴">UAH (₴)</option>
+              <option value="USD">USD ($)</option>
+              <option value="KZT">KZT (₸)</option>
+              <option value="EUR">EUR (€)</option>
+              <option value="RUB">RUB (₽)</option>
+              <option value="GBP">GBP (£)</option>
+              <option value="TRY">TRY (₺)</option>
+              <option value="UAH">UAH (₴)</option>
             </select>
             <span class="custom-select-arrow"></span>
           </div>
@@ -207,10 +206,8 @@
 
         <div class="settings-group">
           <label>Community & Support</label>
-
           <a href="https://t.me/+w2vW3Pgrlok1N2Uy" target="_blank" class="settings-btn support-btn">
             <span>Join Discussion Group</span>
-
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="btn-icon">
               <path
                 d="M1.946 9.315c-.522-.174-.527-.455.01-.634l19.087-6.362c.529-.176.832.12.684.638l-5.454 19.086c-.15.529-.455.547-.679.045L12 14l6-8-8 6-8.054-2.685z"
@@ -264,6 +261,22 @@
         </div>
       </div>
 
+      <div id="edit-category-screen" class="screen hidden">
+        <h2 class="form-title">Edit Category</h2>
+
+        <div class="add-category-form" style="margin-top: 20px">
+          <input type="text" id="edit-category-name" placeholder="Category Name" />
+          <input type="text" id="edit-category-icon" placeholder="Emoji" maxlength="2" />
+        </div>
+
+        <div class="sticky-footer">
+          <button id="save-category-changes-btn" class="save-btn">Save Changes</button>
+          <button id="edit-category-back-btn" class="cancel-btn" style="margin-top: 10px">Back</button>
+          <button id="delete-category-permanent-btn" class="delete-btn" style="margin-top: 10px">
+            Delete Category
+          </button>
+        </div>
+      </div>
       <div id="full-form-screen" class="screen hidden">
         <h2 id="form-title" class="form-title">New Transaction</h2>
         <div class="input-group">
@@ -281,7 +294,25 @@
           </select>
 
           <label for="transaction-amount">Amount</label>
-          <input type="text" inputmode="decimal" id="transaction-amount" placeholder="0.00" />
+
+          <div class="amount-row native-picker-container">
+            <div class="currency-wrapper">
+              <span id="form-currency-label" class="currency-label">₺</span>
+              <span class="chevron">⌄</span>
+              <select id="form-currency-select" class="native-select-overlay">
+                <option value="USD">USD ($)</option>
+                <option value="TRY">TRY (₺)</option>
+                <option value="KZT">KZT (₸)</option>
+                <option value="RUB">RUB (₽)</option>
+                <option value="EUR">EUR (€)</option>
+                <option value="GBP">GBP (£)</option>
+                <option value="UAH">UAH (₴)</option>
+              </select>
+            </div>
+
+            <input type="text" inputmode="decimal" id="transaction-amount" placeholder="0.00" />
+          </div>
+
           <label for="transaction-date">Date</label>
           <input type="date" id="transaction-date" />
 
@@ -403,7 +434,6 @@
             d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 0 0 2.25-2.25V6.75a2.25 2.25 0 0 0-2.25-2.25H6.75A2.25 2.25 0 0 0 4.5 6.75v10.5a2.25 2.25 0 0 0 2.25 2.25Zm.75-12h9v9h-9v-9Z"
           />
         </svg>
-
         <span>AI</span>
       </button>
       <button id="tab-settings" class="tab-button" aria-label="Settings">
@@ -423,7 +453,6 @@
           />
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
         </svg>
-
         <span>Settings</span>
       </button>
     </nav>
@@ -433,7 +462,7 @@
     <div id="day-details-sheet" class="bottom-sheet hidden">
       <div class="sheet-header">
         <div class="sheet-handle"></div>
-        <h3 id="sheet-date-title">November 4, 2025</h3>
+        <h3 id="sheet-date-title">Details</h3>
       </div>
       <div id="sheet-content-wrapper">
         <div id="sheet-transactions-list" class="sheet-transactions-list"></div>
@@ -446,11 +475,24 @@
         <h3 id="quick-modal-title">Food</h3>
       </div>
       <div id="quick-modal-content" class="quick-modal-content">
-        <div class="quick-add-amount-container">
-          <span id="quick-modal-currency">$</span>
+        <div class="quick-add-amount-container native-picker-container">
+          <div class="currency-wrapper">
+            <span id="quick-currency-label" class="currency-label">₺</span>
+            <span class="chevron">⌄</span>
+            <select id="quick-currency-select" class="native-select-overlay">
+              <option value="USD">USD ($)</option>
+              <option value="TRY">TRY (₺)</option>
+              <option value="KZT">KZT (₸)</option>
+              <option value="RUB">RUB (₽)</option>
+              <option value="EUR">EUR (€)</option>
+              <option value="GBP">GBP (£)</option>
+              <option value="UAH">UAH (₴)</option>
+            </select>
+          </div>
 
-          <input type="text" inputmode="decimal" id="quick-modal-amount" placeholder="0.00" aria-label="Amount" />
+          <input type="text" inputmode="decimal" id="quick-modal-amount" placeholder="0" aria-label="Amount" />
         </div>
+
         <button id="quick-modal-save-btn" class="save-btn">Save</button>
       </div>
     </div>
@@ -468,6 +510,6 @@
       </div>
     </div>
 
-    <script src="/static/script.js?v=4.9" defer></script>
+    <script src="/static/script.js?v=7.4" defer></script>
   </body>
 </html>

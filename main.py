@@ -11,8 +11,8 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 # App imports
 from app.config import WEB_APP_URL, BOT_TOKEN
 
-# ❌ Убрали импорт init_db_pool, так как их больше нет
-from app.routers import transactions, categories, ai
+# 🔥 ИЗМЕНЕНИЕ 1: Добавили импорт users
+from app.routers import transactions, categories, ai, users
 
 # --- Инициализация Бота ---
 ptb_app = None
@@ -68,6 +68,8 @@ async def shutdown_event():
 app.include_router(transactions.router, prefix="/api")
 app.include_router(categories.router, prefix="/api")
 app.include_router(ai.router, prefix="/api")
+# 🔥 ИЗМЕНЕНИЕ 2: Подключили роутер пользователей
+app.include_router(users.router, prefix="/api")
 
 
 # --- Webhook для Telegram ---

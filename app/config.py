@@ -9,6 +9,9 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 WEB_APP_URL = os.getenv("WEB_APP_URL")
 BASE_URL = os.getenv("BASE_URL")
 
+# 🔥 ВАЖНО: Читаем твой новый ключ
+EXCHANGE_RATE_API_KEY = os.getenv("EXCHANGE_RATE_API_KEY")
+
 # --- 🔥 FIX DATABASE URL ---
 DATABASE_URL = os.getenv("DATABASE_URL")
 

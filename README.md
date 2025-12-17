@@ -11,10 +11,11 @@ It combines a modern, responsive **SPA frontend** with a robust **Python backend
 ## ✨ Key Features
 
 - **⚡️ Seamless Integration:** Works directly inside Telegram using TMA technology. No installation required.
+- **🌍 Multi-Currency Support:** Track expenses in any currency (USD, EUR, KZT, TRY, etc.). The app automatically stores the original amount and currency while keeping your main balance consistent.
 - **🧠 Smart AI Advisor:** Integrated **Google Gemini** analyzes your transactions to give actionable financial tips, summaries, and anomaly detection.
-- **💎 Instant UX:** Optimized for "Zero Latency" feel with optimistic UI updates, haptic feedback, and iOS-style swipe gestures.
-- **🔒 Bank-Grade Security:** Implements strict `HMAC SHA-256` validation to verify Telegram initialization data, preventing unauthorized API access.
-- **📊 Analytics:** Interactive doughnut charts and a custom-built calendar view for detailed expense tracking.
+- **💎 Native-Like UX:** Optimized for "Zero Latency" feel with 56px touch targets, optimistic UI updates, haptic feedback, and iOS-style swipe gestures.
+- **🔒 Bank-Grade Security:** Implements strict `HMAC SHA-256` validation to verify Telegram initialization data.
+- **📊 Analytics:** Interactive doughnut charts and a custom-built calendar view that correctly aggregates daily totals.
 
 ---
 
@@ -36,6 +37,7 @@ It combines a modern, responsive **SPA frontend** with a robust **Python backend
 - **Driver:** `asyncpg` (High-performance Asynchronous Driver).
 - **Validation:** Pydantic (Strong Typing).
 - **AI:** Google Generative AI (Gemini 2.5 Flash).
+- **Testing:** Pytest & Pytest-Asyncio.
 
 ### Deployment
 
@@ -105,8 +107,14 @@ Sana-Project/
     ```
 
 3.  **Run with Docker Compose:**
+
     ```bash
     docker compose up -d --build
+    ```
+
+4.  **Apply Database Migrations:**
+    ```bash
+    docker compose exec app alembic upgrade head
     ```
 
 The server will start at `http://localhost:8000`.
@@ -160,7 +168,13 @@ To develop comfortably with **Hot-Reload** (changes in code apply instantly) and
     docker compose -f docker-compose.dev.yml up --build
     ```
 
-6.  **Set Webhook:**
+6.  **Apply Migrations Locally:**
+
+    ```bash
+    docker compose -f docker-compose.dev.yml exec app alembic upgrade head
+    ```
+
+7.  **Set Webhook:**
     In a new terminal window, tell Telegram to send updates to your local machine:
     ```bash
     docker exec -it sana_dev_app python setup_bot.py
@@ -176,10 +190,10 @@ This project was built with a focus on **security**, **scalability**, and **perf
 
 1.  **Modern Async Stack:** Fully migrated to **SQLAlchemy (Async)** and **asyncpg**. This allows the server to handle high concurrency without blocking, ensuring the interface remains snappy even under load.
 2.  **Resilient Database Connections:** Uses `pool_pre_ping=True` and connection recycling strategies to handle cloud database (Supabase) idle timeouts gracefully. The app automatically recovers lost connections without user errors.
-3.  **Soft Delete Pattern:** Categories are never physically deleted. Instead, they are marked `is_active=False`. This preserves transaction history and allows for "resurrection" of categories without data integrity issues.
-4.  **Database Migrations:** All database schema changes are managed by **Alembic**, ensuring smooth updates and version control for the DB structure.
+3.  **Soft Delete Pattern:** Categories AND Transactions are never physically deleted. They are marked with `is_active=False` or `is_deleted=True`. This preserves history and data integrity.
+4.  **Database Migrations:** All database schema changes are managed by **Alembic**, ensuring smooth updates (e.g., adding multi-currency support without losing data).
 5.  **HMAC Validation:** Every API request is authenticated using Telegram's `initData` hash (HMAC SHA-256) to ensure requests originate from a verified Telegram session.
-6.  **Timezone Awareness:** The backend intelligently adjusts UTC data based on the user's `X-Timezone-Offset` header to ensure analytics and calendars reflect local time correctly.
+6.  **Multi-Currency Architecture:** Transactions store the `original_amount` and `currency` code alongside the base amount, allowing for accurate historical records even if exchange rates change.
 
 ---
 

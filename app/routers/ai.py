@@ -11,7 +11,7 @@ from app.models.sql import TransactionDB, CategoryDB
 
 router = APIRouter(tags=["ai"])
 
-# Промпты оставляем как были
+# Промпты для ИИ
 PROMPTS = {
     "summary": (
         "You are a concise financial analyst. Analyze the following transactions for the period. "
@@ -42,6 +42,7 @@ PROMPTS = {
     ),
 }
 
+# Инициализация модели
 if GOOGLE_API_KEY:
     genai.configure(api_key=GOOGLE_API_KEY)
     model = genai.GenerativeModel("gemini-2.5-flash")
@@ -57,12 +58,13 @@ async def get_ai_advice(
     session: AsyncSession = Depends(get_session),
     x_timezone_offset: Optional[str] = Header(None, alias="X-Timezone-Offset"),
 ):
+    # 1. Проверяем доступность сервиса
     if not model:
         raise HTTPException(status_code=503, detail="AI Service unavailable (No API Key)")
 
     user_id = user["id"]
 
-    # Расчет даты начала (аналогично другим файлам)
+    # 2. Расчет даты начала (с учетом часового пояса пользователя)
     server_now = datetime.now(timezone.utc)
     offset_minutes = 0
     if x_timezone_offset and x_timezone_offset.lstrip("-").isdigit():
@@ -80,7 +82,7 @@ async def get_ai_advice(
     elif range == "year":
         start_date = user_now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
 
-    # Строим ORM запрос
+    # 3. Достаем транзакции из БД
     stmt = (
         select(TransactionDB.date, TransactionDB.amount, CategoryDB.name.label("category"), CategoryDB.type)
         .join(CategoryDB)
@@ -90,15 +92,18 @@ async def get_ai_advice(
     )
 
     if start_date:
+        # Приводим локальное начало дня к UTC для сравнения с базой
         query_start_utc = (start_date + timedelta(minutes=offset_minutes)).replace(tzinfo=None)
         stmt = stmt.where(TransactionDB.date >= query_start_utc)
 
     result = await session.execute(stmt)
     rows = result.mappings().all()
 
+    # Если транзакций нет — не тратим квоту API
     if not rows:
         return {"advice": f"No transactions found for this {range}. Track some expenses first!"}
 
+    # 4. Формируем контекст для ИИ
     tx_list_str = "\n".join(
         [f"- {r['date'].strftime('%Y-%m-%d %H:%M')}: {r['type']} {r['amount']} ({r['category']})" for r in rows]
     )
@@ -107,10 +112,16 @@ async def get_ai_advice(
     final_prompt = template.format(range=range, transaction_list_str=tx_list_str)
 
     try:
-        # Gemini call is synchronous in this library version, but fast enough.
-        # In heavy prod we would run_in_executor, but here is OK.
-        response = model.generate_content(final_prompt)
+        # 🔥 ИСПРАВЛЕНО: Асинхронный вызов метода (generate_content_async)
+        response = await model.generate_content_async(final_prompt)
+
+        # Иногда API возвращает пустой ответ или блокирует контент
+        if not response.text:
+            raise ValueError("Empty response from AI")
+
         return {"advice": response.text}
+
     except Exception as e:
         print(f"AI Generation Error: {e}")
-        raise HTTPException(status_code=500, detail="AI is currently busy, try again later.")
+        # Возвращаем 503 Service Unavailable, чтобы фронтенд мог обработать это (например, показать кнопку Retry)
+        raise HTTPException(status_code=503, detail="AI is currently busy, try again later.")

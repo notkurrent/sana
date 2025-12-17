@@ -1,43 +1,48 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
-from typing import List, Optional, Union
+from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete, update, func, case, text, desc
+from sqlalchemy import select, delete, func, case, text, desc
+
+# 🔥 ВАЖНО: Добавили специальный импорт для безопасной вставки (Upsert)
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.dependencies import verify_telegram_authentication, get_session
 from app.models.schemas import Transaction, TransactionCreate, TransactionUpdate
-from app.models.sql import TransactionDB, CategoryDB
+from app.models.sql import TransactionDB, CategoryDB, UserDB
+from app.services.currency import CurrencyService
 
 router = APIRouter(tags=["transactions"])
 
 
-# --- Helpers (Оставляем как есть, логика питона не меняется) ---
+# --- Helpers ---
 def _get_date_for_storage(date_str: str, timezone_offset_str: Optional[str]) -> datetime:
+    """
+    Преобразует дату от пользователя в UTC datetime для сохранения в БД.
+    """
     if not date_str:
         return datetime.now(timezone.utc)
     try:
-        # Если пришла строка, пробуем парсить
         if isinstance(date_str, str):
             selected_date = datetime.strptime(date_str, "%Y-%m-%d").date()
         else:
-            selected_date = date_str  # Если Pydantic уже дал date object
+            selected_date = date_str
 
         server_now = datetime.now(timezone.utc)
 
-        # Логика "Если сегодня, то ставим текущее время"
         user_now = server_now
         if timezone_offset_str and timezone_offset_str.lstrip("-").isdigit():
             offset_minutes = int(timezone_offset_str)
             user_now = server_now - timedelta(minutes=offset_minutes)
 
         if selected_date == user_now.date():
-            return server_now.replace(tzinfo=None)  # Postgres хранит без таймзоны (naive)
+            return server_now
 
-        # Иначе начало дня
-        return datetime.combine(selected_date, datetime.min.time())
+        return datetime.combine(selected_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+
     except Exception as e:
         print(f"Date parse error: {e}")
-        return datetime.now(timezone.utc).replace(tzinfo=None)
+        return datetime.now(timezone.utc)
 
 
 # --- Endpoints ---
@@ -52,14 +57,15 @@ async def get_transactions(
 ):
     user_id = user["id"]
 
-    # 🔥 JOIN запрос на ORM
     stmt = (
         select(
             TransactionDB.id,
             TransactionDB.amount,
+            TransactionDB.original_amount,
+            TransactionDB.currency,
             TransactionDB.date,
             TransactionDB.category_id,
-            CategoryDB.name.label("category"),  # Алиасы для Pydantic
+            CategoryDB.name.label("category"),
             CategoryDB.type,
         )
         .join(CategoryDB, TransactionDB.category_id == CategoryDB.id)
@@ -70,7 +76,6 @@ async def get_transactions(
     )
 
     result = await session.execute(stmt)
-    # mappings() превращает результат в словарь, который Pydantic легко съест
     return result.mappings().all()
 
 
@@ -78,7 +83,6 @@ async def get_transactions(
 async def get_total_balance(user=Depends(verify_telegram_authentication), session: AsyncSession = Depends(get_session)):
     user_id = user["id"]
 
-    # Считаем сумму с условием (Income - Expense)
     stmt = (
         select(func.sum(case((CategoryDB.type == "income", TransactionDB.amount), else_=-TransactionDB.amount)))
         .join(CategoryDB)
@@ -100,12 +104,46 @@ async def add_transaction(
     user_id = user["id"]
     final_date = _get_date_for_storage(tx.date, x_timezone_offset)
 
-    new_tx = TransactionDB(user_id=user_id, amount=tx.amount, category_id=tx.category_id, date=final_date)
+    # --- 🔥 FIX START: БЕЗОПАСНОЕ СОЗДАНИЕ ЮЗЕРА (Race Condition Fix) ---
+
+    # 1. Пытаемся создать юзера. Если он уже есть — база данных просто проигнорирует (DO NOTHING).
+    # Это атомарная операция, она не упадет с ошибкой даже при 100 одновременных запросах.
+    insert_stmt = (
+        pg_insert(UserDB).values(id=user_id, base_currency="USD").on_conflict_do_nothing(index_elements=["id"])
+    )
+    await session.execute(insert_stmt)
+
+    # 2. Теперь гарантированно достаем юзера, чтобы узнать его валюту
+    user_stmt = select(UserDB).where(UserDB.id == user_id)
+    result = await session.execute(user_stmt)
+    user_db = result.scalar_one()  # Теперь мы уверены, что юзер существует
+
+    target_currency = user_db.base_currency
+
+    # --- 🔥 FIX END ---
+
+    # 3. Логика конвертации
+    currency_service = CurrencyService()
+
+    # Считаем курс: Валюта Траты -> Базовая Валюта Юзера (напр. TRY -> KZT)
+    rate = await currency_service.get_rate(tx.currency, target_currency)
+
+    # Считаем сумму для статистики
+    amount_in_base = tx.amount * rate
+
+    new_tx = TransactionDB(
+        user_id=user_id,
+        original_amount=tx.amount,
+        currency=tx.currency,
+        amount=amount_in_base,
+        category_id=tx.category_id,
+        date=final_date,
+    )
 
     session.add(new_tx)
     try:
         await session.commit()
-        await session.refresh(new_tx)  # Получаем ID
+        await session.refresh(new_tx)
         return {"id": new_tx.id, "status": "saved"}
     except Exception as e:
         await session.rollback()
@@ -122,7 +160,6 @@ async def update_transaction(
 ):
     user_id = user["id"]
 
-    # 1. Проверяем, существует ли транзакция
     stmt = select(TransactionDB).where((TransactionDB.id == tx_id) & (TransactionDB.user_id == user_id))
     result = await session.execute(stmt)
     transaction = result.scalar_one_or_none()
@@ -130,18 +167,36 @@ async def update_transaction(
     if not transaction:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
-    # 2. Обновляем поля
+    should_recalculate = False
+
     if update_data.amount is not None:
-        transaction.amount = update_data.amount
+        transaction.original_amount = update_data.amount
+        should_recalculate = True
+
+    if update_data.currency is not None:
+        transaction.currency = update_data.currency
+        should_recalculate = True
+
+    # 🔥 ПЕРЕСЧЕТ С УЧЕТОМ ВАЛЮТЫ ЮЗЕРА
+    if should_recalculate:
+        # Узнаем текущую базовую валюту юзера
+        user_stmt = select(UserDB).where(UserDB.id == user_id)
+        u_result = await session.execute(user_stmt)
+        user_db = u_result.scalar_one_or_none()
+        target_currency = user_db.base_currency if user_db else "USD"
+
+        service = CurrencyService()
+
+        base_val = transaction.original_amount if transaction.original_amount is not None else transaction.amount
+        rate = await service.get_rate(transaction.currency, target_currency)
+
+        transaction.amount = base_val * rate
 
     if update_data.category_id is not None:
         transaction.category_id = update_data.category_id
 
     if update_data.date is not None:
-        # Логика сохранения времени при смене даты
         new_date_val = _get_date_for_storage(update_data.date, x_timezone_offset)
-        # Если хотим сохранить оригинальное время (ч/м/с), нужно сложнее,
-        # но для простоты берем логику helper-функции
         transaction.date = new_date_val
 
     await session.commit()
@@ -162,16 +217,15 @@ async def delete_transaction(
 @router.delete("/users/me/reset")
 async def reset_user_data(user=Depends(verify_telegram_authentication), session: AsyncSession = Depends(get_session)):
     user_id = user["id"]
-    # Удаляем транзакции
+    # Удаляем транзакции, категории и настройки пользователя
     await session.execute(delete(TransactionDB).where(TransactionDB.user_id == user_id))
-    # Удаляем категории
     await session.execute(delete(CategoryDB).where(CategoryDB.user_id == user_id))
+    await session.execute(delete(UserDB).where(UserDB.id == user_id))
     await session.commit()
     return {"status": "success"}
 
 
 # --- Analytics Endpoints ---
-# Используем text() для сложной логики дат, чтобы не ломать то, что работает
 
 
 @router.get("/analytics/summary")
@@ -183,12 +237,8 @@ async def get_summary(
     x_timezone_offset: Optional[str] = Header(None, alias="X-Timezone-Offset"),
 ):
     user_id = user["id"]
-
-    # Расчет параметров времени
     server_now = datetime.now(timezone.utc)
-    offset_minutes = 0
-    if x_timezone_offset and x_timezone_offset.lstrip("-").isdigit():
-        offset_minutes = int(x_timezone_offset)
+    offset_minutes = int(x_timezone_offset) if x_timezone_offset and x_timezone_offset.lstrip("-").isdigit() else 0
 
     user_now = server_now - timedelta(minutes=offset_minutes)
 
@@ -202,7 +252,6 @@ async def get_summary(
     elif range == "year":
         start_date = user_now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
 
-    # Используем text() для гибкости
     query_str = """
         SELECT c.name as category, SUM(t.amount) as total 
         FROM transactions t
@@ -212,7 +261,6 @@ async def get_summary(
     params = {"user_id": user_id, "type": type}
 
     if start_date:
-        # Приводим к UTC для сравнения с базой
         query_start_utc = (start_date + timedelta(minutes=offset_minutes)).replace(tzinfo=None)
         query_str += " AND t.date >= :start_date"
         params["start_date"] = query_start_utc
@@ -233,10 +281,8 @@ async def get_calendar_data(
 ):
     user_id = user["id"]
     offset = int(x_timezone_offset) if x_timezone_offset and x_timezone_offset.lstrip("-").isdigit() else 0
-
     params = {"user_id": user_id, "month": month, "year": year, "offset": offset}
 
-    # 1. Месяц (Raw SQL через text, так как INTERVAL синтаксис проще в SQL)
     query_month = text(
         """
         SELECT c.type, SUM(t.amount) as total
@@ -248,7 +294,6 @@ async def get_calendar_data(
         GROUP BY c.type
     """
     )
-
     result_month = await session.execute(query_month, params)
     rows = result_month.mappings().all()
 
@@ -261,7 +306,6 @@ async def get_calendar_data(
             summary["expense"] = val
     summary["net"] = summary["income"] - summary["expense"]
 
-    # 2. Дни
     query_days = text(
         """
         SELECT TO_CHAR(t.date - (:offset * INTERVAL '1 minute'), 'YYYY-MM-DD') as date, c.type, SUM(t.amount) as total
@@ -273,7 +317,6 @@ async def get_calendar_data(
         GROUP BY date, c.type ORDER BY date
     """
     )
-
     result_days = await session.execute(query_days, params)
 
     days = {}
@@ -281,6 +324,6 @@ async def get_calendar_data(
         d = r["date"]
         if d not in days:
             days[d] = {"income": 0, "expense": 0}
-        days[d][r["type"]] = r["total"] or 0
+        days[d][r["type"]] += r["total"] or 0
 
     return {"month_summary": summary, "days": days}

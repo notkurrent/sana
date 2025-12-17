@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional, Union
 from datetime import datetime
+from decimal import Decimal
 
 
 # --- Модели для Категорий ---
@@ -11,7 +12,7 @@ class CategoryCreate(BaseModel):
 
 class Category(CategoryCreate):
     id: int
-    user_id: Optional[str] = None  # Может быть None для дефолтных категорий
+    user_id: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -19,28 +20,28 @@ class Category(CategoryCreate):
 
 # --- Модели для Транзакций ---
 class TransactionCreate(BaseModel):
-    amount: float
+    amount: Decimal  # 🔥 Decimal для точности
+    currency: str = "USD"  # 🔥 Код валюты (по умолчанию USD)
     category_id: int
-    # Разрешаем и строку (от фронта), и datetime (на всякий случай)
     date: Union[str, datetime]
 
 
-# 🔥 ДОБАВЛЕНО: Модель для редактирования
 class TransactionUpdate(BaseModel):
-    amount: Optional[float] = None
+    amount: Optional[Decimal] = None
+    currency: Optional[str] = None
     category_id: Optional[int] = None
     date: Optional[Union[str, datetime]] = None
 
 
 class Transaction(BaseModel):
     id: int
-    amount: float
-    category: str  # Имя категории (получаем через JOIN)
-    type: str  # Тип категории (expense/income)
+    amount: Decimal
+    original_amount: Optional[Decimal] = None  # 🔥 Сколько реально потрачено
+    currency: str  # 🔥 Валюта траты
 
-    # Pydantic сам конвертирует datetime из БД в ISO-строку для JSON
+    category: str
+    type: str
     date: datetime
-
     category_id: int
 
     class Config:

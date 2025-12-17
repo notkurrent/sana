@@ -14,12 +14,25 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- CONFIG ---
   const API_URLS = {
     TRANSACTIONS: "/api/transactions",
-    BALANCE: "/api/balance", // 🔥 НОВОЕ: Отдельный URL для баланса
+    BALANCE: "/api/balance",
     CATEGORIES: "/api/categories",
     AI_ADVICE: "/api/ai/advice",
     ANALYTICS_SUMMARY: "/api/analytics/summary",
     ANALYTICS_CALENDAR: "/api/analytics/calendar",
     USER_RESET: "/api/users/me/reset",
+    USER_SETTINGS_CURRENCY: "/api/users/me/settings/currency",
+    USER_PROFILE: "/api/users/me",
+  };
+
+  // Символы валют для отображения
+  const CURRENCY_SYMBOLS = {
+    USD: "$",
+    TRY: "₺",
+    KZT: "₸",
+    RUB: "₽",
+    EUR: "€",
+    GBP: "£",
+    UAH: "₴",
   };
 
   // --- STATE ---
@@ -27,8 +40,10 @@ document.addEventListener("DOMContentLoaded", () => {
     transactions: [],
     categories: [],
     currencySymbol: "$",
+    baseCurrencyCode: "USD",
     editTransaction: null,
     quickCategory: null,
+    categoryBeingEdited: null,
     activeBottomSheet: null,
     lastActiveScreen: "home-screen",
     isInitialLoad: true,
@@ -41,7 +56,7 @@ document.addEventListener("DOMContentLoaded", () => {
     calendarSummary: { income: 0, expense: 0, net: 0 },
     isLoading: false,
 
-    // 🔥 НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ INFINITY SCROLL
+    // Infinity Scroll
     offset: 0,
     limit: 100,
     isAllLoaded: false,
@@ -49,6 +64,16 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   // --- HELPERS & FORMATTERS ---
+
+  function setupCurrencyPicker(selectElement, labelElement) {
+    if (!selectElement || !labelElement) return;
+
+    selectElement.addEventListener("change", (e) => {
+      const code = e.target.value;
+      labelElement.textContent = CURRENCY_SYMBOLS[code] || code;
+      localStorage.setItem("last_used_currency", code);
+    });
+  }
 
   async function apiRequest(url, options = {}) {
     if (!tgInitData) {
@@ -64,10 +89,7 @@ document.addEventListener("DOMContentLoaded", () => {
       ...options.headers,
     };
 
-    const config = {
-      ...options,
-      headers: headers,
-    };
+    const config = { ...options, headers: headers };
 
     try {
       const response = await fetch(url, config);
@@ -132,28 +154,34 @@ document.addEventListener("DOMContentLoaded", () => {
     return { icon: null, name: fullName.trim() };
   }
 
-  function formatCurrency(amount) {
-    if (typeof amount !== "number") amount = 0;
-    return `${state.currencySymbol}${amount.toFixed(2)}`;
+  function formatCurrency(amount, symbol = state.currencySymbol) {
+    const num = parseFloat(amount);
+    if (isNaN(num)) return `${symbol}0.00`;
+    return `${symbol}${num.toFixed(2)}`;
   }
 
   function formatCurrencyForSummary(amount) {
-    if (typeof amount !== "number") amount = 0;
-    const sign = amount < 0 ? "-" : amount > 0 ? "+" : "";
-    const absAmount = Math.abs(amount);
+    const num = parseFloat(amount);
+    if (isNaN(num)) return `${state.currencySymbol}0.00`;
+
+    const sign = num < 0 ? "-" : num > 0 ? "+" : "";
+    const absAmount = Math.abs(num);
+
     let formattedAmount;
     if (absAmount >= 1000000) formattedAmount = (absAmount / 1000000).toFixed(2) + "M";
     else if (absAmount >= 10000) formattedAmount = (absAmount / 1000).toFixed(0) + "K";
     else if (absAmount >= 1000) formattedAmount = (absAmount / 1000).toFixed(1) + "K";
     else formattedAmount = absAmount.toFixed(2);
 
-    return amount === 0 ? `${state.currencySymbol}0.00` : `${sign}${state.currencySymbol}${formattedAmount}`;
+    return num === 0 ? `${state.currencySymbol}0.00` : `${sign}${state.currencySymbol}${formattedAmount}`;
   }
 
   function formatForDayMarker(amount) {
-    if (!amount) return "";
-    const absAmount = Math.abs(Math.round(amount));
-    const sign = amount < 0 ? "-" : "+";
+    const num = parseFloat(amount);
+    if (isNaN(num) || num === 0) return "";
+
+    const absAmount = Math.abs(Math.round(num));
+    const sign = num < 0 ? "-" : "+";
     if (absAmount >= 1000000) return `${sign}${(absAmount / 1000000).toFixed(1)}M`;
     if (absAmount >= 1000) return `${sign}${(absAmount / 1000).toFixed(0)}K`;
     return `${sign}${absAmount}`;
@@ -219,6 +247,14 @@ document.addEventListener("DOMContentLoaded", () => {
       addBtn: document.getElementById("add-category-btn"),
       list: document.getElementById("categories-list"),
     },
+    editCategory: {
+      screen: document.getElementById("edit-category-screen"),
+      nameInput: document.getElementById("edit-category-name"),
+      iconInput: document.getElementById("edit-category-icon"),
+      saveBtn: document.getElementById("save-category-changes-btn"),
+      deleteBtn: document.getElementById("delete-category-permanent-btn"),
+      backBtn: document.getElementById("edit-category-back-btn"),
+    },
     fullForm: {
       screen: document.getElementById("full-form-screen"),
       title: document.getElementById("form-title"),
@@ -226,7 +262,11 @@ document.addEventListener("DOMContentLoaded", () => {
       typeExpense: document.getElementById("form-type-expense"),
       typeIncome: document.getElementById("form-type-income"),
       categorySelect: document.getElementById("category-select"),
+
       amountInput: document.getElementById("transaction-amount"),
+      currencySelect: document.getElementById("form-currency-select"),
+      currencyLabel: document.getElementById("form-currency-label"),
+
       dateInput: document.getElementById("transaction-date"),
       saveBtn: document.getElementById("save-btn"),
       cancelBtn: document.getElementById("cancel-btn"),
@@ -251,7 +291,10 @@ document.addEventListener("DOMContentLoaded", () => {
       sheet: document.getElementById("quick-add-modal-sheet"),
       header: document.querySelector("#quick-add-modal-sheet .sheet-header"),
       title: document.getElementById("quick-modal-title"),
-      currency: document.getElementById("quick-modal-currency"),
+
+      currencySelect: document.getElementById("quick-currency-select"),
+      currencyLabel: document.getElementById("quick-currency-label"),
+
       amountInput: document.getElementById("quick-modal-amount"),
       saveBtn: document.getElementById("quick-modal-save-btn"),
     },
@@ -273,7 +316,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- LOGIC ---
 
-  // 🔥 НОВАЯ ФУНКЦИЯ: Грузит баланс отдельно с сервера
   async function fetchAndRenderBalance() {
     const container = DOM.home.balanceAmount.closest(".total-container");
     const oldBalanceText = DOM.home.balanceAmount.textContent;
@@ -282,7 +324,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const response = await apiRequest(API_URLS.BALANCE);
       if (!response.ok) return;
       const data = await response.json();
-      const serverBalance = data.balance;
+      const serverBalance = parseFloat(data.balance);
 
       const sign = serverBalance < 0 ? "-" : "";
       const absBalance = Math.abs(serverBalance);
@@ -336,7 +378,7 @@ document.addEventListener("DOMContentLoaded", () => {
     DOM.tabs.settings.classList.toggle("active", screenId === "settings-screen");
     DOM.tabs.add.classList.toggle(
       "active",
-      ["quick-add-screen", "full-form-screen", "categories-screen"].includes(screenId)
+      ["quick-add-screen", "full-form-screen", "categories-screen", "edit-category-screen"].includes(screenId)
     );
 
     if (["home-screen", "analytics-screen", "ai-screen", "settings-screen", "quick-add-screen"].includes(screenId)) {
@@ -438,6 +480,27 @@ document.addEventListener("DOMContentLoaded", () => {
       categoryDisplay = `${defaultIcon} ${categoryName}`;
     }
 
+    let amountHTML = "";
+    if (tx.currency && tx.currency !== state.baseCurrencyCode && tx.original_amount) {
+      const symbol = CURRENCY_SYMBOLS[tx.currency] || tx.currency;
+      amountHTML = `
+            <div style="display:flex; flex-direction:column; align-items:flex-end;">
+                <span class="original-amount ${tx.type}" style="font-size: 0.95em; font-weight:600;">
+                    ${tx.type === "income" ? "+" : "-"}${symbol}${parseFloat(tx.original_amount).toFixed(2)}
+                </span>
+                <span class="base-amount" style="font-size: 0.75em; opacity: 0.6;">
+                    ~${formatCurrency(tx.amount)}
+                </span>
+            </div>
+        `;
+    } else {
+      amountHTML = `
+            <span class="tx-amount ${tx.type}">
+                ${tx.type === "income" ? "+" : "-"}${formatCurrency(tx.amount)}
+            </span>
+        `;
+    }
+
     item.innerHTML = `
             <div class="expense-item-delete-bg">
                 ${trashIconSvg}
@@ -448,9 +511,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     <span class="tx-time">${formattedTime}</span>
                 </div>
                 <div class="expense-item-details">
-                    <span class="tx-amount ${tx.type}">
-                        ${tx.type === "income" ? "+" : "-"}${formatCurrency(tx.amount)} 
-                    </span>
+                    ${amountHTML}
                     <button class="edit-btn" data-tx-id="${tx.id}">${editIconSvg}</button>
                 </div>
             </div>
@@ -458,17 +519,10 @@ document.addEventListener("DOMContentLoaded", () => {
     return item;
   }
 
-  // 🔥 ОБНОВЛЕННАЯ ФУНКЦИЯ: Поддержка догрузки (Append)
-  // 🔥 НОВАЯ ВЕРСИЯ: С группировкой (Native Pushing)
   function renderTransactions(transactions = [], highlightId = null, isAppend = false) {
     const list = DOM.home.listContainer;
+    if (!isAppend) list.innerHTML = "";
 
-    // Если это не догрузка, очищаем список
-    if (!isAppend) {
-      list.innerHTML = "";
-    }
-
-    // Если пусто
     if (!isAppend && transactions.length === 0) {
       list.innerHTML = `
                 <div class="list-placeholder">
@@ -485,11 +539,9 @@ document.addEventListener("DOMContentLoaded", () => {
       const txDate = parseDateFromUTC(tx.date);
       const dateHeaderStr = formatDateForTitle(txDate);
 
-      // 1. Проверяем последнюю группу
       let currentGroup = list.lastElementChild;
       let groupToAppend;
 
-      // 2. Если последняя группа совпадает по дате — добавляем в неё
       if (
         currentGroup &&
         currentGroup.classList.contains("transaction-group") &&
@@ -497,7 +549,6 @@ document.addEventListener("DOMContentLoaded", () => {
       ) {
         groupToAppend = currentGroup;
       } else {
-        // 3. Иначе создаем новую группу + заголовок
         groupToAppend = document.createElement("div");
         groupToAppend.className = "transaction-group";
         groupToAppend.dataset.date = dateHeaderStr;
@@ -510,14 +561,11 @@ document.addEventListener("DOMContentLoaded", () => {
         list.appendChild(groupToAppend);
       }
 
-      // 4. Создаем транзакцию и кладем ВНУТРЬ группы
       const item = createTransactionElement(tx);
-
       if (tx.id === highlightId) {
         item.classList.add("new-item-animation");
         item.addEventListener("animationend", () => item.classList.remove("new-item-animation"), { once: true });
       }
-
       groupToAppend.appendChild(item);
     });
   }
@@ -532,7 +580,6 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>`;
   }
 
-  // 🔥 ОБНОВЛЕННАЯ ФУНКЦИЯ: Умная загрузка с OFFSET
   async function loadTransactions(isAppend = false, highlightId = null) {
     if (state.isLoadingMore && isAppend) return;
     if (state.isAllLoaded && isAppend) return;
@@ -562,7 +609,6 @@ document.addEventListener("DOMContentLoaded", () => {
       } else {
         state.transactions = newTransactions;
         state.offset = newTransactions.length;
-        // 🔥 ИСПРАВЛЕНО: Передаем highlightId, чтобы подсветить новую транзакцию
         renderTransactions(newTransactions, highlightId, false);
       }
     } catch (error) {
@@ -602,6 +648,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function handleEditTransactionClick(e) {
     const editBtn = e.target.closest(".edit-btn");
     if (!editBtn) return;
+    tg.HapticFeedback.impactOccurred("light");
     const txId = parseInt(editBtn.dataset.txId, 10);
     const transactionToEdit = state.transactions.find((tx) => tx.id === txId);
     if (transactionToEdit) openEditScreen(transactionToEdit);
@@ -622,7 +669,15 @@ document.addEventListener("DOMContentLoaded", () => {
       DOM.fullForm.typeIncome.classList.remove("active");
     }
 
-    DOM.fullForm.amountInput.value = tx.amount;
+    DOM.fullForm.amountInput.value = parseFloat(tx.original_amount ? tx.original_amount : tx.amount);
+
+    const currency = tx.currency || "USD";
+    if (DOM.fullForm.currencySelect) {
+      DOM.fullForm.currencySelect.value = currency;
+      const label = DOM.fullForm.currencyLabel;
+      if (label) label.textContent = CURRENCY_SYMBOLS[currency] || currency;
+    }
+
     const dateObj = parseDateFromUTC(tx.date);
     DOM.fullForm.dateInput.value = dateObj.toISOString().split("T")[0];
     await loadCategoriesForForm(tx.type);
@@ -644,6 +699,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (DOM.fullForm.typeWrapper) DOM.fullForm.typeWrapper.classList.add("hidden");
 
     DOM.fullForm.amountInput.value = "";
+
+    if (DOM.fullForm.currencySelect) {
+      const lastCurr = localStorage.getItem("last_used_currency") || "USD";
+      DOM.fullForm.currencySelect.value = lastCurr;
+      if (DOM.fullForm.currencyLabel) DOM.fullForm.currencyLabel.textContent = CURRENCY_SYMBOLS[lastCurr] || lastCurr;
+    }
+
     DOM.fullForm.dateInput.valueAsDate = new Date();
 
     if (type === "income") {
@@ -681,9 +743,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (success) {
           tg.HapticFeedback.notificationOccurred("success");
           await loadTransactions();
-
-          await fetchAndRenderBalance(); // 🔥 ОБНОВЛЯЕМ БАЛАНС
-
+          await fetchAndRenderBalance();
           showScreen("home-screen");
         }
         DOM.fullForm.saveBtn.disabled = false;
@@ -701,7 +761,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (txId) {
       url = `${API_URLS.TRANSACTIONS}/${txId}`;
       method = "PATCH";
-      body = { category_id: txData.category_id, amount: txData.amount, date: txData.date };
+      body = { ...txData };
     }
 
     try {
@@ -725,6 +785,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const amountStr = DOM.fullForm.amountInput.value.replace(",", ".");
     const amount = parseFloat(amountStr);
     const date = DOM.fullForm.dateInput.value;
+    const currency = DOM.fullForm.currencySelect ? DOM.fullForm.currencySelect.value : "USD";
 
     if (!categoryId || isNaN(amount) || amount <= 0 || !date) {
       tg.showAlert("Please fill all fields with valid data.");
@@ -732,21 +793,21 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     DOM.fullForm.saveBtn.disabled = true;
 
-    const txData = { category_id: parseInt(categoryId), amount: amount, date: date };
+    const txData = {
+      category_id: parseInt(categoryId),
+      amount: amount,
+      currency: currency,
+      date: date,
+    };
+
     const txId = state.editTransaction ? state.editTransaction.id : null;
     const savedTransaction = await _saveTransaction(txData, txId);
 
     if (savedTransaction) {
       tg.HapticFeedback.notificationOccurred("success");
-
-      // 🔥 ИСПРАВЛЕНО:
-      // 1. false -> это полная перезагрузка (не append)
-      // 2. highlightId -> передаем ID новой транзакции (если это не редактирование)
       const highlightId = txId ? null : savedTransaction.id;
       await loadTransactions(false, highlightId);
-
-      await fetchAndRenderBalance(); // 🔥 ОБНОВЛЯЕМ БАЛАНС
-
+      await fetchAndRenderBalance();
       showScreen("home-screen");
     }
     DOM.fullForm.saveBtn.disabled = false;
@@ -788,7 +849,14 @@ document.addEventListener("DOMContentLoaded", () => {
     state.quickCategory = category;
     const { name: categoryName } = parseCategory(category.name);
     DOM.quickModal.title.textContent = categoryName;
-    DOM.quickModal.currency.textContent = state.currencySymbol;
+
+    const savedCurr = localStorage.getItem("last_used_currency") || "USD";
+    if (DOM.quickModal.currencySelect) {
+      DOM.quickModal.currencySelect.value = savedCurr;
+      if (DOM.quickModal.currencyLabel)
+        DOM.quickModal.currencyLabel.textContent = CURRENCY_SYMBOLS[savedCurr] || savedCurr;
+    }
+
     DOM.quickModal.amountInput.value = "";
     DOM.quickModal.saveBtn.className = "save-btn";
     if (category.type === "expense") {
@@ -805,6 +873,8 @@ document.addEventListener("DOMContentLoaded", () => {
   async function saveQuickModal() {
     const amountStr = DOM.quickModal.amountInput.value.replace(",", ".");
     const amount = parseFloat(amountStr);
+    const currency = DOM.quickModal.currencySelect ? DOM.quickModal.currencySelect.value : "USD";
+
     if (!state.quickCategory) return;
     if (isNaN(amount) || amount <= 0) {
       tg.showAlert("Please enter a valid amount.");
@@ -815,16 +885,18 @@ document.addEventListener("DOMContentLoaded", () => {
       category_id: parseInt(state.quickCategory.id),
       amount: amount,
       date: getLocalDateString(new Date()),
+      currency: currency,
     };
     const savedTransaction = await _saveTransaction(txData);
     if (savedTransaction) {
       tg.HapticFeedback.notificationOccurred("success");
       closeBottomSheet();
-
-      // 🔥 ИСПРАВЛЕНО: false (перезагрузка), savedTransaction.id (подсветка)
       await loadTransactions(false, savedTransaction.id);
+      await fetchAndRenderBalance();
 
-      await fetchAndRenderBalance(); // 🔥 ОБНОВЛЯЕМ БАЛАНС
+      if (state.lastActiveScreen === "analytics-screen") {
+        await loadAnalyticsPage();
+      }
 
       showScreen("home-screen");
     }
@@ -928,20 +1000,20 @@ document.addEventListener("DOMContentLoaded", () => {
   const SWIPE_THRESHOLD = -80;
 
   function handleSwipeStart(e) {
-    const txItem = e.target.closest(".expense-item");
-    if (!txItem || e.target.closest(".edit-btn") || isSwiping) return;
-    currentSwipeElement = txItem;
+    const target = e.target.closest(".expense-item") || e.target.closest(".category-item-wrapper");
+
+    // Запрет свайпа для дефолтных категорий
+    if (target && target.classList.contains("category-item-wrapper") && target.dataset.isDefault === "true") return;
+
+    if (!target || e.target.closest(".edit-btn") || isSwiping) return;
+    currentSwipeElement = target;
     swipeStartX = e.touches[0].clientX;
     swipeStartY = e.touches[0].clientY;
   }
 
   function handleSwipeMove(e) {
     if (!currentSwipeElement) return;
-
-    // 🔥 ОПТИМИЗАЦИЯ: Не свайпаем боком, если идет вертикальный скролл
-    if (!isSwiping && window.scrollY > 0) {
-      return;
-    }
+    if (!isSwiping && window.scrollY > 0) return;
 
     const diffX = e.touches[0].clientX - swipeStartX;
     const diffY = e.touches[0].clientY - swipeStartY;
@@ -954,7 +1026,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (isSwiping) {
       e.preventDefault();
-      const content = currentSwipeElement.querySelector(".expense-item-content");
+      const content =
+        currentSwipeElement.querySelector(".expense-item-content") ||
+        currentSwipeElement.querySelector(".category-item-content");
+
       let moveX = diffX > 0 ? 0 : diffX;
       if (moveX < -SWIPE_DELETE_BG_WIDTH)
         moveX = -SWIPE_DELETE_BG_WIDTH - Math.pow(-moveX - SWIPE_DELETE_BG_WIDTH, 0.7);
@@ -965,13 +1040,31 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function handleSwipeEnd() {
     if (!currentSwipeElement) return;
-    const content = currentSwipeElement.querySelector(".expense-item-content");
+    const content =
+      currentSwipeElement.querySelector(".expense-item-content") ||
+      currentSwipeElement.querySelector(".category-item-content");
+
     content.classList.remove("swiping");
     const currentTransform = new DOMMatrix(getComputedStyle(content).transform).m41;
+
     if (isSwiping && currentTransform <= SWIPE_THRESHOLD) {
+      // 🔥 ОБНОВЛЕНО: Swipe End Logic
+      // 1. Сдвигаем влево
       content.style.transform = `translateX(-${SWIPE_DELETE_BG_WIDTH}px)`;
-      handleDeleteSwipe(currentSwipeElement, content);
+
+      // 2. Вибрация
+      tg.HapticFeedback.impactOccurred("medium");
+
+      if (currentSwipeElement.classList.contains("category-item-wrapper")) {
+        // Если категория: вызываем удаление, передаем элемент (чтобы вернуть, если отмена)
+        handleDeleteCategory(currentSwipeElement.dataset.id, content);
+        // ВАЖНО: Мы НЕ возвращаем его назад таймером. Мы ждем решения юзера.
+      } else {
+        // Если транзакция
+        handleDeleteSwipe(currentSwipeElement, content);
+      }
     } else {
+      // Если свайп маленький - возвращаем назад
       content.style.transform = "translateX(0)";
     }
     currentSwipeElement = null;
@@ -982,12 +1075,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const editBtn = element.querySelector(".edit-btn");
     const txId = parseInt(editBtn.dataset.txId, 10);
 
-    tg.HapticFeedback.impactOccurred("medium");
-
     tg.showConfirm("Are you sure you want to delete this transaction?", async (confirmed) => {
       if (confirmed) {
         tg.HapticFeedback.notificationOccurred("success");
-
         element.style.height = element.offsetHeight + "px";
         requestAnimationFrame(() => {
           element.classList.add("deleting");
@@ -1000,8 +1090,7 @@ document.addEventListener("DOMContentLoaded", () => {
           async () => {
             await deleteTransaction(txId);
             await loadTransactions();
-
-            await fetchAndRenderBalance(); // 🔥 ОБНОВЛЯЕМ БАЛАНС
+            await fetchAndRenderBalance();
           },
           { once: true }
         );
@@ -1067,8 +1156,6 @@ document.addEventListener("DOMContentLoaded", () => {
       data.forEach((item) => {
         const itemEl = document.createElement("div");
         itemEl.className = "summary-list-item";
-
-        // Логика эмодзи
         const { icon, name } = parseCategory(item.category);
         let categoryDisplay;
         if (icon) {
@@ -1079,7 +1166,6 @@ document.addEventListener("DOMContentLoaded", () => {
           const defaultIcon = isExpense ? defaultIconExpense : defaultIconIncome;
           categoryDisplay = `${defaultIcon} ${name}`;
         }
-
         itemEl.innerHTML = `
             <span class="category">${categoryDisplay}</span>
             <span class="amount" style="color: var(--color-${isExpense ? "expense" : "income"})">
@@ -1278,9 +1364,7 @@ document.addEventListener("DOMContentLoaded", () => {
       tg.HapticFeedback.notificationOccurred("success");
       await loadTransactions();
       await loadAllCategories();
-
-      await fetchAndRenderBalance(); // 🔥 ОБНОВЛЯЕМ БАЛАНС
-
+      await fetchAndRenderBalance();
       showScreen("home-screen");
       tg.showPopup({
         title: "Data Reset",
@@ -1295,6 +1379,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // 🔥 ОБНОВЛЕНО: Drill-down рендер категорий
   function loadCategoriesScreen() {
     DOM.categories.list.innerHTML = "";
     const categories = state.categories.filter((c) => c.type === state.categoryType);
@@ -1308,59 +1393,108 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     categories.forEach((cat) => {
+      // Обертка для свайпа
       const item = document.createElement("div");
-      item.className = "category-item";
+      item.className = "category-item-wrapper";
+      item.dataset.id = cat.id;
+      item.dataset.isDefault = cat.user_id === null;
 
       const { icon, name } = parseCategory(cat.name);
       let displayName = name;
-
-      if (!icon && defaultEmojis[name]) {
-        displayName = `${defaultEmojis[name]} ${name}`;
-      } else if (icon) {
-        displayName = `${icon} ${name}`;
-      } else {
+      if (!icon && defaultEmojis[name]) displayName = `${defaultEmojis[name]} ${name}`;
+      else if (icon) displayName = `${icon} ${name}`;
+      else {
         const defIcon = state.categoryType === "income" ? defaultIconIncome : defaultIconExpense;
         displayName = `${defIcon} ${name}`;
       }
 
-      let badgeHtml = "";
-      let deleteButtonHtml = "";
-
+      let rightSideHtml = "";
       if (cat.user_id === null) {
-        badgeHtml = `<span class="default-badge">Default</span>`;
+        rightSideHtml = `<span class="default-badge">Default</span>`;
       } else {
-        deleteButtonHtml = `
-              <button class="delete-category-btn" data-id="${cat.id}">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-              </button>
-          `;
+        rightSideHtml = `<span class="category-chevron">›</span>`;
       }
 
+      const trashIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path fill-rule="evenodd" d="M16.5 4.478v.227a48.816 48.816 0 0 1 3.878.512.75.75 0 1 1-.256 1.478l-.209-.035-1.005 13.07a3 3 0 0 1-2.991 2.77H8.084a3 3 0 0 1-2.991-2.77L4.087 6.66l-.209.035a.75.75 0 0 1-.256-1.478A48.567 48.567 0 0 1 7.5 4.705v-.227c0-1.564 1.213-2.9 2.816-2.951a52.662 52.662 0 0 1 3.369 0c1.603.051 2.815 1.387 2.815 2.951Zm-6.136-1.452a51.196 51.196 0 0 1 3.273 0C14.39 3.05 15 3.684 15 4.478v.113a49.488 49.488 0 0 0-6 0v-.113c0-.794.609-1.428 1.364-1.452Zm-.355 5.945a.75.75 0 1 0-1.5.058l.347 9a.75.75 0 1 0 1.499-.058l-.346-9Zm5.48.058a.75.75 0 1 0-1.498-.058l-.347 9a.75.75 0 0 0 1.5.058l.345-9Z" clip-rule="evenodd" /></svg>`;
+
       item.innerHTML = `
-            <div style="display: flex; align-items: center;">
-                <span>${displayName}</span>
-                ${badgeHtml}
+            <div class="expense-item-delete-bg">
+                ${trashIconSvg}
             </div>
-            ${deleteButtonHtml}
+            <div class="category-item-content">
+                <span class="cat-name">${displayName}</span>
+                ${rightSideHtml}
+            </div>
         `;
+
+      // Клик открывает редактирование, если не свайпаем и не дефолтная
+      if (cat.user_id !== null) {
+        item.addEventListener("click", () => {
+          if (!isSwiping) {
+            tg.HapticFeedback.impactOccurred("light");
+            openEditCategoryScreen(cat);
+          }
+        });
+      }
+
       DOM.categories.list.appendChild(item);
     });
+  }
+
+  // 🔥 НОВОЕ: Логика экрана редактирования категории
+  function openEditCategoryScreen(cat) {
+    state.categoryBeingEdited = cat;
+    const { icon, name } = parseCategory(cat.name);
+    DOM.editCategory.nameInput.value = name;
+    DOM.editCategory.iconInput.value = icon || "";
+    showScreen("edit-category-screen");
+  }
+
+  async function saveEditedCategory() {
+    if (!state.categoryBeingEdited) return;
+
+    const newName = DOM.editCategory.nameInput.value.trim();
+    const newIcon = DOM.editCategory.iconInput.value.trim();
+
+    if (!newName) {
+      tg.showAlert("Name is required");
+      return;
+    }
+
+    const fullName = newIcon ? `${newIcon} ${newName}` : newName;
+    const catId = state.categoryBeingEdited.id;
+
+    DOM.editCategory.saveBtn.disabled = true;
+
+    try {
+      const response = await apiRequest(`${API_URLS.CATEGORIES}/${catId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name: fullName, type: state.categoryBeingEdited.type }),
+      });
+
+      if (!response.ok) throw new Error("Update failed");
+
+      tg.HapticFeedback.notificationOccurred("success");
+      await loadAllCategories(); // Перезагружаем категории
+      await loadTransactions(); // Обновляем транзакции
+      showScreen("categories-screen");
+    } catch (e) {
+      tg.showAlert("Failed to update category");
+      console.error(e);
+    } finally {
+      DOM.editCategory.saveBtn.disabled = false;
+    }
   }
 
   async function handleAddCategory() {
     const icon = DOM.categories.newIconInput.value.trim();
     const name = DOM.categories.newNameInput.value.trim();
-
     if (!name) {
       tg.showAlert("Please enter a category name.");
       return;
     }
     const fullName = icon ? `${icon} ${name}` : name;
-
     tg.HapticFeedback.impactOccurred("light");
-
     DOM.categories.addBtn.disabled = true;
     try {
       const response = await apiRequest(API_URLS.CATEGORIES, {
@@ -1378,10 +1512,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  async function handleDeleteCategory(categoryId) {
+  // 🔥 ОБНОВЛЕНО: Поддержка свайп-контента
+  async function handleDeleteCategory(categoryId, swipeElement = null) {
     let transactionCount = 0;
     let message = "Are you sure you want to delete this category?";
-
     try {
       const check = await apiRequest(`${API_URLS.CATEGORIES}/${categoryId}/check`);
       if (check.ok) {
@@ -1390,9 +1524,10 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } catch (e) {
       tg.showAlert("Failed to check category.");
+      // Если ошибка - возвращаем свайп назад
+      if (swipeElement) swipeElement.style.transform = "translateX(0)";
       return;
     }
-
     if (transactionCount > 0) {
       const txWord = transactionCount === 1 ? "transaction" : "transactions";
       message = `This category is linked to ${transactionCount} ${txWord}.\n\nIt will be hidden from the list, but your past history will remain safe.\n\n(Tip: You can restore it anytime by creating a category with the exact same name).`;
@@ -1401,40 +1536,74 @@ document.addEventListener("DOMContentLoaded", () => {
     tg.showConfirm(message, async (confirmed) => {
       if (confirmed) {
         try {
+          // Анимация удаления, если это свайп
+          if (swipeElement) {
+            const wrapper = swipeElement.closest(".category-item-wrapper");
+            if (wrapper) {
+              wrapper.style.height = wrapper.offsetHeight + "px";
+              // Форсируем перерисовку
+              wrapper.offsetHeight;
+              wrapper.style.transition = "all 0.3s ease";
+              wrapper.style.height = "0px";
+              wrapper.style.opacity = "0";
+              wrapper.style.margin = "0";
+            }
+          }
+
           const deleteResponse = await apiRequest(`${API_URLS.CATEGORIES}/${categoryId}`, { method: "DELETE" });
           if (!deleteResponse.ok) throw new Error("Delete failed");
-
           tg.HapticFeedback.notificationOccurred("success");
+
+          // Даем время анимации проиграться перед обновлением
+          if (swipeElement) await new Promise((r) => setTimeout(r, 300));
+
           await loadAllCategories();
           loadCategoriesScreen();
           await loadTransactions();
-
-          await fetchAndRenderBalance(); // 🔥 ОБНОВЛЯЕМ БАЛАНС
+          await fetchAndRenderBalance();
+          if (state.lastActiveScreen === "categories-screen") showScreen("categories-screen");
         } catch (e) {
           console.error(e);
+        }
+      } else {
+        // 🔥 ОТМЕНА: Возвращаем свайп на место
+        if (swipeElement) {
+          swipeElement.style.transform = "translateX(0)";
         }
       }
     });
   }
 
-  // 🔥 НОВАЯ ФУНКЦИЯ: Слушаем скролл для подгрузки
   function handleScroll() {
     if (state.activeBottomSheet || document.getElementById("home-screen").classList.contains("hidden")) return;
-
     const scrollPosition = window.innerHeight + window.scrollY;
     const bodyHeight = document.body.offsetHeight;
-
     if (scrollPosition >= bodyHeight - 1000) {
       if (!state.isLoadingMore && !state.isAllLoaded) {
-        loadTransactions(true); // true = append
+        loadTransactions(true);
       }
+    }
+  }
+
+  async function fetchUserProfile() {
+    try {
+      const response = await apiRequest(API_URLS.USER_PROFILE);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.base_currency) {
+          state.baseCurrencyCode = data.base_currency;
+          state.currencySymbol = CURRENCY_SYMBOLS[data.base_currency] || "$";
+          DOM.settings.currencySelect.value = data.base_currency;
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load user profile", e);
     }
   }
 
   // --- INIT ---
   function init() {
     if (tg.platform === "android" || tg.platform === "android_x") document.body.classList.add("platform-android");
-
     const applyTheme = () => {
       if (tg.colorScheme === "dark") {
         tg.setHeaderColor("#1C1C1E");
@@ -1447,10 +1616,11 @@ document.addEventListener("DOMContentLoaded", () => {
     applyTheme();
     tg.onEvent("themeChanged", applyTheme);
 
-    // 🔥 ДОБАВЛЕНО: Слушатель скролла
     window.addEventListener("scroll", handleScroll);
 
-    // Navigation Listeners
+    setupCurrencyPicker(DOM.fullForm.currencySelect, DOM.fullForm.currencyLabel);
+    setupCurrencyPicker(DOM.quickModal.currencySelect, DOM.quickModal.currencyLabel);
+
     DOM.tabs.home.addEventListener("click", () => {
       showScreen("home-screen");
       tg.HapticFeedback.impactOccurred("light");
@@ -1472,7 +1642,6 @@ document.addEventListener("DOMContentLoaded", () => {
       tg.HapticFeedback.impactOccurred("medium");
     });
 
-    // UI Listeners
     DOM.fullForm.cancelBtn.addEventListener("click", () => {
       showScreen(state.lastActiveScreen);
       tg.HapticFeedback.impactOccurred("light");
@@ -1497,17 +1666,17 @@ document.addEventListener("DOMContentLoaded", () => {
     DOM.quickModal.saveBtn.addEventListener("click", saveQuickModal);
     DOM.backdrop.addEventListener("click", closeBottomSheet);
 
-    // Swipe & Drag Setup
     setupSheetDrag(DOM.daySheet.sheet, DOM.daySheet.header, DOM.daySheet.contentWrapper, closeBottomSheet);
     setupSheetDrag(DOM.quickModal.sheet, DOM.quickModal.header, null, closeBottomSheet);
     setupSheetDrag(DOM.summarySheet.sheet, DOM.summarySheet.header, null, closeBottomSheet);
-    [DOM.home.listContainer, DOM.daySheet.list].forEach((list) => {
+
+    // Свайпы для списков
+    [DOM.home.listContainer, DOM.daySheet.list, DOM.categories.list].forEach((list) => {
       list.addEventListener("touchstart", handleSwipeStart, { passive: true });
       list.addEventListener("touchmove", handleSwipeMove, { passive: false });
       list.addEventListener("touchend", handleSwipeEnd);
     });
 
-    // Analytics Listeners
     DOM.analytics.segBtnSummary.addEventListener("click", () => {
       tg.HapticFeedback.impactOccurred("light");
       DOM.analytics.summaryPane.classList.remove("hidden");
@@ -1560,7 +1729,6 @@ document.addEventListener("DOMContentLoaded", () => {
     );
     DOM.calendar.boxNet.addEventListener("click", () => openSummarySheet("net", state.calendarSummary.net));
 
-    // AI & Settings Listeners
     DOM.ai.dateFilter.addEventListener("click", (e) => {
       const target = e.target.closest(".seg-button");
       if (!target) return;
@@ -1578,36 +1746,48 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     DOM.ai.btnAdvice.addEventListener("click", () => fetchAiData("advice", "Here's your Advice"));
-
     DOM.ai.btnSummary.addEventListener("click", () => {
       const rangeText = state.aiRange.charAt(0).toUpperCase() + state.aiRange.slice(1);
       fetchAiData("summary", `Here's your ${rangeText} Summary`);
     });
-
     DOM.ai.btnAnomaly.addEventListener("click", () => {
       const rangeText = state.aiRange.charAt(0).toUpperCase() + state.aiRange.slice(1);
       fetchAiData("anomaly", `Largest Expense This ${rangeText}`);
     });
-
     DOM.ai.resultBackBtn.addEventListener("click", () => {
       tg.HapticFeedback.impactOccurred("light");
       DOM.ai.resultContainer.classList.add("hidden");
       DOM.ai.featuresList.classList.remove("hidden");
     });
-    DOM.settings.currencySelect.addEventListener("change", (e) => {
-      tg.HapticFeedback.impactOccurred("light");
-      tg.CloudStorage.setItem("currency_symbol", e.target.value, (e, s) => {
-        if (s) {
-          state.currencySymbol = e.target.value;
-          loadTransactions(false); // перезагружаем список (сброс)
-          tg.showPopup({
-            title: "Currency Updated",
-            message: `Your default currency is now ${state.currencySymbol}.`,
-            buttons: [{ type: "ok" }],
-          });
-        }
-      });
+
+    DOM.settings.currencySelect.addEventListener("change", async (e) => {
+      tg.HapticFeedback.impactOccurred("medium");
+      const newCurrency = e.target.value;
+      tg.MainButton.showProgress();
+      try {
+        const response = await apiRequest(API_URLS.USER_SETTINGS_CURRENCY, {
+          method: "POST",
+          body: JSON.stringify({ base_currency: newCurrency }),
+        });
+        if (!response.ok) throw new Error("Failed to update currency");
+        state.baseCurrencyCode = newCurrency;
+        state.currencySymbol = CURRENCY_SYMBOLS[newCurrency] || "$";
+        tg.CloudStorage.setItem("currency_symbol", state.currencySymbol);
+        await loadTransactions(false);
+        await fetchAndRenderBalance();
+        tg.showPopup({
+          title: "Currency Updated",
+          message: `All transactions recalculated to ${newCurrency}.`,
+          buttons: [{ type: "ok" }],
+        });
+      } catch (error) {
+        console.error(error);
+        tg.showAlert("Failed to update currency. Please try again.");
+      } finally {
+        tg.MainButton.hideProgress();
+      }
     });
+
     DOM.settings.resetDataBtn.addEventListener("click", () => {
       tg.HapticFeedback.impactOccurred("heavy");
       tg.showConfirm("Are you sure? All your transactions and custom categories will be deleted.", (firstConfirm) => {
@@ -1621,7 +1801,6 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
 
-    // Delegated Clicks
     document.body.addEventListener("click", handleEditTransactionClick);
     DOM.categories.backBtn.addEventListener("click", () => {
       showScreen(state.lastActiveScreen);
@@ -1642,27 +1821,29 @@ document.addEventListener("DOMContentLoaded", () => {
       loadCategoriesScreen();
     });
     DOM.categories.addBtn.addEventListener("click", handleAddCategory);
-    DOM.categories.list.addEventListener("click", (e) => {
-      const btn = e.target.closest(".delete-category-btn");
-      if (btn) handleDeleteCategory(btn.dataset.id);
+
+    // 🔥 НОВОЕ: Обработчики для экрана редактирования
+    DOM.editCategory.saveBtn.addEventListener("click", saveEditedCategory);
+    DOM.editCategory.deleteBtn.addEventListener("click", () => {
+      tg.HapticFeedback.impactOccurred("heavy");
+      if (state.categoryBeingEdited) handleDeleteCategory(state.categoryBeingEdited.id);
+    });
+    DOM.editCategory.backBtn.addEventListener("click", () => {
+      tg.HapticFeedback.impactOccurred("light");
+      showScreen("categories-screen");
     });
 
-    // Start
     const lastScreenId = sessionStorage.getItem("lastActiveScreen") || "home-screen";
     showScreen(lastScreenId);
     if (lastScreenId === "home-screen") renderSkeleton();
 
-    tg.CloudStorage.getItem("currency_symbol", async (err, value) => {
-      state.currencySymbol = value || "$";
-      DOM.settings.currencySelect.value = state.currencySymbol;
-
-      // 1. Грузим данные
-      await Promise.all([loadAllCategories(), loadTransactions(false), fetchAndRenderBalance()]);
-
+    (async function initializeData() {
+      await Promise.all([fetchUserProfile(), loadAllCategories()]);
+      await Promise.all([loadTransactions(false), fetchAndRenderBalance()]);
       setTimeout(() => {
         state.isInitialLoad = false;
       }, 100);
-    });
+    })();
   }
 
   init();
