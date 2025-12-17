@@ -52,36 +52,38 @@ It combines a modern, responsive **SPA frontend** with a robust **Python backend
 
 ```text
 Sana-Project/
-├── alembic/                # 🗄️ Database Migrations (Versions)
-├── app/                    # 🐍 Backend Logic (Modular)
-│   ├── routers/            # API Endpoints
-│   │   ├── __init__.py
-│   │   ├── transactions.py
-│   │   ├── categories.py
-│   │   └── ai.py           # Gemini Logic
+├── alembic/                # 🗄️ Database Migrations
+├── app/                    # 🐍 Backend Logic
 │   ├── models/             # Data Models
 │   │   ├── __init__.py
-│   │   ├── schemas.py      # Pydantic Schemas (API Contract)
-│   │   └── sql.py          # SQLAlchemy Models (DB Tables)
-│   ├── __init__.py
-│   ├── database.py         # Async Engine & Session Maker
-│   ├── dependencies.py     # Auth & DB Dependency Injection
-│   └── config.py           # Environment Config
+│   │   ├── schemas.py      # Pydantic Schemas
+│   │   └── sql.py          # SQLAlchemy Models
+│   ├── routers/            # API Endpoints
+│   │   ├── __init__.py
+│   │   ├── ai.py           # Gemini Logic
+│   │   ├── categories.py
+│   │   ├── transactions.py
+│   │   └── users.py        # User Management
+│   └── services/           # ⚙️ Business Logic & Core
+│       ├── __init__.py
+│       ├── config.py       # Environment Config
+│       ├── currency.py     # Currency Logic
+│       ├── database.py     # Async Engine & Session
+│       └── dependencies.py # Auth & DI
 ├── webapp/                 # 🎨 Frontend Source (SPA)
 │   ├── index.html          # Main entry point
-│   ├── style.css           # Adaptive styles
-│   └── script.js           # UI Logic & API integration
-├── main.py                 # 🚀 App Entry Point
-├── setup_bot.py            # Webhook setup utility
-├── requirements.txt        # Python dependencies
-├── alembic.ini             # Alembic Config
-├── Dockerfile              # Docker image configuration
-├── docker-compose.yml      # Production orchestration config
-├── docker-compose.dev.yml  # Local Development orchestration (Hot-reload)
-├── .dockerignore           # Excludes files from Docker build
+│   ├── script.js           # UI Logic
+│   └── style.css           # Styles
 ├── .env.example            # Environment variables template
-├── .gitignore              # Git configuration
-└── README.md               # Project Documentation
+├── .gitignore
+├── alembic.ini             # Alembic Config
+├── banner.png              # 🖼️ Project Banner
+├── docker-compose.dev.yml  # Local Development (Hot-reload)
+├── docker-compose.yml      # Production orchestration
+├── Dockerfile              # Docker image config
+├── main.py                 # 🚀 App Entry Point
+├── requirements.txt        # Python dependencies
+└── setup_bot.py            # 🤖 Webhook/Bot setup
 ```
 
 ---

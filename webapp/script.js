@@ -679,7 +679,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const dateObj = parseDateFromUTC(tx.date);
-    DOM.fullForm.dateInput.value = dateObj.toISOString().split("T")[0];
+    DOM.fullForm.dateInput.value = getLocalDateString(dateObj);
     await loadCategoriesForForm(tx.type);
     DOM.fullForm.categorySelect.value = tx.category_id;
     closeBottomSheet();
@@ -706,7 +706,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (DOM.fullForm.currencyLabel) DOM.fullForm.currencyLabel.textContent = CURRENCY_SYMBOLS[lastCurr] || lastCurr;
     }
 
-    DOM.fullForm.dateInput.valueAsDate = new Date();
+    DOM.fullForm.dateInput.value = getLocalDateString(new Date());
 
     if (type === "income") {
       DOM.fullForm.typeIncome.classList.add("active");
@@ -1000,73 +1000,112 @@ document.addEventListener("DOMContentLoaded", () => {
   const SWIPE_THRESHOLD = -80;
 
   function handleSwipeStart(e) {
+    // Ищем ближайший элемент, который можно свайпать
     const target = e.target.closest(".expense-item") || e.target.closest(".category-item-wrapper");
+
+    // Если кликнули на кнопку редактирования — свайп не начинаем
+    if (e.target.closest(".edit-btn")) return;
 
     // Запрет свайпа для дефолтных категорий
     if (target && target.classList.contains("category-item-wrapper") && target.dataset.isDefault === "true") return;
 
-    if (!target || e.target.closest(".edit-btn") || isSwiping) return;
+    if (!target) return;
+
     currentSwipeElement = target;
+    isSwiping = false; // Сбрасываем флаг начала свайпа
     swipeStartX = e.touches[0].clientX;
     swipeStartY = e.touches[0].clientY;
+
+    // Убираем плавность анимации в начале, чтобы элемент следовал за пальцем мгновенно
+    const content = target.querySelector(".expense-item-content") || target.querySelector(".category-item-content");
+    if (content) {
+      content.style.transition = "none";
+    }
   }
 
   function handleSwipeMove(e) {
     if (!currentSwipeElement) return;
-    if (!isSwiping && window.scrollY > 0) return;
 
-    const diffX = e.touches[0].clientX - swipeStartX;
-    const diffY = e.touches[0].clientY - swipeStartY;
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    const diffX = currentX - swipeStartX;
+    const diffY = currentY - swipeStartY;
+
+    // 1. ОПРЕДЕЛЕНИЕ НАМЕРЕНИЯ (Свайп или Скролл?)
     if (!isSwiping) {
-      if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 10) isSwiping = true;
-      else if (Math.abs(diffY) > Math.abs(diffX)) {
+      // Если движение по вертикали больше, чем по горизонтали — это скролл.
+      // Сбрасываем элемент и даем браузеру скроллить.
+      if (Math.abs(diffY) > Math.abs(diffX)) {
         currentSwipeElement = null;
         return;
       }
+
+      // Если движение по горизонтали явное (> 5px) — начинаем свайп
+      if (Math.abs(diffX) > 5) {
+        isSwiping = true;
+      }
     }
+
+    // 2. ЛОГИКА СВАЙПА
     if (isSwiping) {
-      e.preventDefault();
+      // Блокируем скролл страницы, пока свайпаем
+      if (e.cancelable) e.preventDefault();
+
       const content =
         currentSwipeElement.querySelector(".expense-item-content") ||
         currentSwipeElement.querySelector(".category-item-content");
 
+      if (!content) return;
+
+      // Разрешаем двигать только влево (diffX < 0)
       let moveX = diffX > 0 ? 0 : diffX;
-      if (moveX < -SWIPE_DELETE_BG_WIDTH)
+
+      // Эффект "резинки" (сопротивление), если тянем дальше ширины кнопки
+      if (moveX < -SWIPE_DELETE_BG_WIDTH) {
+        // Формула затухания: moveX = limit - (излишек ^ 0.7)
         moveX = -SWIPE_DELETE_BG_WIDTH - Math.pow(-moveX - SWIPE_DELETE_BG_WIDTH, 0.7);
-      content.classList.add("swiping");
+      }
+
       content.style.transform = `translateX(${moveX}px)`;
     }
   }
 
-  function handleSwipeEnd() {
+  function handleSwipeEnd(e) {
     if (!currentSwipeElement) return;
+
     const content =
       currentSwipeElement.querySelector(".expense-item-content") ||
       currentSwipeElement.querySelector(".category-item-content");
 
-    content.classList.remove("swiping");
-    const currentTransform = new DOMMatrix(getComputedStyle(content).transform).m41;
+    // Возвращаем плавную анимацию для завершения жеста
+    if (content) content.style.transition = "transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)";
 
-    if (isSwiping && currentTransform <= SWIPE_THRESHOLD) {
-      // 🔥 ОБНОВЛЕНО: Swipe End Logic
-      // 1. Сдвигаем влево
+    // Получаем текущее смещение (через матрицу трансформации или просто расчет)
+    // Упрощенно: если мы в режиме свайпа и сдвинули достаточно далеко влево
+    const currentX = e.changedTouches[0].clientX;
+    const diffX = currentX - swipeStartX;
+
+    if (isSwiping && diffX < SWIPE_THRESHOLD) {
+      // --- УСПЕШНЫЙ СВАЙП (УДАЛЕНИЕ) ---
+
+      // 1. Фиксируем открытое состояние
       content.style.transform = `translateX(-${SWIPE_DELETE_BG_WIDTH}px)`;
 
       // 2. Вибрация
       tg.HapticFeedback.impactOccurred("medium");
 
+      // 3. Логика удаления
       if (currentSwipeElement.classList.contains("category-item-wrapper")) {
-        // Если категория: вызываем удаление, передаем элемент (чтобы вернуть, если отмена)
         handleDeleteCategory(currentSwipeElement.dataset.id, content);
-        // ВАЖНО: Мы НЕ возвращаем его назад таймером. Мы ждем решения юзера.
       } else {
-        // Если транзакция
         handleDeleteSwipe(currentSwipeElement, content);
       }
     } else {
-      // Если свайп маленький - возвращаем назад
+      // --- ОТМЕНА СВАЙПА (ВОЗВРАТ) ---
       content.style.transform = "translateX(0)";
     }
+
+    // Сброс состояния
     currentSwipeElement = null;
     isSwiping = false;
   }
