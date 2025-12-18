@@ -22,3 +22,7 @@ __pycache__/
 # Настройки IDE (VS Code / PyCharm)
 .vscode/
 .idea/
+
+# Тесты
+.pytest_cache/
+tests/__pycache__/

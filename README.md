@@ -52,6 +52,7 @@ It combines a modern, responsive **SPA frontend** with a robust **Python backend
 
 ```text
 Sana-Project/
+├── .github/                # 🤖 CI/CD Workflows
 ├── alembic/                # 🗄️ Database Migrations
 ├── app/                    # 🐍 Backend Logic
 │   ├── models/             # Data Models
@@ -70,6 +71,7 @@ Sana-Project/
 │       ├── currency.py     # Currency Logic
 │       ├── database.py     # Async Engine & Session
 │       └── dependencies.py # Auth & DI
+├── tests/                  # 🧪 Automated Tests (Unit & Integration)
 ├── webapp/                 # 🎨 Frontend Source (SPA)
 │   ├── index.html          # Main entry point
 │   ├── script.js           # UI Logic
@@ -82,6 +84,7 @@ Sana-Project/
 ├── docker-compose.yml      # Production orchestration
 ├── Dockerfile              # Docker image config
 ├── main.py                 # 🚀 App Entry Point
+├── pytest.ini              # Test Configuration
 ├── requirements.txt        # Python dependencies
 └── setup_bot.py            # 🤖 Webhook/Bot setup
 ```
@@ -183,6 +186,37 @@ To develop comfortably with **Hot-Reload** (changes in code apply instantly) and
     ```
 
 🎉 **Ready!** Open your Test Bot in Telegram and start coding. Changes in `main.py` or frontend files will be applied automatically.
+
+---
+
+## 🧪 Automated Testing
+
+The project employs a comprehensive testing strategy using **Pytest** to ensure stability and preventing regressions.
+
+### Test Suite Includes:
+
+1.  **Sanity Tests:** Verifies database connectivity and table creation.
+2.  **Unit Tests:** Checks isolated business logic (e.g., currency conversion math, caching mechanisms).
+3.  **Integration Tests:** Validates full API workflows (creating transactions, auth bypass, database writes, and balance calculation).
+
+### How to Run Tests Locally
+
+Since the tests use a dedicated database within your Docker container (`sana_test`), ensure your **Dev Environment** is running first.
+
+1.  **Activate your virtual environment:**
+
+    ```bash
+    source venv/bin/activate
+    ```
+
+2.  **Run the tests:**
+    ```bash
+    pytest tests/ -v
+    ```
+
+### CI/CD Pipeline
+
+We use **GitHub Actions** to automatically run the full test suite on every `push` or `pull_request` to the main branch. This ensures that no broken code ever reaches production.
 
 ---
 
