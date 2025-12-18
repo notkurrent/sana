@@ -39,16 +39,24 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          # Доустанавливаем тестовые библиотеки (если их нет в requirements.txt)
-          pip install pytest pytest-asyncio pytest-mock httpx greenlet asyncpg
 
       - name: Run Tests
         env:
-          # Передаем фейковые переменные окружения, чтобы приложение запустилось
-          # (Ведь мы мокаем реальные вызовы к Telegram/OpenAI в тестах)
+          # --- Настройки БД ---
           DATABASE_URL: postgresql+asyncpg://postgres:password@localhost:5432/sana_test
-          TELEGRAM_BOT_TOKEN: "dummy_token"
-          OPENAI_API_KEY: "dummy_key"
-          SECRET_KEY: "dummy_secret"
+
+          # --- Фейковые ключи (Dummy Variables) ---
+          # Эти значения нужны, чтобы Settings в config.py не выбросил ошибку валидации при старте.
+          # Сами сервисы (Google, Telegram) в тестах мы "мокаем", так что реальные ключи не нужны.
+
+          TELEGRAM_BOT_TOKEN: "dummy_bot_token"
+          GOOGLE_API_KEY: "dummy_google_key" # Исправили под твой проект
+          EXCHANGE_RATE_API_KEY: "dummy_exchange_key" # Тот самый недостающий ключ!
+          SECRET_KEY: "dummy_secret_super_secure"
+
+          # --- URL (для валидации Pydantic HttpUrl) ---
+          BASE_URL: "https://example.com"
+          WEB_APP_URL: "https://example.com"
+
         run: |
           pytest tests/ -v
