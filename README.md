@@ -111,6 +111,7 @@ Sana-Project/
     BOT_TOKEN=your_telegram_bot_token
     DATABASE_URL=your_postgres_url
     GOOGLE_API_KEY=your_gemini_key
+    EXCHANGE_RATE_API_KEY=your_exchange_key
     BASE_URL=https://your-domain.com
     WEB_APP_URL=https://your-domain.com
     ```
@@ -164,6 +165,7 @@ To develop comfortably with **Hot-Reload** (changes in code apply instantly) and
 
     - `BOT_TOKEN`: Your **Test Bot** token.
     - `WEB_APP_URL` & `BASE_URL`: The **Ngrok URL** you just copied.
+    - `GOOGLE_API_KEY` & `EXCHANGE_RATE_API_KEY`: Add your keys here.
     - `DATABASE_URL`: Leave as is (it's pre-configured for local Docker).
 
 4.  **Configure Test Bot:**
