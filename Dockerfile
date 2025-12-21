@@ -1,5 +1,5 @@
-# Используем легкий Python 3.12
-FROM python:3.12-slim
+# Используем легкий Python 3.13
+FROM python:3.13-slim
 
 # Рабочая папка внутри контейнера
 WORKDIR /app

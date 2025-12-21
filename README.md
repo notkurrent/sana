@@ -12,6 +12,7 @@ It combines a modern, responsive **SPA frontend** with a robust **Python backend
 
 - **⚡️ Seamless Integration:** Works directly inside Telegram using TMA technology. No installation required.
 - **🌍 Multi-Currency Support:** Track expenses in any currency (USD, EUR, KZT, TRY, etc.). The app automatically stores the original amount and currency while keeping your main balance consistent.
+- **📝 Smart Notes:** Add context to your spending with optional notes. Notes appear elegantly in the transaction list using an Apple-style layout.
 - **🧠 Smart AI Advisor:** Integrated **Google Gemini** analyzes your transactions to give actionable financial tips, summaries, and anomaly detection.
 - **💎 Native-Like UX:** Optimized for "Zero Latency" feel with 56px touch targets, optimistic UI updates, haptic feedback, and iOS-style swipe gestures.
 - **🔒 Bank-Grade Security:** Implements strict `HMAC SHA-256` validation to verify Telegram initialization data.
@@ -52,7 +53,10 @@ It combines a modern, responsive **SPA frontend** with a robust **Python backend
 
 ```text
 Sana-Project/
-├── .github/                # 🤖 CI/CD Workflows
+├── .github/
+│   └── workflows/
+│       ├── tests.yml       # 🧪 CI: Run Pytest
+│       └── deploy.yml      # 🚀 CD: Deploy to DigitalOcean
 ├── alembic/                # 🗄️ Database Migrations
 ├── app/                    # 🐍 Backend Logic
 │   ├── models/             # Data Models
@@ -96,7 +100,7 @@ Sana-Project/
 1.  **Clone the repository:**
 
     ```bash
-    git clone git clone https://github.com/notkurrent/sana.git
+    git clone https://github.com/notkurrent/sana.git
     cd sana
     ```
 
@@ -216,7 +220,17 @@ Since the tests use a dedicated database within your Docker container (`sana_tes
 
 ### CI/CD Pipeline
 
-We use **GitHub Actions** to automatically run the full test suite on every `push` or `pull_request` to the main branch. This ensures that no broken code ever reaches production.
+We use **GitHub Actions** for a complete DevOps cycle:
+
+1.  **Continuous Integration (CI):** On every `push` or `pull_request`, the full test suite (Pytest) runs automatically to prevent regressions.
+2.  **Continuous Deployment (CD):** When code is pushed to the `main` branch, a separate workflow automatically:
+    - Connects to the Production Server via SSH.
+    - Pulls the latest code.
+    - Rebuilds Docker containers.
+    - **Applies Database Migrations** (`alembic upgrade head`).
+    - Cleans up unused Docker images.
+
+This ensures that the Production version is always up-to-date within minutes of a commit.
 
 ---
 
