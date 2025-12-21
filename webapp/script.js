@@ -343,6 +343,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
       DOM.home.balanceAmount.textContent = newBalanceText;
 
+      // 🔥 FIX: Если валюта изменилась (старый текст не содержит новый символ), не мигаем
+      if (!oldBalanceText.includes(state.currencySymbol)) return;
+
       if (newBalanceText === oldBalanceText || !container || state.isInitialLoad) return;
 
       const oldBalanceVal = parseFloat(oldBalanceText.replace(/[^0-9.-]+/g, "")) || 0;
@@ -1610,7 +1613,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } catch (e) {
       tg.showAlert("Failed to check category.");
-      // Если ошибка - возвращаем свайп назад
       if (swipeElement) swipeElement.style.transform = "translateX(0)";
       return;
     }
@@ -1622,13 +1624,12 @@ document.addEventListener("DOMContentLoaded", () => {
     tg.showConfirm(message, async (confirmed) => {
       if (confirmed) {
         try {
-          // Анимация удаления, если это свайп
+          // Анимация удаления (только для свайпа)
           if (swipeElement) {
             const wrapper = swipeElement.closest(".category-item-wrapper");
             if (wrapper) {
               wrapper.style.height = wrapper.offsetHeight + "px";
-              // Форсируем перерисовку
-              wrapper.offsetHeight;
+              wrapper.offsetHeight; // Force reflow
               wrapper.style.transition = "all 0.3s ease";
               wrapper.style.height = "0px";
               wrapper.style.opacity = "0";
@@ -1640,19 +1641,22 @@ document.addEventListener("DOMContentLoaded", () => {
           if (!deleteResponse.ok) throw new Error("Delete failed");
           tg.HapticFeedback.notificationOccurred("success");
 
-          // Даем время анимации проиграться перед обновлением
           if (swipeElement) await new Promise((r) => setTimeout(r, 300));
 
           await loadAllCategories();
-          loadCategoriesScreen();
+          loadCategoriesScreen(); // Перерисовываем список
           await loadTransactions();
           await fetchAndRenderBalance();
-          if (state.lastActiveScreen === "categories-screen") showScreen("categories-screen");
+
+          // 🔥 FIX: Если удалили через Кнопку (не свайпом) — точно уходим назад в список
+          if (!swipeElement) {
+            showScreen("categories-screen");
+          }
         } catch (e) {
           console.error(e);
         }
       } else {
-        // ОТМЕНА: Возвращаем свайп на место
+        // Отмена свайпа
         if (swipeElement) {
           swipeElement.style.transform = "translateX(0)";
         }
@@ -1799,6 +1803,8 @@ document.addEventListener("DOMContentLoaded", () => {
       state.summaryRange = t.dataset.range;
       loadSummaryData();
     });
+
+    // Кнопки навигации календаря
     DOM.calendar.prevMonthBtn.addEventListener("click", () => {
       tg.HapticFeedback.impactOccurred("light");
       state.analyticsDate.setMonth(state.analyticsDate.getMonth() - 1);
@@ -1809,6 +1815,21 @@ document.addEventListener("DOMContentLoaded", () => {
       state.analyticsDate.setMonth(state.analyticsDate.getMonth() + 1);
       loadCalendarData();
     });
+
+    // 🔥 FIX: Обновление календаря при выборе в выпадающем списке (Select)
+    DOM.calendar.monthSelect.addEventListener("change", (e) => {
+      tg.HapticFeedback.impactOccurred("light");
+      state.analyticsDate.setMonth(parseInt(e.target.value));
+      loadCalendarData();
+    });
+
+    DOM.calendar.yearSelect.addEventListener("change", (e) => {
+      tg.HapticFeedback.impactOccurred("light");
+      state.analyticsDate.setFullYear(parseInt(e.target.value));
+      loadCalendarData();
+    });
+    // --- Конец фикса ---
+
     DOM.calendar.boxIncome.addEventListener("click", () => openSummarySheet("income", state.calendarSummary.income));
     DOM.calendar.boxExpense.addEventListener("click", () =>
       openSummarySheet("expense", state.calendarSummary.expense * -1)
@@ -1932,17 +1953,40 @@ document.addEventListener("DOMContentLoaded", () => {
       showScreen("categories-screen");
     });
 
-    // 🔥 UX: Скрываем таб-бар и футер при вводе текста (Apple Way)
+    // 🔥 UX: Скрываем таб-бар и футер ТОЛЬКО при вводе текста (Fix for Select/Date)
     document.addEventListener("focusin", (e) => {
-      if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) {
+      const tag = e.target.tagName;
+      // Получаем тип инпута (text, number, date и т.д.)
+      const type = e.target.getAttribute("type");
+
+      // Типы полей, которые реально вызывают клавиатуру
+      const keyboardTypes = ["text", "number", "tel", "email", "password", "search", "url"];
+
+      // 1. Если это TEXTAREA — всегда скрываем
+      if (tag === "TEXTAREA") {
+        document.body.classList.add("keyboard-open");
+        return;
+      }
+
+      // 2. Если это INPUT, проверяем, текстовый ли он
+      if (tag === "INPUT" && keyboardTypes.includes(type)) {
         document.body.classList.add("keyboard-open");
       }
+      // SELECT и input[type="date"] игнорируются -> таб-бар остается
     });
 
     document.addEventListener("focusout", (e) => {
       setTimeout(() => {
         const active = document.activeElement;
-        if (!active || !["INPUT", "TEXTAREA", "SELECT"].includes(active.tagName)) {
+
+        // Проверяем, куда ушел фокус. Если снова в текстовое поле — не возвращаем таб-бар.
+        const tag = active ? active.tagName : null;
+        const type = active ? active.getAttribute("type") : null;
+        const keyboardTypes = ["text", "number", "tel", "email", "password", "search", "url"];
+
+        const isKeyboardInput = tag === "TEXTAREA" || (tag === "INPUT" && keyboardTypes.includes(type));
+
+        if (!isKeyboardInput) {
           document.body.classList.remove("keyboard-open");
         }
       }, 50);
