@@ -16,29 +16,45 @@ router = APIRouter(tags=["transactions"])
 
 
 # --- Helpers ---
-def _get_date_for_storage(date_str: str, timezone_offset_str: Optional[str]) -> datetime:
+def _get_date_for_storage(date_input: str | datetime, timezone_offset_str: Optional[str]) -> datetime:
     """
     Преобразует дату от пользователя в UTC datetime для сохранения в БД.
+    Исправлен баг с потерей времени при редактировании.
     """
-    if not date_str:
+    if not date_input:
         return datetime.now(timezone.utc)
+
     try:
-        if isinstance(date_str, str):
-            selected_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-        else:
-            selected_date = date_str
+        # 1. Если это уже datetime, просто приводим к UTC
+        if isinstance(date_input, datetime):
+            return date_input.astimezone(timezone.utc)
 
-        server_now = datetime.now(timezone.utc)
+        # 2. Если это строка
+        if isinstance(date_input, str):
+            # A. Пробуем ISO формат (с временем) -> "2023-10-10T14:30:00"
+            if "T" in date_input:
+                dt = datetime.fromisoformat(date_input.replace("Z", "+00:00"))
+                return dt.astimezone(timezone.utc)
 
-        user_now = server_now
-        if timezone_offset_str and timezone_offset_str.lstrip("-").isdigit():
-            offset_minutes = int(timezone_offset_str)
-            user_now = server_now - timedelta(minutes=offset_minutes)
+            # B. Пробуем просто дату -> "2023-10-10" (ставим время 00:00 с учетом часового пояса юзера)
+            selected_date = datetime.strptime(date_input, "%Y-%m-%d").date()
 
-        if selected_date == user_now.date():
-            return server_now
+            server_now = datetime.now(timezone.utc)
 
-        return datetime.combine(selected_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+            # Определяем "сейчас" у пользователя
+            user_now = server_now
+            if timezone_offset_str and timezone_offset_str.lstrip("-").isdigit():
+                offset_minutes = int(timezone_offset_str)
+                user_now = server_now - timedelta(minutes=offset_minutes)
+
+            # Если пользователь выбрал "сегодня" по своему календарю — ставим точное серверное время
+            if selected_date == user_now.date():
+                return server_now
+
+            # Иначе ставим начало дня (00:00)
+            return datetime.combine(selected_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+
+        return datetime.now(timezone.utc)
 
     except Exception as e:
         print(f"Date parse error: {e}")
@@ -65,6 +81,7 @@ async def get_transactions(
             TransactionDB.currency,
             TransactionDB.date,
             TransactionDB.category_id,
+            TransactionDB.note,  # 🔥 Load Note
             CategoryDB.name.label("category"),
             CategoryDB.type,
         )
@@ -105,30 +122,20 @@ async def add_transaction(
     final_date = _get_date_for_storage(tx.date, x_timezone_offset)
 
     # --- 🔥 FIX START: БЕЗОПАСНОЕ СОЗДАНИЕ ЮЗЕРА (Race Condition Fix) ---
-
-    # 1. Пытаемся создать юзера. Если он уже есть — база данных просто проигнорирует (DO NOTHING).
-    # Это атомарная операция, она не упадет с ошибкой даже при 100 одновременных запросах.
     insert_stmt = (
         pg_insert(UserDB).values(id=user_id, base_currency="USD").on_conflict_do_nothing(index_elements=["id"])
     )
     await session.execute(insert_stmt)
 
-    # 2. Теперь гарантированно достаем юзера, чтобы узнать его валюту
     user_stmt = select(UserDB).where(UserDB.id == user_id)
     result = await session.execute(user_stmt)
-    user_db = result.scalar_one()  # Теперь мы уверены, что юзер существует
-
+    user_db = result.scalar_one()
     target_currency = user_db.base_currency
-
     # --- 🔥 FIX END ---
 
     # 3. Логика конвертации
     currency_service = CurrencyService()
-
-    # Считаем курс: Валюта Траты -> Базовая Валюта Юзера (напр. TRY -> KZT)
     rate = await currency_service.get_rate(tx.currency, target_currency)
-
-    # Считаем сумму для статистики
     amount_in_base = tx.amount * rate
 
     new_tx = TransactionDB(
@@ -138,6 +145,7 @@ async def add_transaction(
         amount=amount_in_base,
         category_id=tx.category_id,
         date=final_date,
+        note=tx.note,  # 🔥 Save Note
     )
 
     session.add(new_tx)
@@ -179,7 +187,6 @@ async def update_transaction(
 
     # 🔥 ПЕРЕСЧЕТ С УЧЕТОМ ВАЛЮТЫ ЮЗЕРА
     if should_recalculate:
-        # Узнаем текущую базовую валюту юзера
         user_stmt = select(UserDB).where(UserDB.id == user_id)
         u_result = await session.execute(user_stmt)
         user_db = u_result.scalar_one_or_none()
@@ -194,6 +201,9 @@ async def update_transaction(
 
     if update_data.category_id is not None:
         transaction.category_id = update_data.category_id
+
+    if update_data.note is not None:  # 🔥 Update Note
+        transaction.note = update_data.note
 
     if update_data.date is not None:
         new_date_val = _get_date_for_storage(update_data.date, x_timezone_offset)
@@ -217,7 +227,6 @@ async def delete_transaction(
 @router.delete("/users/me/reset")
 async def reset_user_data(user=Depends(verify_telegram_authentication), session: AsyncSession = Depends(get_session)):
     user_id = user["id"]
-    # Удаляем транзакции, категории и настройки пользователя
     await session.execute(delete(TransactionDB).where(TransactionDB.user_id == user_id))
     await session.execute(delete(CategoryDB).where(CategoryDB.user_id == user_id))
     await session.execute(delete(UserDB).where(UserDB.id == user_id))

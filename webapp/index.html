@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Onest:wght@700&display=swap" rel="stylesheet" />
 
-    <link rel="stylesheet" href="/static/style.css?v=7.6" />
+    <link rel="stylesheet" href="/static/style.css?v=8.1" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   </head>
@@ -316,6 +316,9 @@
           <label for="transaction-date">Date</label>
           <input type="date" id="transaction-date" />
 
+          <label for="transaction-note">Note</label>
+          <input type="text" id="transaction-note" placeholder="Add a note... (optional)" autocomplete="off" />
+
           <button id="save-btn" class="save-btn">Save Transaction</button>
           <button id="cancel-btn" class="cancel-btn">Cancel</button>
           <button id="delete-btn" class="delete-btn hidden">Delete Transaction</button>
@@ -441,7 +444,7 @@
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
-          stroke-width="2"
+          stroke-width="1.5"
           stroke="currentColor"
           width="24"
           height="24"
@@ -493,6 +496,31 @@
           <input type="text" inputmode="decimal" id="quick-modal-amount" placeholder="0" aria-label="Amount" />
         </div>
 
+        <button id="quick-add-note-toggle" class="note-toggle-btn">
+          <div class="note-toggle-content">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke-width="2"
+              stroke="currentColor"
+              width="20"
+              height="20"
+              style="color: var(--tg-theme-button-color)"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
+              />
+            </svg>
+            <span>Add Note...</span>
+          </div>
+          <span class="note-toggle-chevron">›</span>
+        </button>
+
+        <input type="text" id="quick-modal-note" class="hidden" placeholder="Type a note..." autocomplete="off" />
+
         <button id="quick-modal-save-btn" class="save-btn">Save</button>
       </div>
     </div>
@@ -510,6 +538,6 @@
       </div>
     </div>
 
-    <script src="/static/script.js?v=7.6" defer></script>
+    <script src="/static/script.js?v=8.1" defer></script>
   </body>
 </html>

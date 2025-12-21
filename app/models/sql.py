@@ -55,5 +55,7 @@ class TransactionDB(Base):
 
     category_id = Column(Integer, ForeignKey("categories.id", ondelete="CASCADE"), nullable=False)
 
+    note = Column(Text, nullable=True)
+
     # Связь с категорией
     category = relationship("CategoryDB", back_populates="transactions")

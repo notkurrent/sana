@@ -268,6 +268,8 @@ document.addEventListener("DOMContentLoaded", () => {
       currencyLabel: document.getElementById("form-currency-label"),
 
       dateInput: document.getElementById("transaction-date"),
+      noteInput: document.getElementById("transaction-note"),
+
       saveBtn: document.getElementById("save-btn"),
       cancelBtn: document.getElementById("cancel-btn"),
       deleteBtn: document.getElementById("delete-btn"),
@@ -296,6 +298,10 @@ document.addEventListener("DOMContentLoaded", () => {
       currencyLabel: document.getElementById("quick-currency-label"),
 
       amountInput: document.getElementById("quick-modal-amount"),
+
+      noteToggleBtn: document.getElementById("quick-add-note-toggle"),
+      noteInput: document.getElementById("quick-modal-note"),
+
       saveBtn: document.getElementById("quick-modal-save-btn"),
     },
     summarySheet: {
@@ -371,6 +377,9 @@ document.addEventListener("DOMContentLoaded", () => {
     DOM.screens.forEach((s) => s.classList.add("hidden"));
     const screenToShow = document.getElementById(screenId);
     if (screenToShow) screenToShow.classList.remove("hidden");
+
+    // 🔥 FIX: Сброс скролла в самый верх при смене экрана
+    window.scrollTo(0, 0);
 
     DOM.tabs.home.classList.toggle("active", screenId === "home-screen");
     DOM.tabs.analytics.classList.toggle("active", screenId === "analytics-screen");
@@ -480,6 +489,12 @@ document.addEventListener("DOMContentLoaded", () => {
       categoryDisplay = `${defaultIcon} ${categoryName}`;
     }
 
+    const timeHtml = `<span class="tx-time">${formattedTime}</span>`;
+    let noteHtml = "";
+    if (tx.note && tx.note.trim() !== "") {
+      noteHtml = `<span class="tx-separator">•</span><span class="tx-note">${tx.note}</span>`;
+    }
+
     let amountHTML = "";
     if (tx.currency && tx.currency !== state.baseCurrencyCode && tx.original_amount) {
       const symbol = CURRENCY_SYMBOLS[tx.currency] || tx.currency;
@@ -508,7 +523,10 @@ document.addEventListener("DOMContentLoaded", () => {
             <div class="expense-item-content">
                 <div class="tx-info">
                     <span class="tx-category">${categoryDisplay}</span>
-                    <span class="tx-time">${formattedTime}</span>
+                    <div class="tx-bottom-row">
+                        ${timeHtml}
+                        ${noteHtml}
+                    </div>
                 </div>
                 <div class="expense-item-details">
                     ${amountHTML}
@@ -680,6 +698,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const dateObj = parseDateFromUTC(tx.date);
     DOM.fullForm.dateInput.value = getLocalDateString(dateObj);
+    DOM.fullForm.noteInput.value = tx.note || "";
+
     await loadCategoriesForForm(tx.type);
     DOM.fullForm.categorySelect.value = tx.category_id;
     closeBottomSheet();
@@ -699,6 +719,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (DOM.fullForm.typeWrapper) DOM.fullForm.typeWrapper.classList.add("hidden");
 
     DOM.fullForm.amountInput.value = "";
+    DOM.fullForm.noteInput.value = "";
 
     if (DOM.fullForm.currencySelect) {
       const lastCurr = localStorage.getItem("last_used_currency") || "USD";
@@ -784,20 +805,35 @@ document.addEventListener("DOMContentLoaded", () => {
     const categoryId = DOM.fullForm.categorySelect.value;
     const amountStr = DOM.fullForm.amountInput.value.replace(",", ".");
     const amount = parseFloat(amountStr);
-    const date = DOM.fullForm.dateInput.value;
+    const dateInputVal = DOM.fullForm.dateInput.value;
     const currency = DOM.fullForm.currencySelect ? DOM.fullForm.currencySelect.value : "USD";
+    const note = DOM.fullForm.noteInput.value.trim();
 
-    if (!categoryId || isNaN(amount) || amount <= 0 || !date) {
+    if (!categoryId || isNaN(amount) || amount <= 0 || !dateInputVal) {
       tg.showAlert("Please fill all fields with valid data.");
       return;
     }
     DOM.fullForm.saveBtn.disabled = true;
 
+    // --- FIX TIME PRESERVATION START ---
+    let dateToSend = dateInputVal;
+
+    if (state.editTransaction) {
+      const originalDateObj = parseDateFromUTC(state.editTransaction.date);
+      const originalDateStr = getLocalDateString(originalDateObj);
+
+      if (originalDateStr === dateInputVal) {
+        dateToSend = state.editTransaction.date;
+      }
+    }
+    // --- FIX END ---
+
     const txData = {
       category_id: parseInt(categoryId),
       amount: amount,
       currency: currency,
-      date: date,
+      date: dateToSend,
+      note: note,
     };
 
     const txId = state.editTransaction ? state.editTransaction.id : null;
@@ -858,6 +894,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     DOM.quickModal.amountInput.value = "";
+    DOM.quickModal.noteInput.value = "";
+
+    // Сброс состояния кнопки Add Note
+    if (DOM.quickModal.noteToggleBtn && DOM.quickModal.noteInput) {
+      DOM.quickModal.noteToggleBtn.classList.remove("hidden");
+      DOM.quickModal.noteInput.classList.add("hidden");
+      DOM.quickModal.noteInput.classList.remove("fade-in");
+    }
+
     DOM.quickModal.saveBtn.className = "save-btn";
     if (category.type === "expense") {
       DOM.quickModal.saveBtn.classList.add("expense");
@@ -874,6 +919,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const amountStr = DOM.quickModal.amountInput.value.replace(",", ".");
     const amount = parseFloat(amountStr);
     const currency = DOM.quickModal.currencySelect ? DOM.quickModal.currencySelect.value : "USD";
+    const note = DOM.quickModal.noteInput.value.trim();
 
     if (!state.quickCategory) return;
     if (isNaN(amount) || amount <= 0) {
@@ -886,6 +932,7 @@ document.addEventListener("DOMContentLoaded", () => {
       amount: amount,
       date: getLocalDateString(new Date()),
       currency: currency,
+      note: note,
     };
     const savedTransaction = await _saveTransaction(txData);
     if (savedTransaction) {
@@ -1418,7 +1465,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // 🔥 ОБНОВЛЕНО: Drill-down рендер категорий
+  // Drill-down рендер категорий
   function loadCategoriesScreen() {
     DOM.categories.list.innerHTML = "";
     const categories = state.categories.filter((c) => c.type === state.categoryType);
@@ -1480,7 +1527,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 🔥 НОВОЕ: Логика экрана редактирования категории
+  // Логика экрана редактирования категории
   function openEditCategoryScreen(cat) {
     state.categoryBeingEdited = cat;
     const { icon, name } = parseCategory(cat.name);
@@ -1551,7 +1598,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // 🔥 ОБНОВЛЕНО: Поддержка свайп-контента
+  // Поддержка свайп-контента
   async function handleDeleteCategory(categoryId, swipeElement = null) {
     let transactionCount = 0;
     let message = "Are you sure you want to delete this category?";
@@ -1605,7 +1652,7 @@ document.addEventListener("DOMContentLoaded", () => {
           console.error(e);
         }
       } else {
-        // 🔥 ОТМЕНА: Возвращаем свайп на место
+        // ОТМЕНА: Возвращаем свайп на место
         if (swipeElement) {
           swipeElement.style.transform = "translateX(0)";
         }
@@ -1799,6 +1846,19 @@ document.addEventListener("DOMContentLoaded", () => {
       DOM.ai.featuresList.classList.remove("hidden");
     });
 
+    // Обработчик клика по кнопке Add Note
+    if (DOM.quickModal.noteToggleBtn) {
+      DOM.quickModal.noteToggleBtn.addEventListener("click", () => {
+        tg.HapticFeedback.impactOccurred("light");
+        DOM.quickModal.noteToggleBtn.classList.add("hidden");
+        DOM.quickModal.noteInput.classList.remove("hidden");
+        DOM.quickModal.noteInput.classList.add("fade-in");
+
+        // 🔥 FIX: Фокус сразу (для клавиатуры), но без скролла (от прыжков)
+        DOM.quickModal.noteInput.focus({ preventScroll: true });
+      });
+    }
+
     DOM.settings.currencySelect.addEventListener("change", async (e) => {
       tg.HapticFeedback.impactOccurred("medium");
       const newCurrency = e.target.value;
@@ -1861,7 +1921,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     DOM.categories.addBtn.addEventListener("click", handleAddCategory);
 
-    // 🔥 НОВОЕ: Обработчики для экрана редактирования
+    // Обработчики для экрана редактирования
     DOM.editCategory.saveBtn.addEventListener("click", saveEditedCategory);
     DOM.editCategory.deleteBtn.addEventListener("click", () => {
       tg.HapticFeedback.impactOccurred("heavy");
@@ -1870,6 +1930,47 @@ document.addEventListener("DOMContentLoaded", () => {
     DOM.editCategory.backBtn.addEventListener("click", () => {
       tg.HapticFeedback.impactOccurred("light");
       showScreen("categories-screen");
+    });
+
+    // 🔥 UX: Скрываем таб-бар и футер при вводе текста (Apple Way)
+    document.addEventListener("focusin", (e) => {
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) {
+        document.body.classList.add("keyboard-open");
+      }
+    });
+
+    document.addEventListener("focusout", (e) => {
+      setTimeout(() => {
+        const active = document.activeElement;
+        if (!active || !["INPUT", "TEXTAREA", "SELECT"].includes(active.tagName)) {
+          document.body.classList.remove("keyboard-open");
+        }
+      }, 50);
+    });
+
+    // 🔥 БЛОКИРОВКА ENTER В ЗАМЕТКЕ (Full Form)
+    if (DOM.fullForm.noteInput) {
+      DOM.fullForm.noteInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault(); // Запрещаем перенос строки
+          this.blur(); // Скрываем клавиатуру
+        }
+      });
+    }
+
+    // 🔥 ГЛОБАЛЬНЫЙ ФИКС: Плавный фокус для всех инпутов (без прыжков)
+    document.addEventListener("click", (e) => {
+      const input = e.target.closest("input, textarea");
+      if (!input) return;
+
+      // Игнорируем чекбоксы, радио и кнопки
+      if (["checkbox", "radio", "button", "submit", "file"].includes(input.type)) return;
+
+      // Если инпут еще не в фокусе - перехватываем
+      if (document.activeElement !== input) {
+        e.preventDefault(); // Отменяем стандартный скачок браузера
+        input.focus({ preventScroll: true }); // Фокусируемся плавно
+      }
     });
 
     const lastScreenId = sessionStorage.getItem("lastActiveScreen") || "home-screen";

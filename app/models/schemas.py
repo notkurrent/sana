@@ -24,6 +24,7 @@ class TransactionCreate(BaseModel):
     currency: str = "USD"  # 🔥 Код валюты (по умолчанию USD)
     category_id: int
     date: Union[str, datetime]
+    note: Optional[str] = None
 
 
 class TransactionUpdate(BaseModel):
@@ -31,6 +32,7 @@ class TransactionUpdate(BaseModel):
     currency: Optional[str] = None
     category_id: Optional[int] = None
     date: Optional[Union[str, datetime]] = None
+    note: Optional[str] = None
 
 
 class Transaction(BaseModel):
@@ -43,6 +45,7 @@ class Transaction(BaseModel):
     type: str
     date: datetime
     category_id: int
+    note: Optional[str] = None
 
     class Config:
         from_attributes = True
