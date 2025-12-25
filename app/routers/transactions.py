@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, func, case, text, desc
 
-# 🔥 ВАЖНО: Добавили специальный импорт для безопасной вставки (Upsert)
+# 🔥 ВАЖНО: Импорт для безопасной вставки (Upsert)
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.dependencies import verify_telegram_authentication, get_session
@@ -19,39 +19,30 @@ router = APIRouter(tags=["transactions"])
 def _get_date_for_storage(date_input: str | datetime, timezone_offset_str: Optional[str]) -> datetime:
     """
     Преобразует дату от пользователя в UTC datetime для сохранения в БД.
-    Исправлен баг с потерей времени при редактировании.
     """
     if not date_input:
         return datetime.now(timezone.utc)
 
     try:
-        # 1. Если это уже datetime, просто приводим к UTC
         if isinstance(date_input, datetime):
             return date_input.astimezone(timezone.utc)
 
-        # 2. Если это строка
         if isinstance(date_input, str):
-            # A. Пробуем ISO формат (с временем) -> "2023-10-10T14:30:00"
             if "T" in date_input:
                 dt = datetime.fromisoformat(date_input.replace("Z", "+00:00"))
                 return dt.astimezone(timezone.utc)
 
-            # B. Пробуем просто дату -> "2023-10-10" (ставим время 00:00 с учетом часового пояса юзера)
             selected_date = datetime.strptime(date_input, "%Y-%m-%d").date()
-
             server_now = datetime.now(timezone.utc)
 
-            # Определяем "сейчас" у пользователя
             user_now = server_now
             if timezone_offset_str and timezone_offset_str.lstrip("-").isdigit():
                 offset_minutes = int(timezone_offset_str)
                 user_now = server_now - timedelta(minutes=offset_minutes)
 
-            # Если пользователь выбрал "сегодня" по своему календарю — ставим точное серверное время
             if selected_date == user_now.date():
                 return server_now
 
-            # Иначе ставим начало дня (00:00)
             return datetime.combine(selected_date, datetime.min.time()).replace(tzinfo=timezone.utc)
 
         return datetime.now(timezone.utc)
@@ -81,7 +72,7 @@ async def get_transactions(
             TransactionDB.currency,
             TransactionDB.date,
             TransactionDB.category_id,
-            TransactionDB.note,  # 🔥 Load Note
+            TransactionDB.note,
             CategoryDB.name.label("category"),
             CategoryDB.type,
         )
@@ -93,7 +84,23 @@ async def get_transactions(
     )
 
     result = await session.execute(stmt)
-    return result.mappings().all()
+    rows = result.mappings().all()
+
+    # 🔥 FIX: "Лечим" старые транзакции на лету
+    # Если original_amount is None -> это старая транзакция.
+    # Принудительно ставим ей USD, даже если в базе мусор (KZT).
+    processed_transactions = []
+    for row in rows:
+        tx_dict = dict(row)
+
+        if tx_dict["original_amount"] is None:
+            # Это ЛЕГАСИ транзакция
+            tx_dict["currency"] = "USD"  # 👈 Жестко ставим доллар
+            tx_dict["original_amount"] = tx_dict["amount"]  # 👈 Заполняем оригинал, чтобы фронт не путался
+
+        processed_transactions.append(tx_dict)
+
+    return processed_transactions
 
 
 @router.get("/balance")
@@ -121,7 +128,7 @@ async def add_transaction(
     user_id = user["id"]
     final_date = _get_date_for_storage(tx.date, x_timezone_offset)
 
-    # --- 🔥 FIX START: БЕЗОПАСНОЕ СОЗДАНИЕ ЮЗЕРА (Race Condition Fix) ---
+    # Upsert пользователя
     insert_stmt = (
         pg_insert(UserDB).values(id=user_id, base_currency="USD").on_conflict_do_nothing(index_elements=["id"])
     )
@@ -131,9 +138,8 @@ async def add_transaction(
     result = await session.execute(user_stmt)
     user_db = result.scalar_one()
     target_currency = user_db.base_currency
-    # --- 🔥 FIX END ---
 
-    # 3. Логика конвертации
+    # Логика конвертации
     currency_service = CurrencyService()
     rate = await currency_service.get_rate(tx.currency, target_currency)
     amount_in_base = tx.amount * rate
@@ -145,7 +151,7 @@ async def add_transaction(
         amount=amount_in_base,
         category_id=tx.category_id,
         date=final_date,
-        note=tx.note,  # 🔥 Save Note
+        note=tx.note,
     )
 
     session.add(new_tx)
@@ -177,6 +183,7 @@ async def update_transaction(
 
     should_recalculate = False
 
+    # Если меняем сумму или валюту - пересчитываем base amount
     if update_data.amount is not None:
         transaction.original_amount = update_data.amount
         should_recalculate = True
@@ -192,9 +199,17 @@ async def update_transaction(
         user_db = u_result.scalar_one_or_none()
         target_currency = user_db.base_currency if user_db else "USD"
 
+        # Если transaction.currency была "мусорной" (KZT) из-за легаси,
+        # то при обновлении мы уже получим нормальную валюту из update_data (если юзер её меняет),
+        # или она останется старой.
+        # Но если юзер нажал Save, значит он подтвердил валюту в форме.
+
         service = CurrencyService()
 
+        # Берем original_amount. Если его не было (легаси), берем amount
         base_val = transaction.original_amount if transaction.original_amount is not None else transaction.amount
+
+        # Валюта берется текущая у транзакции (она уже обновлена выше, если пришла новая)
         rate = await service.get_rate(transaction.currency, target_currency)
 
         transaction.amount = base_val * rate
@@ -202,7 +217,7 @@ async def update_transaction(
     if update_data.category_id is not None:
         transaction.category_id = update_data.category_id
 
-    if update_data.note is not None:  # 🔥 Update Note
+    if update_data.note is not None:
         transaction.note = update_data.note
 
     if update_data.date is not None:
