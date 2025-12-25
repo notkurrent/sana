@@ -815,6 +815,9 @@ body {
   margin: 0;
   font-size: 0.9rem;
   color: var(--tg-theme-hint-color);
+  line-height: 1.4;
+  height: 2.8em;
+  overflow: hidden;
 }
 .ai-feature-arrow {
   flex-shrink: 0;

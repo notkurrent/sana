@@ -692,7 +692,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     DOM.fullForm.amountInput.value = parseFloat(tx.original_amount ? tx.original_amount : tx.amount);
 
-    const currency = tx.currency || "USD";
+    // 🔥 FIX: Явно используем валюту транзакции, или валюту пользователя, или USD
+    const currency = tx.currency || state.baseCurrencyCode || "USD";
+
     if (DOM.fullForm.currencySelect) {
       DOM.fullForm.currencySelect.value = currency;
       const label = DOM.fullForm.currencyLabel;
@@ -1845,11 +1847,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const range = target.dataset.range;
       state.aiRange = range;
-      const periodText = range === "all" ? "all-time" : `this ${range}'s`;
 
-      DOM.ai.btnAdvice.querySelector("p").textContent = `An actionable tip based on ${periodText} spending.`;
-      DOM.ai.btnSummary.querySelector("p").textContent = `A quick summary of totals for ${periodText}.`;
-      DOM.ai.btnAnomaly.querySelector("p").textContent = `Find the largest single expense for ${periodText}.`;
+      // 🔥 FIX: Длинные описания для ВСЕХ режимов, чтобы высота была одинаковой
+      if (range === "all") {
+        DOM.ai.btnAdvice.querySelector("p").textContent = "An actionable tip based on your entire spending history.";
+        DOM.ai.btnSummary.querySelector("p").textContent =
+          "A detailed breakdown of your total income and expenses for all-time.";
+        DOM.ai.btnAnomaly.querySelector("p").textContent =
+          "Find the largest single expense recorded in your entire history.";
+      } else {
+        // Делаем первую букву заглавной (day -> Day)
+        const rangeCapitalized = range.charAt(0).toUpperCase() + range.slice(1);
+
+        DOM.ai.btnAdvice.querySelector(
+          "p"
+        ).textContent = `An actionable financial tip based on your activity for this ${range}.`;
+        DOM.ai.btnSummary.querySelector(
+          "p"
+        ).textContent = `A detailed breakdown of your income and expenses for this ${range}.`;
+        DOM.ai.btnAnomaly.querySelector(
+          "p"
+        ).textContent = `Find the single largest expense you made during this ${range}.`;
+      }
     });
 
     DOM.ai.btnAdvice.addEventListener("click", () => fetchAiData("advice", "Here's your Advice"));
