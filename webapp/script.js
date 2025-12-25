@@ -56,6 +56,9 @@ document.addEventListener("DOMContentLoaded", () => {
     calendarSummary: { income: 0, expense: 0, net: 0 },
     isLoading: false,
 
+    // 🔥 FIX: Запоминаем позицию скролла
+    savedScrollPosition: 0,
+
     // Infinity Scroll
     offset: 0,
     limit: 100,
@@ -73,6 +76,30 @@ document.addEventListener("DOMContentLoaded", () => {
       labelElement.textContent = CURRENCY_SYMBOLS[code] || code;
       localStorage.setItem("last_used_currency", code);
     });
+  }
+
+  // 🔥 FIX: Функция для обновления текстов AI (вынесена отдельно)
+  function updateAiDescriptions(range) {
+    if (!DOM.ai.btnAdvice || !DOM.ai.btnSummary || !DOM.ai.btnAnomaly) return;
+
+    if (range === "all") {
+      DOM.ai.btnAdvice.querySelector("p").textContent = "An actionable tip based on your entire spending history.";
+      DOM.ai.btnSummary.querySelector("p").textContent =
+        "A detailed breakdown of your total income and expenses for all-time.";
+      DOM.ai.btnAnomaly.querySelector("p").textContent =
+        "Find the largest single expense recorded in your entire history.";
+    } else {
+      const rangeCapitalized = range.charAt(0).toUpperCase() + range.slice(1);
+      DOM.ai.btnAdvice.querySelector(
+        "p"
+      ).textContent = `An actionable financial tip based on your activity for this ${range}.`;
+      DOM.ai.btnSummary.querySelector(
+        "p"
+      ).textContent = `A detailed breakdown of your income and expenses for this ${range}.`;
+      DOM.ai.btnAnomaly.querySelector(
+        "p"
+      ).textContent = `Find the single largest expense you made during this ${range}.`;
+    }
   }
 
   async function apiRequest(url, options = {}) {
@@ -376,13 +403,20 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function showScreen(screenId) {
+  // 🔥 FIX: Добавили аргумент restoreScroll
+  function showScreen(screenId, restoreScroll = false) {
     DOM.screens.forEach((s) => s.classList.add("hidden"));
     const screenToShow = document.getElementById(screenId);
     if (screenToShow) screenToShow.classList.remove("hidden");
 
-    // 🔥 FIX: Сброс скролла в самый верх при смене экрана
-    window.scrollTo(0, 0);
+    // 🔥 FIX: Умный скролл (Apple-way)
+    if (restoreScroll && screenId === "home-screen") {
+      // Если просили восстановить — возвращаем пользователя туда, где он был
+      window.scrollTo(0, state.savedScrollPosition);
+    } else {
+      // Иначе (переход по табам, новая запись) — скроллим в самый верх
+      window.scrollTo(0, 0);
+    }
 
     DOM.tabs.home.classList.toggle("active", screenId === "home-screen");
     DOM.tabs.analytics.classList.toggle("active", screenId === "analytics-screen");
@@ -676,6 +710,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function openEditScreen(tx) {
+    state.savedScrollPosition = window.scrollY; // 👈 ЗАПОМИНАЕМ ПОЗИЦИЮ
     state.editTransaction = tx;
     DOM.fullForm.title.textContent = "Edit Transaction";
     DOM.fullForm.saveBtn.textContent = "Save Changes";
@@ -692,11 +727,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
     DOM.fullForm.amountInput.value = parseFloat(tx.original_amount ? tx.original_amount : tx.amount);
 
-    // 🔥 FIX: Явно используем валюту транзакции, или валюту пользователя, или USD
-    const currency = tx.currency || state.baseCurrencyCode || "USD";
+    // 🔥 FIX CURRENCY:
+    // 1. Берем валюту транзакции.
+    // 2. Если пусто — берем базовую валюту пользователя.
+    // 3. Если и она пуста (вдруг) — ставим USD.
+    let currency = tx.currency;
+    if (!currency) currency = state.baseCurrencyCode;
+    if (!currency) currency = "USD";
 
     if (DOM.fullForm.currencySelect) {
       DOM.fullForm.currencySelect.value = currency;
+      // Принудительно обновляем текст метки
       const label = DOM.fullForm.currencyLabel;
       if (label) label.textContent = CURRENCY_SYMBOLS[currency] || currency;
     }
@@ -717,6 +758,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function openFullForm(type = "expense") {
+    state.savedScrollPosition = window.scrollY; // 👈 ЗАПОМИНАЕМ ПОЗИЦИЮ (на случай отмены)
     state.editTransaction = null;
     DOM.fullForm.title.textContent = type === "income" ? "New Income" : "New Expense";
     DOM.fullForm.saveBtn.textContent = "Save Transaction";
@@ -846,10 +888,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (savedTransaction) {
       tg.HapticFeedback.notificationOccurred("success");
+
+      // Запоминаем, было ли это редактирование, ДО того как сбросим state.editTransaction
+      const isEditMode = !!txId;
+
       const highlightId = txId ? null : savedTransaction.id;
       await loadTransactions(false, highlightId);
       await fetchAndRenderBalance();
-      showScreen("home-screen");
+
+      // 🔥 FIX: Если редактировали (isEditMode) -> true (вернуть скролл).
+      // Если создавали новое -> false (скролл наверх к новой записи).
+      showScreen("home-screen", isEditMode);
     }
     DOM.fullForm.saveBtn.disabled = false;
     state.editTransaction = null;
@@ -1735,7 +1784,8 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     DOM.fullForm.cancelBtn.addEventListener("click", () => {
-      showScreen(state.lastActiveScreen);
+      // 🔥 FIX: Передаем true, чтобы восстановить скролл
+      showScreen(state.lastActiveScreen, true);
       tg.HapticFeedback.impactOccurred("light");
     });
     DOM.fullForm.saveBtn.addEventListener("click", handleSaveForm);
@@ -1847,28 +1897,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const range = target.dataset.range;
       state.aiRange = range;
-
-      // 🔥 FIX: Длинные описания для ВСЕХ режимов, чтобы высота была одинаковой
-      if (range === "all") {
-        DOM.ai.btnAdvice.querySelector("p").textContent = "An actionable tip based on your entire spending history.";
-        DOM.ai.btnSummary.querySelector("p").textContent =
-          "A detailed breakdown of your total income and expenses for all-time.";
-        DOM.ai.btnAnomaly.querySelector("p").textContent =
-          "Find the largest single expense recorded in your entire history.";
-      } else {
-        // Делаем первую букву заглавной (day -> Day)
-        const rangeCapitalized = range.charAt(0).toUpperCase() + range.slice(1);
-
-        DOM.ai.btnAdvice.querySelector(
-          "p"
-        ).textContent = `An actionable financial tip based on your activity for this ${range}.`;
-        DOM.ai.btnSummary.querySelector(
-          "p"
-        ).textContent = `A detailed breakdown of your income and expenses for this ${range}.`;
-        DOM.ai.btnAnomaly.querySelector(
-          "p"
-        ).textContent = `Find the single largest expense you made during this ${range}.`;
-      }
+      // 🔥 FIX: Используем общую функцию обновления текстов
+      updateAiDescriptions(range);
     });
 
     DOM.ai.btnAdvice.addEventListener("click", () => fetchAiData("advice", "Here's your Advice"));
@@ -2043,6 +2073,10 @@ document.addEventListener("DOMContentLoaded", () => {
     (async function initializeData() {
       await Promise.all([fetchUserProfile(), loadAllCategories()]);
       await Promise.all([loadTransactions(false), fetchAndRenderBalance()]);
+
+      // 🔥 FIX: Обновляем тексты AI на старте (для дефолтного "month")
+      updateAiDescriptions(state.aiRange);
+
       setTimeout(() => {
         state.isInitialLoad = false;
       }, 100);
