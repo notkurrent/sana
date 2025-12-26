@@ -1239,7 +1239,20 @@ document.addEventListener("DOMContentLoaded", () => {
             const success = await deleteTransaction(txId);
 
             if (success) {
+              // Save reference to parent group before removing element
+              const group = element.closest(".transaction-group");
+
               element.remove();
+
+              // Check if any items remain in the group
+              if (group) {
+                const remainingItems = group.querySelectorAll(".expense-item");
+                // If empty, remove the group container
+                if (remainingItems.length === 0) {
+                  group.remove();
+                }
+              }
+
               // Update balance only
               await fetchAndRenderBalance();
             } else {
