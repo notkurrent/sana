@@ -10,11 +10,9 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 
 # App imports
 from app.config import WEB_APP_URL, BOT_TOKEN
-
-# 🔥 ИЗМЕНЕНИЕ 1: Добавили импорт users
 from app.routers import transactions, categories, ai, users
 
-# --- Инициализация Бота ---
+# --- Bot Initialization ---
 ptb_app = None
 if BOT_TOKEN:
     ptb_app = Application.builder().token(BOT_TOKEN).build()
@@ -32,7 +30,7 @@ if ptb_app:
     ptb_app.add_handler(CommandHandler("start", start_command))
 
 
-# --- Инициализация FastAPI ---
+# --- FastAPI Initialization ---
 app = FastAPI(title="Sana Finance API")
 
 # --- CORS ---
@@ -46,11 +44,9 @@ app.add_middleware(
 )
 
 
-# --- Жизненный цикл (Startup/Shutdown) ---
+# --- Lifecycle Events (Startup/Shutdown) ---
 @app.on_event("startup")
 async def startup_event():
-    # 1. База данных: Теперь инициализируется автоматически при первом запросе
-    # 2. Бот: Запускаем
     if ptb_app:
         await ptb_app.initialize()
         print("--- [Bot]: Initialized successfully")
@@ -58,21 +54,18 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    # 1. Бот: Останавливаем
     if ptb_app:
         await ptb_app.shutdown()
-    # 2. База данных: Закрывается сама
 
 
-# --- Подключение роутеров API ---
+# --- API Routers ---
 app.include_router(transactions.router, prefix="/api")
 app.include_router(categories.router, prefix="/api")
 app.include_router(ai.router, prefix="/api")
-# 🔥 ИЗМЕНЕНИЕ 2: Подключили роутер пользователей
 app.include_router(users.router, prefix="/api")
 
 
-# --- Webhook для Telegram ---
+# --- Telegram Webhook ---
 @app.post("/webhook")
 async def telegram_webhook(request: Request):
     if not ptb_app:
@@ -87,7 +80,7 @@ async def telegram_webhook(request: Request):
         return {"status": "error"}
 
 
-# --- Статика и Frontend (SPA) ---
+# --- Static Files & SPA Frontend ---
 app.mount("/static", StaticFiles(directory="webapp"), name="static")
 
 

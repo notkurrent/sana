@@ -9,14 +9,11 @@ from app.config import BOT_TOKEN
 from app.database import async_session_maker
 
 
-# --- DATABASE DEPENDENCY ---
-# Эту функцию мы будем вставлять во все роутеры, чтобы получить доступ к БД
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     async with async_session_maker() as session:
         yield session
 
 
-# --- AUTHENTICATION ---
 async def verify_telegram_authentication(x_telegram_init_data: str = Header(None, alias="X-Telegram-Init-Data")):
     if not x_telegram_init_data:
         raise HTTPException(status_code=401, detail="Missing auth header")
@@ -31,7 +28,7 @@ async def verify_telegram_authentication(x_telegram_init_data: str = Header(None
         if not received_hash:
             raise HTTPException(status_code=401, detail="No hash provided")
 
-        # Сортировка параметров для проверки хеша
+        # Telegram data-check-string requires alphabetical sorting of keys
         data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(parsed_data.items()))
 
         secret_key = hmac.new(b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256).digest()

@@ -1,28 +1,28 @@
-# Игнорируем виртуальное окружение (КРИТИЧНО!)
+# Virtual Environment
 venv
 env
 .venv
 
-# Игнорируем кэш питона (мусор)
+# Python Cache
 __pycache__
 */__pycache__
 *.pyc
 *.pyo
 
-# Игнорируем секреты (КРИТИЧНО!)
+# Environment Variables
 .env
 .env.dev
 .env.prod
 
-# Игнорируем Git
+# Version Control
 .git
 .gitignore
 
-# Игнорируем настройки IDE
+# IDE Settings
 .idea
 .vscode
 
-# Игнорируем файлы конфигурации докера (им нечего делать внутри контейнера)
+# Docker Configuration
 Dockerfile
 docker-compose.yml
 docker-compose.dev.yml

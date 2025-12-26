@@ -4,10 +4,10 @@ from datetime import datetime
 from decimal import Decimal
 
 
-# --- Модели для Категорий ---
+# --- Category Models ---
 class CategoryCreate(BaseModel):
     name: str
-    type: str  # 'expense' или 'income'
+    type: str  # 'expense' or 'income'
 
 
 class Category(CategoryCreate):
@@ -18,10 +18,10 @@ class Category(CategoryCreate):
         from_attributes = True
 
 
-# --- Модели для Транзакций ---
+# --- Transaction Models ---
 class TransactionCreate(BaseModel):
-    amount: Decimal  # 🔥 Decimal для точности
-    currency: str = "USD"  # 🔥 Код валюты (по умолчанию USD)
+    amount: Decimal
+    currency: str = "USD"
     category_id: int
     date: Union[str, datetime]
     note: Optional[str] = None
@@ -38,8 +38,8 @@ class TransactionUpdate(BaseModel):
 class Transaction(BaseModel):
     id: int
     amount: Decimal
-    original_amount: Optional[Decimal] = None  # 🔥 Сколько реально потрачено
-    currency: str  # 🔥 Валюта траты
+    original_amount: Optional[Decimal] = None
+    currency: str
 
     category: str
     type: str

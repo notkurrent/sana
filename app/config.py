@@ -8,18 +8,15 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 WEB_APP_URL = os.getenv("WEB_APP_URL")
 BASE_URL = os.getenv("BASE_URL")
-
-# 🔥 ВАЖНО: Читаем твой новый ключ
 EXCHANGE_RATE_API_KEY = os.getenv("EXCHANGE_RATE_API_KEY")
 
-# --- 🔥 FIX DATABASE URL ---
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
     print("❌ CRITICAL ERROR: DATABASE_URL is missing!")
     sys.exit(1)
 
-# Автоматически меняем драйвер на асинхронный, если забыли в .env
+# Ensure async driver usage for SQLAlchemy compatibility
 if DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 

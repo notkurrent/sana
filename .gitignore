@@ -1,28 +1,26 @@
-# Виртуальное окружение
+# Virtual Environment
 venv/
 env/
 
-# Секреты (Prod)
+# Environment Variables
 .env
+.env.dev
 
-# Файлы Python
+# Python internal
 __pycache__/
 *.pyc
 
-# Базы данных SQLite (мусор)
+# SQLite
 *.db
 *.db-journal
 
-# Мусор macOS
+# macOS
 .DS_Store
 
-# Секреты (Local Dev)
-.env.dev
-
-# Настройки IDE (VS Code / PyCharm)
+# IDE Settings
 .vscode/
 .idea/
 
-# Тесты
+# Testing
 .pytest_cache/
 tests/__pycache__/

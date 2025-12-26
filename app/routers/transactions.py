@@ -3,8 +3,6 @@ from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, func, case, text, desc
-
-# 🔥 ВАЖНО: Импорт для безопасной вставки (Upsert)
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.dependencies import verify_telegram_authentication, get_session
@@ -18,7 +16,7 @@ router = APIRouter(tags=["transactions"])
 # --- Helpers ---
 def _get_date_for_storage(date_input: str | datetime, timezone_offset_str: Optional[str]) -> datetime:
     """
-    Преобразует дату от пользователя в UTC datetime для сохранения в БД.
+    Converts user input date to UTC datetime for storage.
     """
     if not date_input:
         return datetime.now(timezone.utc)
@@ -86,17 +84,14 @@ async def get_transactions(
     result = await session.execute(stmt)
     rows = result.mappings().all()
 
-    # 🔥 FIX: "Лечим" старые транзакции на лету
-    # Если original_amount is None -> это старая транзакция.
-    # Принудительно ставим ей USD, даже если в базе мусор (KZT).
     processed_transactions = []
     for row in rows:
         tx_dict = dict(row)
 
+        # Handle legacy transactions where original_amount was not stored
         if tx_dict["original_amount"] is None:
-            # Это ЛЕГАСИ транзакция
-            tx_dict["currency"] = "USD"  # 👈 Жестко ставим доллар
-            tx_dict["original_amount"] = tx_dict["amount"]  # 👈 Заполняем оригинал, чтобы фронт не путался
+            tx_dict["currency"] = "USD"
+            tx_dict["original_amount"] = tx_dict["amount"]
 
         processed_transactions.append(tx_dict)
 
@@ -118,7 +113,7 @@ async def get_total_balance(user=Depends(verify_telegram_authentication), sessio
     return {"balance": balance}
 
 
-@router.post("/transactions")
+@router.post("/transactions", response_model=Transaction)
 async def add_transaction(
     tx: TransactionCreate,
     user=Depends(verify_telegram_authentication),
@@ -128,7 +123,6 @@ async def add_transaction(
     user_id = user["id"]
     final_date = _get_date_for_storage(tx.date, x_timezone_offset)
 
-    # Upsert пользователя
     insert_stmt = (
         pg_insert(UserDB).values(id=user_id, base_currency="USD").on_conflict_do_nothing(index_elements=["id"])
     )
@@ -139,7 +133,6 @@ async def add_transaction(
     user_db = result.scalar_one()
     target_currency = user_db.base_currency
 
-    # Логика конвертации
     currency_service = CurrencyService()
     rate = await currency_service.get_rate(tx.currency, target_currency)
     amount_in_base = tx.amount * rate
@@ -158,7 +151,24 @@ async def add_transaction(
     try:
         await session.commit()
         await session.refresh(new_tx)
-        return {"id": new_tx.id, "status": "saved"}
+
+        # Fetch category details to return a complete Transaction object for the UI
+        cat_stmt = select(CategoryDB).where(CategoryDB.id == new_tx.category_id)
+        cat_result = await session.execute(cat_stmt)
+        category_db = cat_result.scalar_one()
+
+        return Transaction(
+            id=new_tx.id,
+            amount=new_tx.amount,
+            original_amount=new_tx.original_amount,
+            currency=new_tx.currency,
+            date=new_tx.date,
+            category_id=new_tx.category_id,
+            category=category_db.name,  # Required for UI
+            type=category_db.type,  # Required for UI
+            note=new_tx.note,
+        )
+
     except Exception as e:
         await session.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -183,7 +193,6 @@ async def update_transaction(
 
     should_recalculate = False
 
-    # Если меняем сумму или валюту - пересчитываем base amount
     if update_data.amount is not None:
         transaction.original_amount = update_data.amount
         should_recalculate = True
@@ -192,26 +201,16 @@ async def update_transaction(
         transaction.currency = update_data.currency
         should_recalculate = True
 
-    # 🔥 ПЕРЕСЧЕТ С УЧЕТОМ ВАЛЮТЫ ЮЗЕРА
+    # Recalculate base amount if currency or amount changes
     if should_recalculate:
         user_stmt = select(UserDB).where(UserDB.id == user_id)
         u_result = await session.execute(user_stmt)
         user_db = u_result.scalar_one_or_none()
         target_currency = user_db.base_currency if user_db else "USD"
 
-        # Если transaction.currency была "мусорной" (KZT) из-за легаси,
-        # то при обновлении мы уже получим нормальную валюту из update_data (если юзер её меняет),
-        # или она останется старой.
-        # Но если юзер нажал Save, значит он подтвердил валюту в форме.
-
         service = CurrencyService()
-
-        # Берем original_amount. Если его не было (легаси), берем amount
         base_val = transaction.original_amount if transaction.original_amount is not None else transaction.amount
-
-        # Валюта берется текущая у транзакции (она уже обновлена выше, если пришла новая)
         rate = await service.get_rate(transaction.currency, target_currency)
-
         transaction.amount = base_val * rate
 
     if update_data.category_id is not None:

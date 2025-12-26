@@ -1,4 +1,4 @@
-/* --- ⭐ УБИРАЕМ СКРОЛЛБАРЫ --- */
+/* --- Global Reset & Base Styles --- */
 html,
 body {
   scrollbar-width: none;
@@ -13,7 +13,6 @@ body::-webkit-scrollbar,
   -webkit-appearance: none;
 }
 
-/* RGB Переменные для тем */
 :root {
   --tg-theme-bg-color-rgb: 242, 242, 247;
   --tg-theme-secondary-bg-color-rgb: 229, 229, 234;
@@ -29,7 +28,7 @@ body::-webkit-scrollbar,
   --color-expense: #ef4444;
   --color-income: #22c55e;
 
-  /* --- 📏 Наша Линейка Отступов --- */
+  /* 8-point Grid System */
   --space-xs: 4px;
   --space-sm: 8px;
   --space-md: 16px;
@@ -74,7 +73,11 @@ body {
   box-sizing: border-box;
   overscroll-behavior: none;
   min-height: 100vh;
+  /* Smooth scrolling on iOS */
+  -webkit-overflow-scrolling: touch;
 }
+
+/* --- Header & Layout --- */
 
 #app-header {
   position: fixed;
@@ -103,7 +106,7 @@ body {
 }
 
 .content {
-  padding: calc(env(safe-area-inset-top) + 50px) 15px 30px 15px;
+  padding: calc(env(safe-area-inset-top) + 50px) var(--space-md) 30px var(--space-md);
 }
 .screen {
   width: 100%;
@@ -114,7 +117,7 @@ body {
   display: none !important;
 }
 
-/* --- СТИЛИ ДЛЯ NATIVE PICKER (ВЫБОР ВАЛЮТЫ) --- */
+/* --- Native Picker (Currency Selection) --- */
 .amount-row {
   display: flex;
   align-items: center;
@@ -158,7 +161,7 @@ body {
   appearance: none;
 }
 
-/* Полная Форма */
+/* Full Form Styles */
 #full-form-screen .currency-wrapper {
   background-color: var(--tg-theme-secondary-bg-color);
   border-radius: 10px;
@@ -172,15 +175,15 @@ body {
   flex-grow: 1;
 }
 
-/* Шторка Quick Add - СУММА */
+/* Quick Add Sheet - Amount Input */
 .quick-add-amount-container {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  margin: 10px 0 20px 0;
+  margin: 10px 0 var(--space-lg) 0;
   border-bottom: 2px solid var(--tg-theme-secondary-bg-color);
-  padding-bottom: 20px;
+  padding-bottom: var(--space-lg);
 }
 #quick-add-modal-sheet .currency-label {
   font-size: 2.5rem;
@@ -203,9 +206,9 @@ body {
   line-height: 1.2;
 }
 
-/* 🔥 ОБНОВЛЕНО: Кнопка "Add Note" как элемент меню (Apple Style) */
+/* Note Toggle Button */
 .note-toggle-btn {
-  background-color: var(--tg-theme-secondary-bg-color); /* Фон плашки */
+  background-color: var(--tg-theme-secondary-bg-color);
   border: none;
   border-radius: 12px;
   color: var(--tg-theme-button-color);
@@ -213,17 +216,17 @@ body {
   font-weight: 500;
   cursor: pointer;
   padding: 0 16px;
-  margin-bottom: 20px;
+  margin-bottom: var(--space-lg);
   display: flex;
   align-items: center;
-  justify-content: space-between; /* Текст слева, шеврон справа */
+  justify-content: space-between;
   height: 50px;
   width: 100%;
   box-sizing: border-box;
   transition: opacity 0.2s ease, background-color 0.2s ease;
 }
 .note-toggle-btn:active {
-  background-color: var(--tg-theme-tertiary-bg-color); /* Эффект нажатия */
+  background-color: var(--tg-theme-tertiary-bg-color);
 }
 .note-toggle-content {
   display: flex;
@@ -237,7 +240,6 @@ body {
   transition: transform 0.2s ease;
 }
 
-/* 🔥 ОБНОВЛЕНО: Инпут заметки (обычный размер шрифта!) */
 #quick-modal-note {
   width: 100%;
   background-color: var(--tg-theme-secondary-bg-color);
@@ -245,15 +247,14 @@ body {
   border-radius: 12px;
   padding: 0 16px;
   height: 50px;
-  font-size: 17px; /* 👈 Нормальный размер (не огромный) */
+  font-size: 17px;
   font-weight: 400;
   color: var(--tg-theme-text-color);
   outline: none;
   box-sizing: border-box;
-  margin-bottom: 20px;
+  margin-bottom: var(--space-lg);
 }
 
-/* Анимация появления инпута */
 .fade-in {
   animation: fadeIn 0.3s ease-out forwards;
 }
@@ -268,7 +269,7 @@ body {
   }
 }
 
-/* --- ОБЩИЕ СТИЛИ --- */
+/* --- Common UI Components --- */
 
 .total-container {
   padding: 20px;
@@ -307,7 +308,7 @@ body {
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--tg-theme-text-color);
-  padding: 10px 15px 8px 15px;
+  padding: 10px var(--space-md) 8px var(--space-md);
   margin-top: 0;
   margin-bottom: 0;
   border-radius: 12px;
@@ -334,7 +335,7 @@ body {
   font-size: 1.8rem;
   font-weight: 600;
   margin-top: 5px;
-  margin-bottom: 20px;
+  margin-bottom: var(--space-lg);
 }
 .input-group {
   display: flex;
@@ -350,7 +351,6 @@ body {
   padding-left: var(--space-xs);
 }
 
-/* 🔥 ИСПРАВЛЕННЫЙ БЛОК: Единые стили для всех инпутов */
 .input-group input,
 .input-group select,
 .settings-group select {
@@ -481,7 +481,7 @@ body {
   line-height: 1.5;
 }
 
-/* --- 🔥 ОБНОВЛЕННЫЙ ЭЛЕМЕНТ ТРАНЗАКЦИИ (FIX HEIGHT) --- */
+/* --- Transaction Item & Swipe Logic --- */
 .expense-item {
   background-color: var(--tg-theme-secondary-bg-color);
   border-radius: 10px;
@@ -490,7 +490,7 @@ body {
   overflow: hidden;
   transition: opacity 0.3s ease, height 0.3s ease;
   height: auto;
-  min-height: 56px; /* Фикс минимальной высоты */
+  min-height: 56px;
   content-visibility: auto;
   contain-intrinsic-size: 56px;
   transform: translateZ(0);
@@ -508,7 +508,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 16px; /* Чуть компактнее паддинг */
+  padding: 10px var(--space-md);
   position: relative;
   z-index: 2;
   background-color: var(--tg-theme-secondary-bg-color);
@@ -523,7 +523,7 @@ body {
 .tx-info {
   display: flex;
   flex-direction: column;
-  gap: 2px; /* Минимальный отступ между названием и нижней строкой */
+  gap: 2px;
   align-items: flex-start;
   flex: 1;
   min-width: 0;
@@ -540,14 +540,13 @@ body {
   display: block;
 }
 
-/* 🔥 НОВАЯ НИЖНЯЯ СТРОКА: Время • Заметка */
 .tx-bottom-row {
   display: flex;
   align-items: center;
   width: 100%;
   overflow: hidden;
   color: var(--tg-theme-hint-color);
-  font-size: 0.8rem; /* Единый размер для времени и заметки */
+  font-size: 0.8rem;
 }
 
 .tx-time {
@@ -568,7 +567,7 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  flex: 1; /* Занимает все оставшееся место */
+  flex: 1;
   min-width: 0;
 }
 
@@ -619,8 +618,7 @@ body {
   display: block;
 }
 
-/* ... (остальные стили: delete-bg, tab-bar, skeleton, etc. без изменений) ... */
-
+/* Default hidden delete background */
 .expense-item-delete-bg {
   position: absolute;
   top: 0;
@@ -635,10 +633,17 @@ body {
   align-items: center;
   justify-content: center;
   z-index: 1;
+  opacity: 0;
+  transition: opacity 0.1s ease;
 }
 .expense-item-delete-bg svg {
   width: 24px;
   height: 24px;
+}
+
+/* Show delete background only during swipe */
+.expense-item.swiping-active .expense-item-delete-bg {
+  opacity: 1;
 }
 
 .expense-item.deleting {
@@ -1506,7 +1511,7 @@ a.settings-btn {
   padding-top: calc(env(safe-area-inset-top) + 35px);
 }
 .platform-android .content {
-  padding: calc(env(safe-area-inset-top) + 35px + 50px) 15px 30px 15px;
+  padding: calc(env(safe-area-inset-top) + 35px + 50px) var(--space-md) 30px var(--space-md);
 }
 .platform-android .total-container {
   top: calc(env(safe-area-inset-top) + 35px + 50px);
@@ -1679,7 +1684,7 @@ a.settings-btn {
 #summary-details-sheet .quick-add-amount-container input {
   border: none;
   outline: none;
-  box-shadow: none; /* Убираем свечение фокуса */
+  box-shadow: none;
   background: transparent;
 }
 
@@ -1735,17 +1740,15 @@ a.settings-btn {
   }
 }
 
-/* --- ⌨️ УПРАВЛЕНИЕ ПРИ ОТКРЫТОЙ КЛАВИАТУРЕ --- */
-
 body.keyboard-open .tab-bar {
   display: none !important;
 }
 
 body.keyboard-open .sticky-footer {
-  position: static !important; /* Убираем фиксацию */
+  position: static !important;
   margin-top: 20px !important;
-  box-shadow: none !important; /* Убираем тень */
-  background-color: transparent !important; /* Убираем фон плашки */
+  box-shadow: none !important;
+  background-color: transparent !important;
   backdrop-filter: none !important;
   padding-top: 0 !important;
 }

@@ -27,21 +27,20 @@ class CurrencyService:
         if from_currency == to_currency:
             return Decimal("1.00")
 
-        # Если ключа нет в .env — пишем ошибку в лог
         if not EXCHANGE_RATE_API_KEY:
             logger.error("EXCHANGE_RATE_API_KEY is missing in .env")
             return Decimal("1.00")
 
-        # 1. Пробуем обновить кэш через API
+        # Refresh cache if empty or expired
         if not self._rates or self._is_cache_expired():
             await self._update_rates_from_api("USD")
 
         try:
-            # 2. Считаем курс
             rate_base_to_from = self._get_rate_value(from_currency)
             rate_base_to_target = self._get_rate_value(to_currency)
 
-            # Формула кросс-курса через USD
+            # Calculate cross-rate via USD
+            # Formula: (1 / Rate_From_USD) * Rate_To_USD
             rate = (Decimal("1.00") / rate_base_to_from) * rate_base_to_target
             return rate
 
@@ -50,7 +49,6 @@ class CurrencyService:
             return Decimal("1.00")
 
     def _get_rate_value(self, currency: str) -> Decimal:
-        """Достает курс из кэша"""
         if currency in self._rates:
             return Decimal(str(self._rates[currency]))
         return Decimal("1.00")

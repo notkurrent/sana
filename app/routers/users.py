@@ -10,7 +10,6 @@ from app.services.currency import CurrencyService
 router = APIRouter(tags=["users"])
 
 
-# Pydantic схема для входящего запроса
 class UserSettingsUpdate(BaseModel):
     base_currency: str
 
@@ -22,31 +21,26 @@ async def update_base_currency(
     session: AsyncSession = Depends(get_session),
 ):
     """
-    Меняет базовую валюту пользователя и запускает пересчет (Soft Recalculation)
-    всех исторических транзакций.
+    Updates the user's base currency and triggers a soft recalculation
+    of all historical transactions.
     """
     user_id = user_data["id"]
     new_currency = settings.base_currency.upper()
 
-    # 1. Находим пользователя в базе
     stmt = select(UserDB).where(UserDB.id == user_id)
     result = await session.execute(stmt)
     user_db = result.scalar_one_or_none()
 
-    # Если пользователя нет - создаем
     if not user_db:
         user_db = UserDB(id=user_id, base_currency="USD")
         session.add(user_db)
 
-    # Если валюта та же самая — ничего не делаем
     if user_db.base_currency == new_currency:
         return {"status": "no_change", "currency": new_currency}
 
-    # 2. Обновляем валюту пользователя
     user_db.base_currency = new_currency
 
-    # 3. 🔥 SOFT RECALCULATION: Пересчитываем всю историю
-    # Получаем все транзакции пользователя
+    # Recalculate all historical transactions
     tx_stmt = select(TransactionDB).where(TransactionDB.user_id == user_id)
     tx_result = await session.execute(tx_stmt)
     transactions = tx_result.scalars().all()
@@ -55,17 +49,13 @@ async def update_base_currency(
 
     count = 0
     for tx in transactions:
-        # Если original_amount нет (старая запись), считаем текущий amount за оригинал
-        # И предполагаем, что старая валюта была USD (или та, что записана в currency, если есть)
+        # Handle legacy data: fallback to current amount if original is missing
         base_val = tx.original_amount if tx.original_amount is not None else tx.amount
-
-        # Валюта транзакции (в чем реально платили, напр. TRY)
         source_currency = tx.currency
 
-        # Считаем курс: Из Валюты Траты (TRY) -> В Новую Базовую (KZT)
+        # Calculate rate: Source Currency -> New Base Currency
         rate = await currency_service.get_rate(source_currency, new_currency)
 
-        # Обновляем поле статистики (amount)
         tx.amount = base_val * rate
         count += 1
 
@@ -79,13 +69,12 @@ async def get_user_profile(
     user_data=Depends(verify_telegram_authentication),
     session: AsyncSession = Depends(get_session),
 ):
-    """Возвращает профиль пользователя с его настройками"""
     user_id = user_data["id"]
     stmt = select(UserDB).where(UserDB.id == user_id)
     result = await session.execute(stmt)
     user_db = result.scalar_one_or_none()
 
-    # Если юзера нет в базе, возвращаем дефолт (USD)
+    # Return default profile if user not found in DB
     if not user_db:
         return {"id": user_id, "base_currency": "USD"}
 

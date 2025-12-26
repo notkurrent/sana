@@ -2,7 +2,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const tg = window.Telegram.WebApp;
   const tgInitData = tg.initData;
 
-  // Инициализация Telegram
+  // Initialize Telegram WebApp
   tg.ready();
   tg.expand();
   try {
@@ -11,7 +11,7 @@ document.addEventListener("DOMContentLoaded", () => {
     console.log("Vertical swipes disable not supported");
   }
 
-  // --- CONFIG ---
+  // --- CONFIGURATION ---
   const API_URLS = {
     TRANSACTIONS: "/api/transactions",
     BALANCE: "/api/balance",
@@ -24,7 +24,6 @@ document.addEventListener("DOMContentLoaded", () => {
     USER_PROFILE: "/api/users/me",
   };
 
-  // Символы валют для отображения
   const CURRENCY_SYMBOLS = {
     USD: "$",
     TRY: "₺",
@@ -35,7 +34,7 @@ document.addEventListener("DOMContentLoaded", () => {
     UAH: "₴",
   };
 
-  // --- STATE ---
+  // --- STATE MANAGEMENT ---
   const state = {
     transactions: [],
     categories: [],
@@ -56,10 +55,10 @@ document.addEventListener("DOMContentLoaded", () => {
     calendarSummary: { income: 0, expense: 0, net: 0 },
     isLoading: false,
 
-    // 🔥 FIX: Запоминаем позицию скролла
+    // Scroll Position
     savedScrollPosition: 0,
 
-    // Infinity Scroll
+    // Infinite Scroll
     offset: 0,
     limit: 100,
     isAllLoaded: false,
@@ -78,7 +77,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 🔥 FIX: Функция для обновления текстов AI (вынесена отдельно)
   function updateAiDescriptions(range) {
     if (!DOM.ai.btnAdvice || !DOM.ai.btnSummary || !DOM.ai.btnAnomaly) return;
 
@@ -104,7 +102,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function apiRequest(url, options = {}) {
     if (!tgInitData) {
-      console.error("CRITICAL: tgInitData is missing.");
+      console.error("tgInitData is missing.");
       tg.showAlert("Authentication data is missing. Please restart the app.");
       throw new Error("No init data");
     }
@@ -347,7 +345,7 @@ document.addEventListener("DOMContentLoaded", () => {
     },
   };
 
-  // --- LOGIC ---
+  // --- BUSINESS LOGIC ---
 
   async function fetchAndRenderBalance() {
     const container = DOM.home.balanceAmount.closest(".total-container");
@@ -370,7 +368,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
       DOM.home.balanceAmount.textContent = newBalanceText;
 
-      // 🔥 FIX: Если валюта изменилась (старый текст не содержит новый символ), не мигаем
       if (!oldBalanceText.includes(state.currencySymbol)) return;
 
       if (newBalanceText === oldBalanceText || !container || state.isInitialLoad) return;
@@ -403,18 +400,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // 🔥 FIX: Добавили аргумент restoreScroll
   function showScreen(screenId, restoreScroll = false) {
     DOM.screens.forEach((s) => s.classList.add("hidden"));
     const screenToShow = document.getElementById(screenId);
     if (screenToShow) screenToShow.classList.remove("hidden");
 
-    // 🔥 FIX: Умный скролл (Apple-way)
     if (restoreScroll && screenId === "home-screen") {
-      // Если просили восстановить — возвращаем пользователя туда, где он был
       window.scrollTo(0, state.savedScrollPosition);
     } else {
-      // Иначе (переход по табам, новая запись) — скроллим в самый верх
       window.scrollTo(0, 0);
     }
 
@@ -456,7 +449,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // --- LOADERS ---
+  // --- DATA LOADERS ---
   async function loadAllCategories() {
     try {
       const [expenseRes, incomeRes] = await Promise.all([
@@ -698,7 +691,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // --- FORMS ---
+  // --- FORM HANDLING ---
 
   function handleEditTransactionClick(e) {
     const editBtn = e.target.closest(".edit-btn");
@@ -710,7 +703,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function openEditScreen(tx) {
-    state.savedScrollPosition = window.scrollY; // 👈 ЗАПОМИНАЕМ ПОЗИЦИЮ
+    state.savedScrollPosition = window.scrollY;
     state.editTransaction = tx;
     DOM.fullForm.title.textContent = "Edit Transaction";
     DOM.fullForm.saveBtn.textContent = "Save Changes";
@@ -727,17 +720,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     DOM.fullForm.amountInput.value = parseFloat(tx.original_amount ? tx.original_amount : tx.amount);
 
-    // 🔥 FIX CURRENCY:
-    // 1. Берем валюту транзакции.
-    // 2. Если пусто — берем базовую валюту пользователя.
-    // 3. Если и она пуста (вдруг) — ставим USD.
     let currency = tx.currency;
     if (!currency) currency = state.baseCurrencyCode;
     if (!currency) currency = "USD";
 
     if (DOM.fullForm.currencySelect) {
       DOM.fullForm.currencySelect.value = currency;
-      // Принудительно обновляем текст метки
       const label = DOM.fullForm.currencyLabel;
       if (label) label.textContent = CURRENCY_SYMBOLS[currency] || currency;
     }
@@ -758,7 +746,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function openFullForm(type = "expense") {
-    state.savedScrollPosition = window.scrollY; // 👈 ЗАПОМИНАЕМ ПОЗИЦИЮ (на случай отмены)
+    state.savedScrollPosition = window.scrollY;
     state.editTransaction = null;
     DOM.fullForm.title.textContent = type === "income" ? "New Income" : "New Expense";
     DOM.fullForm.saveBtn.textContent = "Save Transaction";
@@ -848,6 +836,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // Optimistic UI Update Logic
   async function handleSaveForm() {
     const categoryId = DOM.fullForm.categorySelect.value;
     const amountStr = DOM.fullForm.amountInput.value.replace(",", ".");
@@ -862,7 +851,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     DOM.fullForm.saveBtn.disabled = true;
 
-    // --- FIX TIME PRESERVATION START ---
     let dateToSend = dateInputVal;
 
     if (state.editTransaction) {
@@ -873,7 +861,6 @@ document.addEventListener("DOMContentLoaded", () => {
         dateToSend = state.editTransaction.date;
       }
     }
-    // --- FIX END ---
 
     const txData = {
       category_id: parseInt(categoryId),
@@ -889,16 +876,56 @@ document.addEventListener("DOMContentLoaded", () => {
     if (savedTransaction) {
       tg.HapticFeedback.notificationOccurred("success");
 
-      // Запоминаем, было ли это редактирование, ДО того как сбросим state.editTransaction
-      const isEditMode = !!txId;
+      // Reload list completely if editing
+      if (txId) {
+        await loadTransactions(false);
+        await fetchAndRenderBalance();
+        showScreen("home-screen", true);
+      } else {
+        // Optimistic UI: Prepend new item without full reload
+        const newItem = createTransactionElement(savedTransaction);
+        newItem.classList.add("new-item-animation");
 
-      const highlightId = txId ? null : savedTransaction.id;
-      await loadTransactions(false, highlightId);
-      await fetchAndRenderBalance();
+        const txDate = parseDateFromUTC(savedTransaction.date);
+        const dateHeaderStr = formatDateForTitle(txDate);
+        const list = DOM.home.listContainer;
 
-      // 🔥 FIX: Если редактировали (isEditMode) -> true (вернуть скролл).
-      // Если создавали новое -> false (скролл наверх к новой записи).
-      showScreen("home-screen", isEditMode);
+        const placeholder = list.querySelector(".list-placeholder");
+        if (placeholder) placeholder.remove();
+
+        const firstGroup = list.firstElementChild;
+
+        if (firstGroup && firstGroup.dataset && firstGroup.dataset.date === dateHeaderStr) {
+          // Insert into existing day group
+          if (firstGroup.children.length > 1) {
+            firstGroup.insertBefore(newItem, firstGroup.children[1]);
+          } else {
+            firstGroup.appendChild(newItem);
+          }
+        } else {
+          // Create new day group
+          const newGroup = document.createElement("div");
+          newGroup.className = "transaction-group";
+          newGroup.dataset.date = dateHeaderStr;
+
+          const headerEl = document.createElement("div");
+          headerEl.className = "date-header";
+          headerEl.textContent = dateHeaderStr;
+
+          newGroup.appendChild(headerEl);
+          newGroup.appendChild(newItem);
+
+          list.prepend(newGroup);
+        }
+
+        // Maintain list state
+        state.transactions.unshift(savedTransaction);
+        state.offset += 1;
+
+        showScreen("home-screen", false);
+        // Silent balance update
+        fetchAndRenderBalance();
+      }
     }
     DOM.fullForm.saveBtn.disabled = false;
     state.editTransaction = null;
@@ -950,7 +977,6 @@ document.addEventListener("DOMContentLoaded", () => {
     DOM.quickModal.amountInput.value = "";
     DOM.quickModal.noteInput.value = "";
 
-    // Сброс состояния кнопки Add Note
     if (DOM.quickModal.noteToggleBtn && DOM.quickModal.noteInput) {
       DOM.quickModal.noteToggleBtn.classList.remove("hidden");
       DOM.quickModal.noteInput.classList.add("hidden");
@@ -992,6 +1018,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (savedTransaction) {
       tg.HapticFeedback.notificationOccurred("success");
       closeBottomSheet();
+      // Load new transaction at the top
       await loadTransactions(false, savedTransaction.id);
       await fetchAndRenderBalance();
 
@@ -1092,7 +1119,7 @@ document.addEventListener("DOMContentLoaded", () => {
     openBottomSheet(DOM.summarySheet.sheet);
   }
 
-  // --- SWIPES ---
+  // --- SWIPE LOGIC ---
   let swipeStartX = 0;
   let swipeStartY = 0;
   let currentSwipeElement = null;
@@ -1101,23 +1128,20 @@ document.addEventListener("DOMContentLoaded", () => {
   const SWIPE_THRESHOLD = -80;
 
   function handleSwipeStart(e) {
-    // Ищем ближайший элемент, который можно свайпать
     const target = e.target.closest(".expense-item") || e.target.closest(".category-item-wrapper");
-
-    // Если кликнули на кнопку редактирования — свайп не начинаем
     if (e.target.closest(".edit-btn")) return;
-
-    // Запрет свайпа для дефолтных категорий
     if (target && target.classList.contains("category-item-wrapper") && target.dataset.isDefault === "true") return;
 
     if (!target) return;
 
     currentSwipeElement = target;
-    isSwiping = false; // Сбрасываем флаг начала свайпа
+    // Activate swipe background
+    target.classList.add("swiping-active");
+
+    isSwiping = false;
     swipeStartX = e.touches[0].clientX;
     swipeStartY = e.touches[0].clientY;
 
-    // Убираем плавность анимации в начале, чтобы элемент следовал за пальцем мгновенно
     const content = target.querySelector(".expense-item-content") || target.querySelector(".category-item-content");
     if (content) {
       content.style.transition = "none";
@@ -1132,24 +1156,17 @@ document.addEventListener("DOMContentLoaded", () => {
     const diffX = currentX - swipeStartX;
     const diffY = currentY - swipeStartY;
 
-    // 1. ОПРЕДЕЛЕНИЕ НАМЕРЕНИЯ (Свайп или Скролл?)
     if (!isSwiping) {
-      // Если движение по вертикали больше, чем по горизонтали — это скролл.
-      // Сбрасываем элемент и даем браузеру скроллить.
       if (Math.abs(diffY) > Math.abs(diffX)) {
         currentSwipeElement = null;
         return;
       }
-
-      // Если движение по горизонтали явное (> 5px) — начинаем свайп
       if (Math.abs(diffX) > 5) {
         isSwiping = true;
       }
     }
 
-    // 2. ЛОГИКА СВАЙПА
     if (isSwiping) {
-      // Блокируем скролл страницы, пока свайпаем
       if (e.cancelable) e.preventDefault();
 
       const content =
@@ -1158,12 +1175,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (!content) return;
 
-      // Разрешаем двигать только влево (diffX < 0)
       let moveX = diffX > 0 ? 0 : diffX;
-
-      // Эффект "резинки" (сопротивление), если тянем дальше ширины кнопки
       if (moveX < -SWIPE_DELETE_BG_WIDTH) {
-        // Формула затухания: moveX = limit - (излишек ^ 0.7)
         moveX = -SWIPE_DELETE_BG_WIDTH - Math.pow(-moveX - SWIPE_DELETE_BG_WIDTH, 0.7);
       }
 
@@ -1178,35 +1191,27 @@ document.addEventListener("DOMContentLoaded", () => {
       currentSwipeElement.querySelector(".expense-item-content") ||
       currentSwipeElement.querySelector(".category-item-content");
 
-    // Возвращаем плавную анимацию для завершения жеста
     if (content) content.style.transition = "transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)";
 
-    // Получаем текущее смещение (через матрицу трансформации или просто расчет)
-    // Упрощенно: если мы в режиме свайпа и сдвинули достаточно далеко влево
     const currentX = e.changedTouches[0].clientX;
     const diffX = currentX - swipeStartX;
 
     if (isSwiping && diffX < SWIPE_THRESHOLD) {
-      // --- УСПЕШНЫЙ СВАЙП (УДАЛЕНИЕ) ---
-
-      // 1. Фиксируем открытое состояние
+      // Swipe Successful
       content.style.transform = `translateX(-${SWIPE_DELETE_BG_WIDTH}px)`;
-
-      // 2. Вибрация
       tg.HapticFeedback.impactOccurred("medium");
 
-      // 3. Логика удаления
       if (currentSwipeElement.classList.contains("category-item-wrapper")) {
         handleDeleteCategory(currentSwipeElement.dataset.id, content);
       } else {
         handleDeleteSwipe(currentSwipeElement, content);
       }
     } else {
-      // --- ОТМЕНА СВАЙПА (ВОЗВРАТ) ---
+      // Swipe Canceled
       content.style.transform = "translateX(0)";
+      currentSwipeElement.classList.remove("swiping-active");
     }
 
-    // Сброс состояния
     currentSwipeElement = null;
     isSwiping = false;
   }
@@ -1218,6 +1223,8 @@ document.addEventListener("DOMContentLoaded", () => {
     tg.showConfirm("Are you sure you want to delete this transaction?", async (confirmed) => {
       if (confirmed) {
         tg.HapticFeedback.notificationOccurred("success");
+
+        // Collapse Animation
         element.style.height = element.offsetHeight + "px";
         requestAnimationFrame(() => {
           element.classList.add("deleting");
@@ -1225,17 +1232,30 @@ document.addEventListener("DOMContentLoaded", () => {
           element.style.margin = "0px";
           element.style.padding = "0px";
         });
+
         element.addEventListener(
           "transitionend",
           async () => {
-            await deleteTransaction(txId);
-            await loadTransactions();
-            await fetchAndRenderBalance();
+            const success = await deleteTransaction(txId);
+
+            if (success) {
+              element.remove();
+              // Update balance only
+              await fetchAndRenderBalance();
+            } else {
+              // Revert on error
+              element.classList.remove("deleting");
+              element.style.height = "";
+              content.style.transform = "translateX(0)";
+              tg.showAlert("Could not delete. Try again.");
+            }
           },
           { once: true }
         );
       } else {
+        // Canceled
         content.style.transform = "translateX(0)";
+        element.classList.remove("swiping-active");
       }
     });
   }
@@ -1519,7 +1539,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Drill-down рендер категорий
+  // Category List Renderer
   function loadCategoriesScreen() {
     DOM.categories.list.innerHTML = "";
     const categories = state.categories.filter((c) => c.type === state.categoryType);
@@ -1533,7 +1553,6 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     categories.forEach((cat) => {
-      // Обертка для свайпа
       const item = document.createElement("div");
       item.className = "category-item-wrapper";
       item.dataset.id = cat.id;
@@ -1567,7 +1586,6 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
         `;
 
-      // Клик открывает редактирование, если не свайпаем и не дефолтная
       if (cat.user_id !== null) {
         item.addEventListener("click", () => {
           if (!isSwiping) {
@@ -1581,7 +1599,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Логика экрана редактирования категории
   function openEditCategoryScreen(cat) {
     state.categoryBeingEdited = cat;
     const { icon, name } = parseCategory(cat.name);
@@ -1615,8 +1632,8 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!response.ok) throw new Error("Update failed");
 
       tg.HapticFeedback.notificationOccurred("success");
-      await loadAllCategories(); // Перезагружаем категории
-      await loadTransactions(); // Обновляем транзакции
+      await loadAllCategories();
+      await loadTransactions();
       showScreen("categories-screen");
     } catch (e) {
       tg.showAlert("Failed to update category");
@@ -1652,10 +1669,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Поддержка свайп-контента
   async function handleDeleteCategory(categoryId, swipeElement = null) {
     let transactionCount = 0;
     let message = "Are you sure you want to delete this category?";
+
     try {
       const check = await apiRequest(`${API_URLS.CATEGORIES}/${categoryId}/check`);
       if (check.ok) {
@@ -1664,18 +1681,21 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } catch (e) {
       tg.showAlert("Failed to check category.");
-      if (swipeElement) swipeElement.style.transform = "translateX(0)";
+      if (swipeElement) {
+        swipeElement.style.transform = "translateX(0)";
+        swipeElement.closest(".category-item-wrapper").classList.remove("swiping-active");
+      }
       return;
     }
+
     if (transactionCount > 0) {
       const txWord = transactionCount === 1 ? "transaction" : "transactions";
-      message = `This category is linked to ${transactionCount} ${txWord}.\n\nIt will be hidden from the list, but your past history will remain safe.\n\n(Tip: You can restore it anytime by creating a category with the exact same name).`;
+      message = `This category is linked to ${transactionCount} ${txWord}.\n\nIt will be hidden from the list, but your past history will remain safe.`;
     }
 
     tg.showConfirm(message, async (confirmed) => {
       if (confirmed) {
         try {
-          // Анимация удаления (только для свайпа)
           if (swipeElement) {
             const wrapper = swipeElement.closest(".category-item-wrapper");
             if (wrapper) {
@@ -1690,26 +1710,31 @@ document.addEventListener("DOMContentLoaded", () => {
 
           const deleteResponse = await apiRequest(`${API_URLS.CATEGORIES}/${categoryId}`, { method: "DELETE" });
           if (!deleteResponse.ok) throw new Error("Delete failed");
+
           tg.HapticFeedback.notificationOccurred("success");
 
           if (swipeElement) await new Promise((r) => setTimeout(r, 300));
 
-          await loadAllCategories();
-          loadCategoriesScreen(); // Перерисовываем список
-          await loadTransactions();
-          await fetchAndRenderBalance();
-
-          // 🔥 FIX: Если удалили через Кнопку (не свайпом) — точно уходим назад в список
-          if (!swipeElement) {
+          if (swipeElement) {
+            const wrapper = swipeElement.closest(".category-item-wrapper");
+            if (wrapper) wrapper.remove();
+          } else {
             showScreen("categories-screen");
+            loadCategoriesScreen();
           }
+
+          // Update categories state
+          await loadAllCategories();
+          await fetchAndRenderBalance();
         } catch (e) {
           console.error(e);
+          tg.showAlert("Error deleting category");
         }
       } else {
-        // Отмена свайпа
+        // Canceled
         if (swipeElement) {
           swipeElement.style.transform = "translateX(0)";
+          swipeElement.closest(".category-item-wrapper").classList.remove("swiping-active");
         }
       }
     });
@@ -1742,7 +1767,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // --- INIT ---
+  // --- INITIALIZATION ---
   function init() {
     if (tg.platform === "android" || tg.platform === "android_x") document.body.classList.add("platform-android");
     const applyTheme = () => {
@@ -1784,7 +1809,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     DOM.fullForm.cancelBtn.addEventListener("click", () => {
-      // 🔥 FIX: Передаем true, чтобы восстановить скролл
       showScreen(state.lastActiveScreen, true);
       tg.HapticFeedback.impactOccurred("light");
     });
@@ -1812,7 +1836,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupSheetDrag(DOM.quickModal.sheet, DOM.quickModal.header, null, closeBottomSheet);
     setupSheetDrag(DOM.summarySheet.sheet, DOM.summarySheet.header, null, closeBottomSheet);
 
-    // Свайпы для списков
+    // List Swipe Listeners
     [DOM.home.listContainer, DOM.daySheet.list, DOM.categories.list].forEach((list) => {
       list.addEventListener("touchstart", handleSwipeStart, { passive: true });
       list.addEventListener("touchmove", handleSwipeMove, { passive: false });
@@ -1856,7 +1880,6 @@ document.addEventListener("DOMContentLoaded", () => {
       loadSummaryData();
     });
 
-    // Кнопки навигации календаря
     DOM.calendar.prevMonthBtn.addEventListener("click", () => {
       tg.HapticFeedback.impactOccurred("light");
       state.analyticsDate.setMonth(state.analyticsDate.getMonth() - 1);
@@ -1868,7 +1891,6 @@ document.addEventListener("DOMContentLoaded", () => {
       loadCalendarData();
     });
 
-    // 🔥 FIX: Обновление календаря при выборе в выпадающем списке (Select)
     DOM.calendar.monthSelect.addEventListener("change", (e) => {
       tg.HapticFeedback.impactOccurred("light");
       state.analyticsDate.setMonth(parseInt(e.target.value));
@@ -1880,7 +1902,6 @@ document.addEventListener("DOMContentLoaded", () => {
       state.analyticsDate.setFullYear(parseInt(e.target.value));
       loadCalendarData();
     });
-    // --- Конец фикса ---
 
     DOM.calendar.boxIncome.addEventListener("click", () => openSummarySheet("income", state.calendarSummary.income));
     DOM.calendar.boxExpense.addEventListener("click", () =>
@@ -1897,7 +1918,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const range = target.dataset.range;
       state.aiRange = range;
-      // 🔥 FIX: Используем общую функцию обновления текстов
       updateAiDescriptions(range);
     });
 
@@ -1916,15 +1936,12 @@ document.addEventListener("DOMContentLoaded", () => {
       DOM.ai.featuresList.classList.remove("hidden");
     });
 
-    // Обработчик клика по кнопке Add Note
     if (DOM.quickModal.noteToggleBtn) {
       DOM.quickModal.noteToggleBtn.addEventListener("click", () => {
         tg.HapticFeedback.impactOccurred("light");
         DOM.quickModal.noteToggleBtn.classList.add("hidden");
         DOM.quickModal.noteInput.classList.remove("hidden");
         DOM.quickModal.noteInput.classList.add("fade-in");
-
-        // 🔥 FIX: Фокус сразу (для клавиатуры), но без скролла (от прыжков)
         DOM.quickModal.noteInput.focus({ preventScroll: true });
       });
     }
@@ -1991,7 +2008,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     DOM.categories.addBtn.addEventListener("click", handleAddCategory);
 
-    // Обработчики для экрана редактирования
     DOM.editCategory.saveBtn.addEventListener("click", saveEditedCategory);
     DOM.editCategory.deleteBtn.addEventListener("click", () => {
       tg.HapticFeedback.impactOccurred("heavy");
@@ -2002,37 +2018,26 @@ document.addEventListener("DOMContentLoaded", () => {
       showScreen("categories-screen");
     });
 
-    // 🔥 UX: Скрываем таб-бар и футер ТОЛЬКО при вводе текста (Fix for Select/Date)
     document.addEventListener("focusin", (e) => {
       const tag = e.target.tagName;
-      // Получаем тип инпута (text, number, date и т.д.)
       const type = e.target.getAttribute("type");
-
-      // Типы полей, которые реально вызывают клавиатуру
       const keyboardTypes = ["text", "number", "tel", "email", "password", "search", "url"];
 
-      // 1. Если это TEXTAREA — всегда скрываем
       if (tag === "TEXTAREA") {
         document.body.classList.add("keyboard-open");
         return;
       }
-
-      // 2. Если это INPUT, проверяем, текстовый ли он
       if (tag === "INPUT" && keyboardTypes.includes(type)) {
         document.body.classList.add("keyboard-open");
       }
-      // SELECT и input[type="date"] игнорируются -> таб-бар остается
     });
 
     document.addEventListener("focusout", (e) => {
       setTimeout(() => {
         const active = document.activeElement;
-
-        // Проверяем, куда ушел фокус. Если снова в текстовое поле — не возвращаем таб-бар.
         const tag = active ? active.tagName : null;
         const type = active ? active.getAttribute("type") : null;
         const keyboardTypes = ["text", "number", "tel", "email", "password", "search", "url"];
-
         const isKeyboardInput = tag === "TEXTAREA" || (tag === "INPUT" && keyboardTypes.includes(type));
 
         if (!isKeyboardInput) {
@@ -2041,28 +2046,22 @@ document.addEventListener("DOMContentLoaded", () => {
       }, 50);
     });
 
-    // 🔥 БЛОКИРОВКА ENTER В ЗАМЕТКЕ (Full Form)
     if (DOM.fullForm.noteInput) {
       DOM.fullForm.noteInput.addEventListener("keydown", function (e) {
         if (e.key === "Enter") {
-          e.preventDefault(); // Запрещаем перенос строки
-          this.blur(); // Скрываем клавиатуру
+          e.preventDefault();
+          this.blur();
         }
       });
     }
 
-    // 🔥 ГЛОБАЛЬНЫЙ ФИКС: Плавный фокус для всех инпутов (без прыжков)
     document.addEventListener("click", (e) => {
       const input = e.target.closest("input, textarea");
       if (!input) return;
-
-      // Игнорируем чекбоксы, радио и кнопки
       if (["checkbox", "radio", "button", "submit", "file"].includes(input.type)) return;
-
-      // Если инпут еще не в фокусе - перехватываем
       if (document.activeElement !== input) {
-        e.preventDefault(); // Отменяем стандартный скачок браузера
-        input.focus({ preventScroll: true }); // Фокусируемся плавно
+        e.preventDefault();
+        input.focus({ preventScroll: true });
       }
     });
 
@@ -2073,8 +2072,6 @@ document.addEventListener("DOMContentLoaded", () => {
     (async function initializeData() {
       await Promise.all([fetchUserProfile(), loadAllCategories()]);
       await Promise.all([loadTransactions(false), fetchAndRenderBalance()]);
-
-      // 🔥 FIX: Обновляем тексты AI на старте (для дефолтного "month")
       updateAiDescriptions(state.aiRange);
 
       setTimeout(() => {

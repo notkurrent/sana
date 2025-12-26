@@ -19,18 +19,14 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            # 1. Заходим в папку (ИСПРАВИЛ путь на маленький регистр)
             cd sana
 
-            # 2. Скачиваем изменения
             git pull origin main
 
-            # 3. Пересобираем контейнер (твоя команда)
             docker compose up -d --build
 
-            # 4. ⚠️ ВАЖНО: Накатываем миграции БД (чтобы новые фичи не ломались)
-            # Флаг -T нужен, чтобы робот не ждал ввода, а выполнял молча
+            # Run DB migrations (-T disables pseudo-tty allocation for CI)
             docker compose exec -T app alembic upgrade head
 
-            # 5. Чистим мусор (старые образы), чтобы место на сервере не кончилось
+            # Clean up unused images
             docker image prune -f

@@ -11,7 +11,7 @@ from app.models.sql import CategoryDB, TransactionDB
 
 router = APIRouter(tags=["categories"])
 
-# Глобальный замок для инициализации
+# Global lock for default categories initialization
 init_lock = asyncio.Lock()
 
 DEFAULT_CATEGORIES = [
@@ -27,9 +27,8 @@ DEFAULT_CATEGORIES = [
 
 
 async def _init_defaults(session: AsyncSession):
-    """Наполняет базу, если она пустая"""
     for cat in DEFAULT_CATEGORIES:
-        # Проверяем существование перед созданием (на всякий случай)
+        # Check existence to avoid duplicates
         stmt = select(CategoryDB).where(
             (CategoryDB.name == cat["name"]) & (CategoryDB.type == cat["type"]) & (CategoryDB.user_id.is_(None))
         )
@@ -47,20 +46,18 @@ async def get_categories(
 ):
     user_id = user["id"]
 
-    # 1. Проверяем наличие системных категорий
+    # Check if system categories exist
     check_stmt = select(CategoryDB.id).where(CategoryDB.user_id.is_(None)).limit(1)
     res = await session.execute(check_stmt)
     has_defaults = res.scalar_one_or_none()
 
-    # Если пусто — используем Lock, чтобы только один запрос создал категории
     if not has_defaults:
         async with init_lock:
-            # ВНУТРИ замка проверяем еще раз (вдруг другой поток уже создал, пока мы ждали?)
+            # Double-checked locking
             res_retry = await session.execute(check_stmt)
             if not res_retry.scalar_one_or_none():
                 await _init_defaults(session)
 
-    # 2. Основной запрос
     stmt = select(CategoryDB).where(
         ((CategoryDB.user_id == user_id) | (CategoryDB.user_id.is_(None))) & (CategoryDB.is_active == True)
     )
@@ -97,17 +94,16 @@ async def add_category(
         raise HTTPException(status_code=500, detail="Database error")
 
 
-# 🔥 НОВЫЙ ЭНДПОИНТ: Редактирование категории
 @router.patch("/categories/{cat_id}")
 async def update_category(
     cat_id: int,
-    category_data: CategoryCreate,  # Используем ту же схему (name, type)
+    category_data: CategoryCreate,
     user=Depends(verify_telegram_authentication),
     session: AsyncSession = Depends(get_session),
 ):
     user_id = user["id"]
 
-    # 1. Ищем категорию (только свои, системные нельзя править)
+    # Allow editing only user-owned categories
     stmt = select(CategoryDB).where((CategoryDB.id == cat_id) & (CategoryDB.user_id == user_id))
     result = await session.execute(stmt)
     category = result.scalar_one_or_none()
@@ -115,9 +111,8 @@ async def update_category(
     if not category:
         raise HTTPException(status_code=404, detail="Category not found or access denied")
 
-    # 2. Обновляем имя
     category.name = category_data.name
-    # Тип (income/expense) менять не даем, чтобы не ломать логику
+    # Changing category type (income/expense) is not allowed to preserve consistency
 
     await session.commit()
     await session.refresh(category)

@@ -9,20 +9,18 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
-# --- 🔥 НАШИ ИЗМЕНЕНИЯ ---
-# 1. Добавляем путь к корню, как и раньше
+# Add project root to path to allow imports from app
 sys.path.append(os.getcwd())
 
-# 2. Импортируем конфиг и модели
 from app.config import DATABASE_URL
 from app.models.sql import Base
 
-# 3. Подменяем URL на наш асинхронный
 config = context.config
+
+# Overwrite alembic.ini sqlalchemy.url with the one from environment variables
 config.set_main_option("sqlalchemy.url", DATABASE_URL)
 
 target_metadata = Base.metadata
-# --- КОНЕЦ ИЗМЕНЕНИЙ ---
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -54,7 +52,6 @@ async def run_async_migrations() -> None:
     and associate a connection with the context.
     """
 
-    # Создаем асинхронный движок специально для миграций
     connectable = async_engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
@@ -62,7 +59,6 @@ async def run_async_migrations() -> None:
     )
 
     async with connectable.connect() as connection:
-        # Alembic работает синхронно внутри, поэтому мы используем run_sync
         await connection.run_sync(do_run_migrations)
 
     await connectable.dispose()
@@ -70,7 +66,6 @@ async def run_async_migrations() -> None:
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
-    # Запускаем асинхронный цикл
     asyncio.run(run_async_migrations())
 
 
