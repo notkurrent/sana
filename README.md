@@ -59,6 +59,11 @@ Sana-Project/
 │       └── deploy.yml      # 🚀 CD: Deploy to DigitalOcean
 ├── alembic/                # 🗄️ Database Migrations
 ├── app/                    # 🐍 Backend Logic
+│   ├── bot/                # 🤖 Telegram Bot (Decoupled)
+│   │   ├── __init__.py
+│   │   ├── handlers.py     # Command Handlers
+│   │   ├── lifecycle.py    # Startup/Shutdown Logic
+│   │   └── loader.py       # Bot Instance
 │   ├── models/             # Data Models
 │   │   ├── __init__.py
 │   │   ├── schemas.py      # Pydantic Schemas
@@ -68,9 +73,11 @@ Sana-Project/
 │   │   ├── ai.py           # Gemini Logic
 │   │   ├── categories.py
 │   │   ├── transactions.py
-│   │   └── users.py        # User Management
+│   │   ├── users.py        # User Management
+│   │   └── webhook.py      # Bot Webhook
 │   └── services/           # ⚙️ Business Logic & Core
 │       ├── __init__.py
+│       ├── analytics.py    # 📊 Aggregation Service
 │       ├── config.py       # Environment Config
 │       ├── currency.py     # Currency Logic
 │       ├── database.py     # Async Engine & Session
@@ -204,6 +211,7 @@ The project employs a comprehensive testing strategy using **Pytest** to ensure 
 1.  **Sanity Tests:** Verifies database connectivity and table creation.
 2.  **Unit Tests:** Checks isolated business logic (e.g., currency conversion math, caching mechanisms).
 3.  **Integration Tests:** Validates full API workflows (creating transactions, auth bypass, database writes, and balance calculation).
+4.  **AI & Analytics:** Verifies budget aggregation logic and mocks external Google Gemini API calls to ensure resilience.
 
 ### How to Run Tests Locally
 

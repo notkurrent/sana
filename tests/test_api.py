@@ -88,9 +88,80 @@ async def test_balance_calculation_mixed_currencies(client, session, mocker):
     await session.commit()
 
     response = await client.get("/api/balance")
-
     assert response.status_code == 200
     data = response.json()
     assert data["balance"] == -13.00
 
+    app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_get_transactions(client, session):
+    app.dependency_overrides[verify_telegram_authentication] = lambda: MOCK_USER
+    
+    # Setup
+    category = CategoryDB(name="Rent", type="expense", user_id=MOCK_USER["id"])
+    session.add(category)
+    await session.commit()
+    await session.refresh(category)
+    
+    tx1 = TransactionDB(user_id=MOCK_USER["id"], category_id=category.id, amount=500, original_amount=500, currency="USD", date=datetime.now())
+    session.add(tx1)
+    await session.commit()
+    
+    # Test
+    response = await client.get("/api/transactions?limit=10")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    # Check amount (FastAPI serializes Decimal to string '500.00' or similar)
+    assert float(data[0]["amount"]) == 500.0
+    
+    app.dependency_overrides.clear()
+
+@pytest.mark.asyncio
+async def test_delete_transaction(client, session):
+    app.dependency_overrides[verify_telegram_authentication] = lambda: MOCK_USER
+    
+    # Setup
+    category = CategoryDB(name="Coffee", type="expense", user_id=MOCK_USER["id"])
+    session.add(category)
+    await session.commit()
+    await session.refresh(category)
+    
+    tx1 = TransactionDB(user_id=MOCK_USER["id"], category_id=category.id, amount=5, original_amount=5, currency="USD", date=datetime.now())
+    session.add(tx1)
+    await session.commit()
+    await session.refresh(tx1)
+    
+    # Test Delete
+    response = await client.delete(f"/api/transactions/{tx1.id}")
+    assert response.status_code == 200
+    
+    # Verify DB
+    deleted_tx = await session.get(TransactionDB, tx1.id)
+    assert deleted_tx is None
+    
+    app.dependency_overrides.clear()
+
+@pytest.mark.asyncio
+async def test_get_categories(client, session):
+    app.dependency_overrides[verify_telegram_authentication] = lambda: MOCK_USER
+    
+    # Setup
+    c1 = CategoryDB(name="Salary", type="income", user_id=MOCK_USER["id"])
+    c2 = CategoryDB(name="Fun", type="expense", user_id=MOCK_USER["id"])
+    session.add_all([c1, c2])
+    await session.commit()
+    
+    # Test
+    response = await client.get("/api/categories?type=expense")
+    assert response.status_code == 200
+    data = response.json()
+    
+    # System default categories might exist
+    assert len(data) >= 1
+    names = [c["name"] for c in data]
+    assert "Fun" in names
+    
     app.dependency_overrides.clear()

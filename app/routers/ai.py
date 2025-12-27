@@ -3,42 +3,36 @@ import google.generativeai as genai
 from typing import Optional
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, text, desc
+from sqlalchemy import select
 
 from app.config import GOOGLE_API_KEY
 from app.dependencies import verify_telegram_authentication, get_session
-from app.models.sql import TransactionDB, CategoryDB
+from app.models.sql import TransactionDB, CategoryDB, UserDB
+from app.services.analytics import AnalyticsService
 
 router = APIRouter(tags=["ai"])
 
 PROMPTS = {
-    "summary": (
-        "You are a concise financial analyst. Analyze the following transactions for the period. "
-        "Write a very short (2-3 sentences) summary. "
-        "Start with the total expenses and total income. "
-        "Then, list the top 2-3 EXPENSE categories and their totals. "
-        "Use the user's currency symbol where appropriate (e.g., $, ₸, €, etc. if you see it in the amounts). "
-        "IMPORTANT: Do not use markdown formatting (no bold **, no italics *). Just plain text.\n\n"
-        "Transactions:\n{transaction_list_str}\n"
-        "Give your summary now."
-    ),
-    "anomaly": (
-        "You are a data analyst. Find the single largest EXPENSE transaction from the following list. "
-        "Report what the category was, the date, the EXACT TIME, and the amount in 1-2 sentences. "
-        "Start directly with 'Your largest single expense this {range} was...'. "
-        "Use the user's currency symbol where appropriate. "
-        "IMPORTANT: Do not use markdown formatting.\n\n"
-        "Transactions:\n{transaction_list_str}\n"
-        "Give your finding now."
-    ),
     "advice": (
-        "You are a friendly financial advisor. A user provided their recent transactions for this {range}. "
-        "Analyze them and give one short (under 50 words), simple, actionable piece of advice. "
-        "Start directly with the advice. Do not be generic; base it on the provided data. "
-        "IMPORTANT: Do not use markdown formatting.\n\n"
-        "Transactions:\n{transaction_list_str}\n"
-        "Give your advice now."
+        "Analyze the user's monthly data. "
+        "DATA: STATS (Total income/expense) and DETAILS (Top expenses).\n"
+        "{data_block}\n\n"
+        "TASK: Give one short, actionable piece of advice (max 2 sentences). "
+        "Focus on the largest spending category or a specific concerning transaction note. "
+        "Use the currency {currency} for all amounts. "
+        "IMPORTANT: NO greetings (no 'Hello'), NO filler words. Direct start."
     ),
+    "summary": (
+        "Summarize this period in 2 short sentences.\n"
+        "{data_block}\n"
+        "Mention total income/expense and the top category. Use {currency}. "
+        "NO greetings."
+    ),
+     "anomaly": (
+        "Find the single largest/most unusual expense.\n"
+        "{data_block}\n"
+        "State what it is and why it stands out. Use {currency}. 1 sentence only."
+    )
 }
 
 if GOOGLE_API_KEY:
@@ -60,7 +54,14 @@ async def get_ai_advice(
         raise HTTPException(status_code=503, detail="AI Service unavailable (No API Key)")
 
     user_id = user["id"]
+    analytics_service = AnalyticsService(session)
 
+    # Fetch User Currency
+    user_result = await session.execute(select(UserDB).where(UserDB.id == user_id))
+    user_db = user_result.scalar_one_or_none()
+    currency = user_db.base_currency if user_db else "USD"
+
+    # Date Calculation
     server_now = datetime.now(timezone.utc)
     offset_minutes = 0
     if x_timezone_offset and x_timezone_offset.lstrip("-").isdigit():
@@ -77,41 +78,42 @@ async def get_ai_advice(
         start_date = user_now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     elif range == "year":
         start_date = user_now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
-
-    stmt = (
-        select(TransactionDB.date, TransactionDB.amount, CategoryDB.name.label("category"), CategoryDB.type)
-        .join(CategoryDB)
-        .where(TransactionDB.user_id == user_id)
-        .order_by(desc(TransactionDB.date))
-        .limit(50)
-    )
-
-    if start_date:
-        # Convert local start time back to UTC for DB query
-        query_start_utc = (start_date + timedelta(minutes=offset_minutes)).replace(tzinfo=None)
-        stmt = stmt.where(TransactionDB.date >= query_start_utc)
-
-    result = await session.execute(stmt)
-    rows = result.mappings().all()
-
-    if not rows:
+    
+    # 1. Get Aggregated Stats
+    # We need to pass UTC start date to the service
+    query_start_utc = (start_date + timedelta(minutes=offset_minutes)).replace(tzinfo=None) if start_date else datetime.min
+    
+    summary = await analytics_service.get_aggregated_summary(user_id, query_start_utc)
+    
+    # 2. Get Top Transactions
+    top_txs = await analytics_service.get_significant_transactions(user_id, query_start_utc, limit=20)
+    
+    if summary["income"] == 0 and summary["expense"] == 0:
         return {"advice": f"No transactions found for this {range}. Track some expenses first!"}
 
-    tx_list_str = "\n".join(
-        [f"- {r['date'].strftime('%Y-%m-%d %H:%M')}: {r['type']} {r['amount']} ({r['category']})" for r in rows]
-    )
-
+    # 3. Format Prompt
+    stats_str = f"STATS:\n- Income: {summary['income']:.2f} {currency}\n- Expense: {summary['expense']:.2f} {currency}\n- Categories:\n"
+    for cat in summary["categories"][:5]: # Top 5 categories
+        stats_str += f"  * {cat['name']} ({cat['type']}): {cat['total']:.2f} {currency}\n"
+        
+    details_str = "DETAILS (Top Expenses):\n"
+    for tx in top_txs:
+        note_str = f" - Note: \"{tx['note']}\"" if tx['note'] else ""
+        details_str += f"- {tx['date'].strftime('%d %b')}: {tx['amount']} {tx['currency']} ({tx['category']}){note_str}\n"
+        
+    full_data_block = f"{stats_str}\n{details_str}"
+    
     template = PROMPTS.get(prompt_type, PROMPTS["advice"])
-    final_prompt = template.format(range=range, transaction_list_str=tx_list_str)
+    final_prompt = template.format(data_block=full_data_block, currency=currency)
 
     try:
         response = await model.generate_content_async(final_prompt)
-
         if not response.text:
-            raise ValueError("Empty response from AI")
-
+             raise ValueError("Empty response")
         return {"advice": response.text}
 
     except Exception as e:
+        import traceback
         print(f"AI Generation Error: {e}")
-        raise HTTPException(status_code=503, detail="AI is currently busy, try again later.")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=503, detail="AI is currently busy")
