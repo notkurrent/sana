@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
 
@@ -36,7 +36,7 @@ class TransactionDB(Base):
     __tablename__ = "transactions"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Text, nullable=False)
+    user_id = Column(Text, nullable=False, index=True)
 
     # Amount converted to user's base currency (for reports)
     amount = Column(Numeric(10, 2), nullable=False)
@@ -49,8 +49,10 @@ class TransactionDB(Base):
 
     date = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
-    category_id = Column(Integer, ForeignKey("categories.id", ondelete="CASCADE"), nullable=False)
+    category_id = Column(Integer, ForeignKey("categories.id", ondelete="CASCADE"), nullable=False, index=True)
 
     note = Column(Text, nullable=True)
 
     category = relationship("CategoryDB", back_populates="transactions")
+
+    __table_args__ = (Index("idx_user_date", "user_id", "date"),)

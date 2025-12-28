@@ -63,6 +63,7 @@ document.addEventListener("DOMContentLoaded", () => {
     limit: 100,
     isAllLoaded: false,
     isLoadingMore: false,
+    rates: {}, // Cache for exchange rates
   };
 
   // --- HELPERS & FORMATTERS ---
@@ -129,10 +130,27 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function parseDateFromUTC(dateString) {
-    if (dateString && !dateString.endsWith("Z")) {
-      return new Date(dateString + "Z");
+    if (!dateString) return new Date();
+    // 1. Try if it's already a valid Date object or string
+    let d = new Date(dateString);
+    if (!isNaN(d.getTime())) return d;
+
+    if (typeof dateString === "string") {
+        // 2. Handle simple YYYY-MM-DD by making it ISO8601 UTC
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+            d = new Date(dateString + "T00:00:00Z");
+            if (!isNaN(d.getTime())) return d;
+        }
+        // 3. Try appending Z
+        if (!dateString.endsWith("Z")) {
+            d = new Date(dateString + "Z");
+            if (!isNaN(d.getTime())) return d;
+        }
     }
-    return new Date(dateString);
+    
+    // Fallback to current date to prevent UI crash
+    console.warn("Invalid date parsed:", dateString);
+    return new Date();
   }
 
   const defaultEmojis = {
@@ -533,9 +551,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 <span class="original-amount ${tx.type}" style="font-size: 0.95em; font-weight:600;">
                     ${tx.type === "income" ? "+" : "-"}${symbol}${parseFloat(tx.original_amount).toFixed(2)}
                 </span>
-                <span class="base-amount" style="font-size: 0.75em; opacity: 0.6;">
-                    ~${formatCurrency(tx.amount)}
-                </span>
+                ${
+                   parseFloat(tx.amount) !== 0 
+                   ? `<span class="base-amount" style="font-size: 0.75em; opacity: 0.6;">~${formatCurrency(tx.amount)}</span>`
+                   : ""
+                }
             </div>
         `;
     } else {
@@ -790,18 +810,48 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function showDeleteConfirmation() {
     if (!state.editTransaction) return;
-    const txId = state.editTransaction.id;
+    const tx = state.editTransaction;
+    const txId = tx.id;
+    
     tg.showConfirm("Are you sure you want to delete this transaction?", async (confirmed) => {
       if (confirmed) {
         DOM.fullForm.saveBtn.disabled = true;
         DOM.fullForm.deleteBtn.disabled = true;
-        const success = await deleteTransaction(txId);
-        if (success) {
-          tg.HapticFeedback.notificationOccurred("success");
-          await loadTransactions();
-          await fetchAndRenderBalance();
-          showScreen("home-screen");
+
+        // Optimistic Delete
+        // 1. Close Screen
+        showScreen("home-screen");
+        
+        // 2. Remove from State
+        const index = state.transactions.findIndex(t => t.id === txId);
+        if (index > -1) state.transactions.splice(index, 1);
+        
+        // 3. Remove from DOM
+        const renderedItem = DOM.home.listContainer.querySelector(`[data-tx-id="${txId}"]`);
+        let group = null;
+        let nextSibling = null; 
+        if (renderedItem) {
+             group = renderedItem.closest(".transaction-group");
+             nextSibling = renderedItem.nextElementSibling;
+             renderedItem.remove();
+             if (group && group.querySelectorAll(".expense-item").length === 0) group.remove();
         }
+
+        // 4. Update Balance
+        updateBalanceLocally(-tx.amount, tx.type);
+
+        const success = await deleteTransaction(txId);
+        
+        if (!success) {
+           // Revert
+           if (index > -1) state.transactions.splice(index, 0, tx);
+           // Restore DOM (simplest is to just reload or re-append, but let's try to be precise)
+           // Actually, loadTransactions is safer and easier for revert
+           await loadTransactions(false);
+           await fetchAndRenderBalance();
+           tg.showAlert("Delete failed. Transaction restored.");
+        }
+        
         DOM.fullForm.saveBtn.disabled = false;
         DOM.fullForm.deleteBtn.disabled = false;
         state.editTransaction = null;
@@ -836,6 +886,182 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // --- OPTIMISTIC UI HELPERS ---
+
+  function updateBalanceLocally(amount, type) {
+      // Re-query to ensure we have the live element
+      const balanceEl = document.getElementById("balance-amount") || DOM.home.balanceAmount;
+      const currentBalanceText = balanceEl.textContent;
+      const currentBalanceVal = parseFloat(currentBalanceText.replace(/[^0-9.-]+/g, "")) || 0;
+      
+      const change = type === "income" ? amount : -amount;
+      const newBalance = currentBalanceVal + change;
+
+      const sign = newBalance < 0 ? "-" : "";
+      const absBalance = Math.abs(newBalance);
+      const balanceFormatter = new Intl.NumberFormat("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+      const newBalanceText = `${sign}${state.currencySymbol}${balanceFormatter.format(absBalance)}`;
+      
+      // Update Text Immediately
+      balanceEl.textContent = newBalanceText;
+
+      // Add Flash Animation
+      const container = balanceEl.closest(".total-container");
+      if (container) {
+          const classToAdd = newBalance > currentBalanceVal ? "balance-flash-positive" : "balance-flash-negative";
+          container.classList.remove("balance-flash-positive", "balance-flash-negative");
+          
+          requestAnimationFrame(() => {
+              container.classList.add(classToAdd);
+          });
+          container.addEventListener("animationend", () => container.classList.remove(classToAdd), { once: true });
+      }
+      return newBalanceText;
+  }
+
+  async function handleOptimisticAdd(txData, savePromise) {
+      const tempId = Date.now();
+      const list = DOM.home.listContainer;
+      let newItem = null;
+      let expectedBalanceText = null;
+
+      try {
+          // --- UI UPDATES (Synchronous) ---
+          const categoryObj = state.categories.find(c => c.id === txData.category_id);
+          const tempTx = {
+            ...txData,
+            id: tempId,
+            type: categoryObj ? categoryObj.type : (txData.amount < 0 ? "expense" : "income"), 
+            category: categoryObj ? categoryObj.name : "Unknown",
+            date: txData.date 
+          };
+
+          // 1. Update State
+          // If currency differs, store original_amount for display logic
+          if (txData.currency && txData.currency !== state.baseCurrencyCode) {
+              tempTx.original_amount = txData.amount;
+              
+              if (state.rates && state.rates[state.baseCurrencyCode] && state.rates[txData.currency]) {
+                   const rateSource = state.rates[txData.currency];
+                   const rateTarget = state.rates[state.baseCurrencyCode];
+                   const conversionRate = rateTarget / rateSource;
+                   tempTx.amount = txData.amount * conversionRate;
+              } else {
+                   tempTx.amount = 0; 
+              }
+          }
+          state.transactions.unshift(tempTx);
+          state.offset += 1;
+
+          // 2. Update DOM
+          newItem = createTransactionElement(tempTx);
+          newItem.classList.add("new-item-animation");
+          newItem.addEventListener("animationend", () => newItem.classList.remove("new-item-animation"), { once: true });
+          
+          const placeholder = list.querySelector(".list-placeholder");
+          if (placeholder) placeholder.remove();
+
+          const txDate = parseDateFromUTC(tempTx.date);
+          const dateHeaderStr = formatDateForTitle(txDate);
+          
+          const firstGroup = list.firstElementChild;
+          if (firstGroup && firstGroup.dataset && firstGroup.dataset.date === dateHeaderStr) {
+              if (firstGroup.children.length > 1) {
+                  firstGroup.insertBefore(newItem, firstGroup.children[1]);
+              } else {
+                  firstGroup.appendChild(newItem);
+              }
+          } else {
+              const newGroup = document.createElement("div");
+              newGroup.className = "transaction-group";
+              newGroup.dataset.date = dateHeaderStr;
+              const headerEl = document.createElement("div");
+              headerEl.className = "date-header";
+              headerEl.textContent = dateHeaderStr;
+              newGroup.appendChild(headerEl);
+              newGroup.appendChild(newItem);
+              list.prepend(newGroup);
+          }
+
+          // 3. Update Balance
+          expectedBalanceText = updateBalanceLocally(tempTx.amount, tempTx.type);
+          
+          // Haptic Feedback (Immediate)
+          tg.HapticFeedback.notificationOccurred("success");
+
+          // 4. Close UI
+          showScreen("home-screen", false);
+          closeBottomSheet();
+          
+      } catch (uiError) {
+          console.error("UI Update Failed", uiError);
+          tg.showAlert("Something went wrong updating the interface."); 
+          // Reload on UI failure
+          await loadTransactions(false);
+          await fetchAndRenderBalance();
+          return;
+      }
+
+      // 5. Run API (Background Interaction)
+      try {
+          const savedTx = await savePromise;
+          if (!savedTx) throw new Error("Save returned null");
+
+          // Update State ID
+          const index = state.transactions.findIndex(t => t.id === tempId);
+          if (index !== -1) {
+              state.transactions[index] = savedTx;
+          }
+
+          // Update DOM ID & Content
+          const renderedItem = list.querySelector(`[data-tx-id="${tempId}"]`);
+          if (renderedItem) {
+              const newItemContent = createTransactionElement(savedTx);
+              
+              // 1. Update Content
+              renderedItem.innerHTML = newItemContent.innerHTML;
+              renderedItem.dataset.txId = savedTx.id;
+              
+              const newType = savedTx.type;
+              const oldType = newType === "income" ? "expense" : "income";
+              
+              if (renderedItem.classList.contains(oldType)) {
+                  renderedItem.classList.replace(oldType, newType);
+              } else if (!renderedItem.classList.contains(newType)) {
+                   renderedItem.classList.add(newType);
+              }
+          }
+          
+          // Re-sync balance but avoid flicker if it's stale
+          // We trust our local update until next user action. 
+
+      } catch (e) {
+          console.error("Optimistic Add Failed (API)", e);
+          
+          // Revert State
+          state.transactions = state.transactions.filter(t => t.id !== tempId);
+          state.offset = Math.max(0, state.offset - 1);
+          
+          // Revert DOM
+          const renderedItem = list.querySelector(`[data-tx-id="${tempId}"]`);
+          if (renderedItem) {
+              const group = renderedItem.closest(".transaction-group");
+              renderedItem.remove();
+              if (group && group.querySelectorAll(".expense-item").length === 0) group.remove();
+          }
+
+          // Revert Balance
+          const categoryObj = state.categories.find(c => c.id === txData.category_id);
+          const type = categoryObj ? categoryObj.type : (txData.amount < 0 ? "expense" : "income");
+          updateBalanceLocally(txData.amount, type === "income" ? "expense" : "income"); // Inverse logic
+
+          tg.showAlert("Failed to save transaction.");
+      }
+  }
+
   // Optimistic UI Update Logic
   async function handleSaveForm() {
     const categoryId = DOM.fullForm.categorySelect.value;
@@ -852,7 +1078,13 @@ document.addEventListener("DOMContentLoaded", () => {
     DOM.fullForm.saveBtn.disabled = true;
 
     let dateToSend = dateInputVal;
+    
+    const todayStr = getLocalDateString(new Date());
+    if (dateInputVal === todayStr) {
+        dateToSend = new Date().toISOString();
+    }
 
+    // Check if Edit Mode
     if (state.editTransaction) {
       const originalDateObj = parseDateFromUTC(state.editTransaction.date);
       const originalDateStr = getLocalDateString(originalDateObj);
@@ -860,75 +1092,42 @@ document.addEventListener("DOMContentLoaded", () => {
       if (originalDateStr === dateInputVal) {
         dateToSend = state.editTransaction.date;
       }
-    }
 
-    const txData = {
-      category_id: parseInt(categoryId),
-      amount: amount,
-      currency: currency,
-      date: dateToSend,
-      note: note,
-    };
+      const txData = {
+        category_id: parseInt(categoryId),
+        amount: amount,
+        currency: currency,
+        date: dateToSend,
+        note: note,
+      };
 
-    const txId = state.editTransaction ? state.editTransaction.id : null;
-    const savedTransaction = await _saveTransaction(txData, txId);
+      const txId = state.editTransaction.id;
+      const savedTransaction = await _saveTransaction(txData, txId);
 
-    if (savedTransaction) {
-      tg.HapticFeedback.notificationOccurred("success");
-
-      // Reload list completely if editing
-      if (txId) {
+      if (savedTransaction) {
+        tg.HapticFeedback.notificationOccurred("success");
         await loadTransactions(false);
         await fetchAndRenderBalance();
         showScreen("home-screen", true);
-      } else {
-        // Optimistic UI: Prepend new item without full reload
-        const newItem = createTransactionElement(savedTransaction);
-        newItem.classList.add("new-item-animation");
-
-        const txDate = parseDateFromUTC(savedTransaction.date);
-        const dateHeaderStr = formatDateForTitle(txDate);
-        const list = DOM.home.listContainer;
-
-        const placeholder = list.querySelector(".list-placeholder");
-        if (placeholder) placeholder.remove();
-
-        const firstGroup = list.firstElementChild;
-
-        if (firstGroup && firstGroup.dataset && firstGroup.dataset.date === dateHeaderStr) {
-          // Insert into existing day group
-          if (firstGroup.children.length > 1) {
-            firstGroup.insertBefore(newItem, firstGroup.children[1]);
-          } else {
-            firstGroup.appendChild(newItem);
-          }
-        } else {
-          // Create new day group
-          const newGroup = document.createElement("div");
-          newGroup.className = "transaction-group";
-          newGroup.dataset.date = dateHeaderStr;
-
-          const headerEl = document.createElement("div");
-          headerEl.className = "date-header";
-          headerEl.textContent = dateHeaderStr;
-
-          newGroup.appendChild(headerEl);
-          newGroup.appendChild(newItem);
-
-          list.prepend(newGroup);
-        }
-
-        // Maintain list state
-        state.transactions.unshift(savedTransaction);
-        state.offset += 1;
-
-        showScreen("home-screen", false);
-        // Silent balance update
-        fetchAndRenderBalance();
       }
+      DOM.fullForm.saveBtn.disabled = false;
+      state.editTransaction = null;
+    } else {
+       // New Transaction - Optimistic
+       const txData = {
+          category_id: parseInt(categoryId),
+          amount: amount,
+          currency: currency,
+          date: dateToSend,
+          note: note
+       };
+       // We pass the promise, but we don't await it here because handleOptimisticAdd awaits it internally
+       // while handling success/error. 
+       // Note: handleOptimisticAdd is async, so we await it to catch any synchronous errors if any, 
+       // but the API call is inside.
+       await handleOptimisticAdd(txData, _saveTransaction(txData));
+       DOM.fullForm.saveBtn.disabled = false;
     }
-    DOM.fullForm.saveBtn.disabled = false;
-    state.editTransaction = null;
   }
 
   // --- SHEETS & MODALS ---
@@ -1007,27 +1206,19 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     DOM.quickModal.saveBtn.disabled = true;
+
+    const now = new Date();
+    const dateToSend = now.toISOString();
+
     const txData = {
       category_id: parseInt(state.quickCategory.id),
       amount: amount,
-      date: getLocalDateString(new Date()),
+      date: dateToSend,
       currency: currency,
       note: note,
     };
-    const savedTransaction = await _saveTransaction(txData);
-    if (savedTransaction) {
-      tg.HapticFeedback.notificationOccurred("success");
-      closeBottomSheet();
-      // Load new transaction at the top
-      await loadTransactions(false, savedTransaction.id);
-      await fetchAndRenderBalance();
-
-      if (state.lastActiveScreen === "analytics-screen") {
-        await loadAnalyticsPage();
-      }
-
-      showScreen("home-screen");
-    }
+    
+    await handleOptimisticAdd(txData, _saveTransaction(txData));
     DOM.quickModal.saveBtn.disabled = false;
   }
 
@@ -1219,13 +1410,20 @@ document.addEventListener("DOMContentLoaded", () => {
   function handleDeleteSwipe(element, content) {
     const editBtn = element.querySelector(".edit-btn");
     const txId = parseInt(editBtn.dataset.txId, 10);
+    const tx = state.transactions.find(t => t.id === txId);
 
     tg.showConfirm("Are you sure you want to delete this transaction?", async (confirmed) => {
       if (confirmed) {
         tg.HapticFeedback.notificationOccurred("success");
 
-        // Collapse Animation
+        // 1. Visual Collapse
         element.style.height = element.offsetHeight + "px";
+        
+        // Optimistic: Update Balance immediately
+        if (tx) {
+             updateBalanceLocally(-tx.amount, tx.type);
+        }
+
         requestAnimationFrame(() => {
           element.classList.add("deleting");
           element.style.height = "0px";
@@ -1236,32 +1434,24 @@ document.addEventListener("DOMContentLoaded", () => {
         element.addEventListener(
           "transitionend",
           async () => {
-            const success = await deleteTransaction(txId);
+             // 2. Remove from DOM & State Optimistically
+             const group = element.closest(".transaction-group");
+             element.remove();
+             if (group && group.querySelectorAll(".expense-item").length === 0) group.remove();
+             
+             const index = state.transactions.findIndex(t => t.id === txId);
+             if (index > -1) state.transactions.splice(index, 1);
 
-            if (success) {
-              // Save reference to parent group before removing element
-              const group = element.closest(".transaction-group");
+             // 3. API Call
+             const success = await deleteTransaction(txId);
 
-              element.remove();
-
-              // Check if any items remain in the group
-              if (group) {
-                const remainingItems = group.querySelectorAll(".expense-item");
-                // If empty, remove the group container
-                if (remainingItems.length === 0) {
-                  group.remove();
-                }
-              }
-
-              // Update balance only
-              await fetchAndRenderBalance();
-            } else {
-              // Revert on error
-              element.classList.remove("deleting");
-              element.style.height = "";
-              content.style.transform = "translateX(0)";
-              tg.showAlert("Could not delete. Try again.");
-            }
+             if (!success) {
+                  // Revert
+                  tg.showAlert("Could not delete. Restoring...");
+                  // Since we removed it, simplest is to reload
+                  await loadTransactions(false);
+                  await fetchAndRenderBalance();
+             }
           },
           { once: true }
         );
@@ -2083,12 +2273,81 @@ document.addEventListener("DOMContentLoaded", () => {
     if (lastScreenId === "home-screen") renderSkeleton();
 
     (async function initializeData() {
-      await Promise.all([fetchUserProfile(), loadAllCategories()]);
-      await Promise.all([loadTransactions(false), fetchAndRenderBalance()]);
+      // Parallel Loading for visual instant start
+      try {
+        const [profileRes, catExpenseRes, catIncomeRes, transactionsRes, balanceRes] = await Promise.all([
+          apiRequest(API_URLS.USER_PROFILE),
+          apiRequest(`${API_URLS.CATEGORIES}?type=expense`),
+          apiRequest(`${API_URLS.CATEGORIES}?type=income`),
+          apiRequest(`${API_URLS.TRANSACTIONS}?limit=${state.limit}&offset=${state.offset}`),
+          apiRequest(API_URLS.BALANCE),
+        ]);
+
+        // 1. Process User Profile First (to get Currency & Rates)
+        if (profileRes.ok) {
+          const profileData = await profileRes.json();
+          // Store Rates
+          if (profileData.rates) {
+              state.rates = profileData.rates;
+          }
+          if (profileData.base_currency) {
+            state.baseCurrencyCode = profileData.base_currency;
+            state.currencySymbol = CURRENCY_SYMBOLS[profileData.base_currency] || "$";
+            DOM.settings.currencySelect.value = profileData.base_currency;
+            tg.CloudStorage.setItem("currency_symbol", state.currencySymbol);
+            // Update any labels that depend on currency immediately
+            if (DOM.fullForm.currencyLabel) {
+                DOM.fullForm.currencyLabel.textContent = state.currencySymbol;
+            }
+          }
+        }
+
+        // 2. Process Categories
+        const expenseCats = catExpenseRes.ok ? await catExpenseRes.json() : [];
+        const incomeCats = catIncomeRes.ok ? await catIncomeRes.json() : [];
+        state.categories = [
+          ...expenseCats.map((c) => ({ ...c, type: "expense" })),
+          ...incomeCats.map((c) => ({ ...c, type: "income" })),
+        ];
+        renderQuickAddGrids();
+
+        // 3. Process Transactions
+        if (transactionsRes.ok) {
+          const txData = await transactionsRes.json();
+          state.transactions = txData;
+          state.offset = txData.length;
+          if (txData.length < state.limit) state.isAllLoaded = true;
+          renderTransactions(state.transactions);
+        }
+
+        // 4. Process Balance
+        if (balanceRes.ok) {
+          const balanceData = await balanceRes.json();
+          const serverBalance = parseFloat(balanceData.balance);
+          // Simplified balance render for init
+          const sign = serverBalance < 0 ? "-" : "";
+          const absBalance = Math.abs(serverBalance);
+          const hasCents = absBalance % 1 !== 0;
+          const balanceFormatter = new Intl.NumberFormat("en-US", {
+            minimumFractionDigits: hasCents ? 2 : 0,
+            maximumFractionDigits: 2,
+          });
+          const newBalanceText = `${sign}${state.currencySymbol}${balanceFormatter.format(absBalance)}`;
+          DOM.home.balanceAmount.textContent = newBalanceText;
+        }
+
+      } catch (e) {
+        console.error("Critical Init Error", e);
+        // Fallback or specific error handling if needed
+        renderErrorState(DOM.home.listContainer, () => window.location.reload(), "Failed to initialize app.");
+      }
+
       updateAiDescriptions(state.aiRange);
 
       setTimeout(() => {
         state.isInitialLoad = false;
+        // Remove skeleton if it exists (renderTransactions clears listInnerHtml so it might be gone,
+        // but if tx list was empty, we want to make sure skeleton is gone)
       }, 100);
     })();
   }

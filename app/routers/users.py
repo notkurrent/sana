@@ -74,8 +74,11 @@ async def get_user_profile(
     result = await session.execute(stmt)
     user_db = result.scalar_one_or_none()
 
+    currency_service = CurrencyService()
+    rates = await currency_service.get_all_rates()
+
     # Return default profile if user not found in DB
     if not user_db:
-        return {"id": user_id, "base_currency": "USD"}
+        return {"id": user_id, "base_currency": "USD", "rates": rates}
 
-    return {"id": user_db.id, "base_currency": user_db.base_currency}
+    return {"id": user_db.id, "base_currency": user_db.base_currency, "rates": rates}

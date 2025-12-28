@@ -1,3 +1,4 @@
+import os
 from collections.abc import AsyncGenerator
 
 import pytest
@@ -9,7 +10,7 @@ from app.dependencies import get_session
 from app.models.sql import Base
 from main import app
 
-TEST_DATABASE_URL = "postgresql+asyncpg://postgres:password@localhost:5432/sana_test"
+TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "postgresql+asyncpg://postgres:password@localhost:5432/sana_test")
 
 
 @pytest.fixture(scope="function")

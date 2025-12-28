@@ -41,6 +41,7 @@ jobs:
       - name: Run Tests
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:password@localhost:5432/sana_test
+          TEST_DATABASE_URL: postgresql+asyncpg://postgres:password@localhost:5432/sana_test
 
           # Dummy variables are required to pass Pydantic validation during app startup.
           # External services (Google, Telegram) should be mocked in tests.

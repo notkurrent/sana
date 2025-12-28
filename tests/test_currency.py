@@ -28,7 +28,6 @@ async def test_currency_cross_rate_calculation(mocker):
 
     # Bypass cache update
     mocker.patch.object(service, "_rates", fake_rates)
-    mocker.patch.object(service, "_is_cache_expired", return_value=False)
 
     rate = await service.get_rate("EUR", "TRY")
 
@@ -45,9 +44,8 @@ async def test_currency_api_failure_fallback(mocker):
     if external API fails.
     """
     service = CurrencyService()
-    service._rates = {}  # Force API call
-
-    mocker.patch("httpx.AsyncClient.get", side_effect=Exception("Network Down"))
+    service._rates = {}  # Simulate empty cache
+    # Note: get_rate no longer calls API directly, so we don't need to mock httpx failures.
 
     rate = await service.get_rate("USD", "EUR")
 
