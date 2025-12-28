@@ -1,7 +1,9 @@
-import httpx
-from decimal import Decimal, InvalidOperation
-from datetime import datetime, timedelta
 import logging
+from datetime import datetime, timedelta
+from decimal import Decimal, InvalidOperation
+
+import httpx
+
 from app.config import EXCHANGE_RATE_API_KEY
 
 logger = logging.getLogger(__name__)
@@ -17,7 +19,7 @@ class CurrencyService:
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(CurrencyService, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
         return cls._instance
 
     async def get_rate(self, from_currency: str, to_currency: str = "USD") -> Decimal:

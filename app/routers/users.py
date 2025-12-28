@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import verify_telegram_authentication, get_session
-from app.models.sql import UserDB, TransactionDB
+from app.dependencies import get_session, verify_telegram_authentication
+from app.models.sql import TransactionDB, UserDB
 from app.services.currency import CurrencyService
 
 router = APIRouter(tags=["users"])

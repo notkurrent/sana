@@ -1,13 +1,14 @@
 import os
+
 from fastapi import FastAPI, HTTPException
-from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
-# App imports
-from app.routers import transactions, categories, ai, users, webhook
 from app.bot.lifecycle import start_bot, stop_bot
 
+# App imports
+from app.routers import ai, categories, transactions, users, webhook
 
 # --- FastAPI Initialization ---
 app = FastAPI(title="Sana Finance API")
@@ -53,6 +54,6 @@ async def serve_spa(full_path: str):
 
     html_path = "webapp/index.html"
     if os.path.exists(html_path):
-        with open(html_path, "r", encoding="utf-8") as f:
+        with open(html_path, encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
     return HTMLResponse(content="<h1>Error: index.html not found</h1>", status_code=404)

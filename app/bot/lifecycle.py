@@ -1,6 +1,8 @@
 from telegram.ext import CommandHandler
-from app.bot.loader import ptb_app
+
 from app.bot.handlers import start_command
+from app.bot.loader import ptb_app
+
 
 async def start_bot():
     if not ptb_app:
@@ -12,6 +14,7 @@ async def start_bot():
 
     await ptb_app.initialize()
     print("--- [Bot]: Initialized successfully")
+
 
 async def stop_bot():
     if ptb_app:

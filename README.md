@@ -244,6 +244,25 @@ This ensures that the Production version is always up-to-date within minutes of 
 
 ---
 
+## 🎨 Code Quality
+
+The project uses **Ruff** for fast and strict linting and formatting. Configuration is centralized in `pyproject.toml`.
+
+### Usage
+
+1.  **Linting (Check for errors):**
+
+    ```bash
+    ruff check .
+    ```
+
+2.  **Formatting (Auto-fix properties):**
+    ```bash
+    ruff format .
+    ```
+
+---
+
 ## 🛡️ Security & Architecture
 
 This project was built with a focus on **security**, **scalability**, and **performance**:

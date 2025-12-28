@@ -1,11 +1,11 @@
 import asyncio
-from fastapi import APIRouter, Depends, HTTPException, Query
-from typing import List
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
-from sqlalchemy.dialects.postgresql import insert
 
-from app.dependencies import verify_telegram_authentication, get_session
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.dependencies import get_session, verify_telegram_authentication
 from app.models.schemas import Category, CategoryCreate
 from app.models.sql import CategoryDB, TransactionDB
 
@@ -40,7 +40,7 @@ async def _init_defaults(session: AsyncSession):
     await session.commit()
 
 
-@router.get("/categories", response_model=List[Category])
+@router.get("/categories", response_model=list[Category])
 async def get_categories(
     type: str = Query(None), user=Depends(verify_telegram_authentication), session: AsyncSession = Depends(get_session)
 ):
@@ -59,7 +59,7 @@ async def get_categories(
                 await _init_defaults(session)
 
     stmt = select(CategoryDB).where(
-        ((CategoryDB.user_id == user_id) | (CategoryDB.user_id.is_(None))) & (CategoryDB.is_active == True)
+        ((CategoryDB.user_id == user_id) | (CategoryDB.user_id.is_(None))) & (CategoryDB.is_active)
     )
 
     if type:
@@ -91,7 +91,7 @@ async def add_category(
     except Exception as e:
         await session.rollback()
         print(f"Error adding category: {e}")
-        raise HTTPException(status_code=500, detail="Database error")
+        raise HTTPException(status_code=500, detail="Database error") from e
 
 
 @router.patch("/categories/{cat_id}")

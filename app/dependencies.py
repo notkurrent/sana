@@ -1,15 +1,17 @@
-import hmac
 import hashlib
+import hmac
 import json
 import urllib.parse
-from typing import AsyncGenerator
-from fastapi import Header, HTTPException, status
+from collections.abc import AsyncGenerator
+
+from fastapi import Header, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.config import BOT_TOKEN
 from app.database import async_session_maker
 
 
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
+async def get_session() -> AsyncGenerator[AsyncSession]:
     async with async_session_maker() as session:
         yield session
 
@@ -35,7 +37,7 @@ async def verify_telegram_authentication(x_telegram_init_data: str = Header(None
         calculated_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
 
         if calculated_hash != received_hash:
-            print(f"❌ [AUTH FAIL] Hash mismatch")
+            print("❌ [AUTH FAIL] Hash mismatch")
             raise HTTPException(status_code=403, detail="Data integrity check failed")
 
         user_data = json.loads(parsed_data.get("user", "{}"))
@@ -45,4 +47,4 @@ async def verify_telegram_authentication(x_telegram_init_data: str = Header(None
 
     except Exception as e:
         print(f"❌ [AUTH ERROR]: {e}")
-        raise HTTPException(status_code=401, detail="Invalid authentication data")
+        raise HTTPException(status_code=401, detail="Invalid authentication data") from e

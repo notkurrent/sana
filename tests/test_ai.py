@@ -1,15 +1,17 @@
-import pytest
-import json
-from unittest.mock import AsyncMock, patch
 from datetime import datetime
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+from app.dependencies import verify_telegram_authentication
+from app.models.sql import CategoryDB, TransactionDB, UserDB
+from main import app
 
 # Headers for auth (simulated)
 AUTH_HEADERS = {
-    "X-Telegram-Init-Data": "query_id=AAHdF60UAAAAAN0XrRT9&user=%7B%22id%22%3A1%2C%22first_name%22%3A%22TestUser%22%2C%22username%22%3A%22testuser%22%2C%22language_code%22%3A%22en%22%7D&auth_date=1710000000&hash=mocked_hash_bypass"
+    "X-Telegram-Init-Data": "query_id=AAHdF60UAAAAAN0XrRT9&user=%7B%22id%22%3A1%2C%22first_name%22%3A%22TestUser%22%2C%22username%22%3A%22testuser%22%2C%22language_code%22%3A%22en%22%7D&auth_date=1710000000&hash=mocked_hash_bypass"  # noqa: E501
 }
 
-from app.dependencies import verify_telegram_authentication
-from main import app
 
 @pytest.fixture
 def mock_user_auth():
@@ -18,7 +20,6 @@ def mock_user_auth():
     yield
     app.dependency_overrides.pop(verify_telegram_authentication, None)
 
-from app.models.sql import TransactionDB, CategoryDB, UserDB
 
 @pytest.mark.asyncio
 async def test_ai_advice_success_empty(client, session, mock_user_auth):
@@ -27,14 +28,15 @@ async def test_ai_advice_success_empty(client, session, mock_user_auth):
         mock_chat = AsyncMock()
         mock_chat.generate_content_async.return_value.text = "Track your expenses."
         mock_model.generate_content_async = mock_chat.generate_content_async
-        
+
         # 3. Request
         response = await client.post("/api/ai/advice?range=month", headers={})
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "advice" in data
         assert "No transactions found" in data["advice"]
+
 
 @pytest.mark.asyncio
 async def test_ai_advice_with_data(client, session, mock_user_auth):
@@ -52,9 +54,9 @@ async def test_ai_advice_with_data(client, session, mock_user_auth):
         mock_chat = AsyncMock()
         mock_chat.generate_content_async.return_value.text = "Stop eating out."
         mock_model.generate_content_async = mock_chat.generate_content_async
-        
+
         response = await client.post("/api/ai/advice?range=month", headers={})
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["advice"] == "Stop eating out."
@@ -72,14 +74,14 @@ async def test_ai_error_handling(client, mock_user_auth):
         # Mock analytics service to return SOME data so we pass the "No transactions" check
         with patch("app.services.analytics.AnalyticsService.get_aggregated_summary") as mock_agg:
             mock_agg.return_value = {"income": 100, "expense": 50, "categories": []}
-            
+
             with patch("app.services.analytics.AnalyticsService.get_significant_transactions") as mock_sig:
                 mock_sig.return_value = []
-                
+
                 # Now model raises error
                 mock_model.generate_content_async.side_effect = Exception("Google Down")
-                
+
                 response = await client.post("/api/ai/advice", headers={})
-                
+
                 assert response.status_code == 503
                 assert "AI is currently busy" in response.json()["detail"]

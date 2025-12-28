@@ -1,4 +1,5 @@
 from telegram.ext import Application
+
 from app.config import BOT_TOKEN
 
 ptb_app = None

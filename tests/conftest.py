@@ -1,12 +1,13 @@
+from collections.abc import AsyncGenerator
+
 import pytest
-from typing import AsyncGenerator
-from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from main import app
-from app.models.sql import Base
 from app.dependencies import get_session
+from app.models.sql import Base
+from main import app
 
 TEST_DATABASE_URL = "postgresql+asyncpg://postgres:password@localhost:5432/sana_test"
 
@@ -27,7 +28,7 @@ async def db_engine():
 
 
 @pytest.fixture(scope="function")
-async def session(db_engine) -> AsyncGenerator[AsyncSession, None]:
+async def session(db_engine) -> AsyncGenerator[AsyncSession]:
     async_session_maker = async_sessionmaker(db_engine, expire_on_commit=False)
     async with async_session_maker() as session:
         yield session

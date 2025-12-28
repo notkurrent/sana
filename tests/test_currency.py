@@ -1,6 +1,7 @@
-import pytest
 from decimal import Decimal
-from unittest.mock import AsyncMock, patch
+
+import pytest
+
 from app.services.currency import CurrencyService
 
 

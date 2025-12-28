@@ -1,37 +1,37 @@
-from fastapi import APIRouter, Depends, HTTPException, Header
-from typing import List, Optional
-from datetime import datetime, timedelta, timezone
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete, func, case, text, desc
-from sqlalchemy.dialects.postgresql import insert as pg_insert
+from datetime import UTC, datetime, timedelta
 
-from app.dependencies import verify_telegram_authentication, get_session
+from fastapi import APIRouter, Depends, Header, HTTPException
+from sqlalchemy import case, delete, desc, func, select, text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.dependencies import get_session, verify_telegram_authentication
 from app.models.schemas import Transaction, TransactionCreate, TransactionUpdate
-from app.models.sql import TransactionDB, CategoryDB, UserDB
+from app.models.sql import CategoryDB, TransactionDB, UserDB
 from app.services.currency import CurrencyService
 
 router = APIRouter(tags=["transactions"])
 
 
 # --- Helpers ---
-def _get_date_for_storage(date_input: str | datetime, timezone_offset_str: Optional[str]) -> datetime:
+def _get_date_for_storage(date_input: str | datetime, timezone_offset_str: str | None) -> datetime:
     """
     Converts user input date to UTC datetime for storage.
     """
     if not date_input:
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)
 
     try:
         if isinstance(date_input, datetime):
-            return date_input.astimezone(timezone.utc)
+            return date_input.astimezone(UTC)
 
         if isinstance(date_input, str):
             if "T" in date_input:
                 dt = datetime.fromisoformat(date_input.replace("Z", "+00:00"))
-                return dt.astimezone(timezone.utc)
+                return dt.astimezone(UTC)
 
             selected_date = datetime.strptime(date_input, "%Y-%m-%d").date()
-            server_now = datetime.now(timezone.utc)
+            server_now = datetime.now(UTC)
 
             user_now = server_now
             if timezone_offset_str and timezone_offset_str.lstrip("-").isdigit():
@@ -41,19 +41,19 @@ def _get_date_for_storage(date_input: str | datetime, timezone_offset_str: Optio
             if selected_date == user_now.date():
                 return server_now
 
-            return datetime.combine(selected_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+            return datetime.combine(selected_date, datetime.min.time()).replace(tzinfo=UTC)
 
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)
 
     except Exception as e:
         print(f"Date parse error: {e}")
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)
 
 
 # --- Endpoints ---
 
 
-@router.get("/transactions", response_model=List[Transaction])
+@router.get("/transactions", response_model=list[Transaction])
 async def get_transactions(
     limit: int = 50,
     offset: int = 0,
@@ -118,7 +118,7 @@ async def add_transaction(
     tx: TransactionCreate,
     user=Depends(verify_telegram_authentication),
     session: AsyncSession = Depends(get_session),
-    x_timezone_offset: Optional[str] = Header(None, alias="X-Timezone-Offset"),
+    x_timezone_offset: str | None = Header(None, alias="X-Timezone-Offset"),
 ):
     user_id = user["id"]
     final_date = _get_date_for_storage(tx.date, x_timezone_offset)
@@ -171,7 +171,7 @@ async def add_transaction(
 
     except Exception as e:
         await session.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.patch("/transactions/{tx_id}")
@@ -180,7 +180,7 @@ async def update_transaction(
     update_data: TransactionUpdate,
     user=Depends(verify_telegram_authentication),
     session: AsyncSession = Depends(get_session),
-    x_timezone_offset: Optional[str] = Header(None, alias="X-Timezone-Offset"),
+    x_timezone_offset: str | None = Header(None, alias="X-Timezone-Offset"),
 ):
     user_id = user["id"]
 
@@ -257,10 +257,10 @@ async def get_summary(
     range: str = "month",
     user=Depends(verify_telegram_authentication),
     session: AsyncSession = Depends(get_session),
-    x_timezone_offset: Optional[str] = Header(None, alias="X-Timezone-Offset"),
+    x_timezone_offset: str | None = Header(None, alias="X-Timezone-Offset"),
 ):
     user_id = user["id"]
-    server_now = datetime.now(timezone.utc)
+    server_now = datetime.now(UTC)
     offset_minutes = int(x_timezone_offset) if x_timezone_offset and x_timezone_offset.lstrip("-").isdigit() else 0
 
     user_now = server_now - timedelta(minutes=offset_minutes)
@@ -276,7 +276,7 @@ async def get_summary(
         start_date = user_now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
 
     query_str = """
-        SELECT c.name as category, SUM(t.amount) as total 
+        SELECT c.name as category, SUM(t.amount) as total
         FROM transactions t
         JOIN categories c ON t.category_id = c.id
         WHERE t.user_id = :user_id AND c.type = :type
@@ -300,7 +300,7 @@ async def get_calendar_data(
     year: int,
     user=Depends(verify_telegram_authentication),
     session: AsyncSession = Depends(get_session),
-    x_timezone_offset: Optional[str] = Header(None, alias="X-Timezone-Offset"),
+    x_timezone_offset: str | None = Header(None, alias="X-Timezone-Offset"),
 ):
     user_id = user["id"]
     offset = int(x_timezone_offset) if x_timezone_offset and x_timezone_offset.lstrip("-").isdigit() else 0
@@ -311,8 +311,8 @@ async def get_calendar_data(
         SELECT c.type, SUM(t.amount) as total
         FROM transactions t
         JOIN categories c ON t.category_id = c.id
-        WHERE t.user_id = :user_id 
-          AND EXTRACT(MONTH FROM (t.date - (:offset * INTERVAL '1 minute'))) = :month 
+        WHERE t.user_id = :user_id
+          AND EXTRACT(MONTH FROM (t.date - (:offset * INTERVAL '1 minute'))) = :month
           AND EXTRACT(YEAR FROM (t.date - (:offset * INTERVAL '1 minute'))) = :year
         GROUP BY c.type
     """
@@ -332,10 +332,10 @@ async def get_calendar_data(
     query_days = text(
         """
         SELECT TO_CHAR(t.date - (:offset * INTERVAL '1 minute'), 'YYYY-MM-DD') as date, c.type, SUM(t.amount) as total
-        FROM transactions t 
+        FROM transactions t
         JOIN categories c ON t.category_id = c.id
-        WHERE t.user_id = :user_id 
-          AND EXTRACT(MONTH FROM (t.date - (:offset * INTERVAL '1 minute'))) = :month 
+        WHERE t.user_id = :user_id
+          AND EXTRACT(MONTH FROM (t.date - (:offset * INTERVAL '1 minute'))) = :month
           AND EXTRACT(YEAR FROM (t.date - (:offset * INTERVAL '1 minute'))) = :year
         GROUP BY date, c.type ORDER BY date
     """
