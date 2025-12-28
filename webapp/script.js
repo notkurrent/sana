@@ -931,12 +931,20 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
           // --- UI UPDATES (Synchronous) ---
           const categoryObj = state.categories.find(c => c.id === txData.category_id);
+          
+          // For display, if date is today (YYYY-MM-DD), use current detailed time to avoid UI jumping to 00:00
+          let displayDate = txData.date;
+          const todayStr = getLocalDateString(new Date());
+          if (txData.date === todayStr) {
+              displayDate = new Date().toISOString(); 
+          }
+
           const tempTx = {
             ...txData,
             id: tempId,
             type: categoryObj ? categoryObj.type : (txData.amount < 0 ? "expense" : "income"), 
             category: categoryObj ? categoryObj.name : "Unknown",
-            date: txData.date 
+            date: displayDate 
           };
 
           // 1. Update State
@@ -1079,11 +1087,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let dateToSend = dateInputVal;
     
-    const todayStr = getLocalDateString(new Date());
-    if (dateInputVal === todayStr) {
-        dateToSend = new Date().toISOString();
-    }
-
     // Check if Edit Mode
     if (state.editTransaction) {
       const originalDateObj = parseDateFromUTC(state.editTransaction.date);
@@ -1207,13 +1210,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     DOM.quickModal.saveBtn.disabled = true;
 
-    const now = new Date();
-    const dateToSend = now.toISOString();
-
     const txData = {
       category_id: parseInt(state.quickCategory.id),
       amount: amount,
-      date: dateToSend,
+      date: getLocalDateString(new Date()),
       currency: currency,
       note: note,
     };
