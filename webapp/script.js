@@ -131,26 +131,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function parseDateFromUTC(dateString) {
     if (!dateString) return new Date();
-    // 1. Try if it's already a valid Date object or string
-    let d = new Date(dateString);
-    if (!isNaN(d.getTime())) return d;
+    if (dateString instanceof Date) return dateString;
 
-    if (typeof dateString === "string") {
-        // 2. Handle simple YYYY-MM-DD by making it ISO8601 UTC
-        if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-            d = new Date(dateString + "T00:00:00Z");
-            if (!isNaN(d.getTime())) return d;
-        }
-        // 3. Try appending Z
-        if (!dateString.endsWith("Z")) {
-            d = new Date(dateString + "Z");
-            if (!isNaN(d.getTime())) return d;
+    // 1. Handle simple YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+        return new Date(dateString + "T00:00:00Z");
+    }
+
+    // 2. Handle ISO strings
+    if (typeof dateString === "string" && dateString.includes("T")) {
+        // If no timezone indicator (Z or +HH:MM or -HH:MM), assume UTC
+        const hasTimezone = /([Zz]|[+-]\d{2}:?\d{2})$/.test(dateString);
+        if (!hasTimezone) {
+            return new Date(dateString + "Z");
         }
     }
     
-    // Fallback to current date to prevent UI crash
-    console.warn("Invalid date parsed:", dateString);
-    return new Date();
+    return new Date(dateString);
   }
 
   const defaultEmojis = {
