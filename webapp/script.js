@@ -812,6 +812,7 @@ document.addEventListener("DOMContentLoaded", () => {
     
     tg.showConfirm("Are you sure you want to delete this transaction?", async (confirmed) => {
       if (confirmed) {
+        tg.HapticFeedback.notificationOccurred("success");
         DOM.fullForm.saveBtn.disabled = true;
         DOM.fullForm.deleteBtn.disabled = true;
 
@@ -1972,8 +1973,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const fullName = newIcon ? `${newIcon} ${newName}` : newName;
     const catId = state.categoryBeingEdited.id;
+    const originalCategory = { ...state.categoryBeingEdited }; // Backup
 
     DOM.editCategory.saveBtn.disabled = true;
+
+
+    // Optimistic Update
+    state.categoryBeingEdited.name = fullName;
+    const catIndex = state.categories.findIndex(c => c.id === catId);
+    if (catIndex > -1) {
+        state.categories[catIndex].name = fullName;
+    }
+
+    showScreen("categories-screen");
+    tg.HapticFeedback.notificationOccurred("success");
 
     try {
       const response = await apiRequest(`${API_URLS.CATEGORIES}/${catId}`, {
@@ -1982,14 +1995,19 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       if (!response.ok) throw new Error("Update failed");
+      
+      // Update transaction list in background (if names changed for mapped categories)
+      loadTransactions(false); // Silent update
 
-      tg.HapticFeedback.notificationOccurred("success");
-      await loadAllCategories();
-      await loadTransactions();
-      showScreen("categories-screen");
     } catch (e) {
-      tg.showAlert("Failed to update category");
       console.error(e);
+      tg.showAlert("Failed to update category. Reverting...");
+      
+      // Revert State
+      if (catIndex > -1) {
+          state.categories[catIndex] = originalCategory;
+      }
+      loadCategoriesScreen();
     } finally {
       DOM.editCategory.saveBtn.disabled = false;
     }
@@ -2004,18 +2022,60 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     const fullName = icon ? `${icon} ${name}` : name;
     tg.HapticFeedback.impactOccurred("light");
+    
+    // Optimistic Update
+    const tempId = Date.now();
+    const newCategory = {
+        id: tempId,
+        user_id: 123, // Dummy ID
+        name: fullName,
+        type: state.categoryType,
+        is_active: true
+    };
+
     DOM.categories.addBtn.disabled = true;
+    DOM.categories.newIconInput.value = "";
+    DOM.categories.newNameInput.value = "";
+
+    state.categories.push(newCategory);
+    loadCategoriesScreen();
+
     try {
       const response = await apiRequest(API_URLS.CATEGORIES, {
         method: "POST",
         body: JSON.stringify({ name: fullName, type: state.categoryType }),
       });
       if (!response.ok) throw new Error("Add failed");
-      DOM.categories.newIconInput.value = "";
-      DOM.categories.newNameInput.value = "";
-      await loadAllCategories();
-      loadCategoriesScreen();
+      
+      const realData = await response.json(); // {id: 123, status: "created"}
+      
+      // Update ID in state
+      const idx = state.categories.findIndex(c => c.id === tempId);
+      if (idx > -1) {
+          state.categories[idx].id = realData.id;
+      }
+      
+      // Update DOM ID if needed (for subsequent interactions)
+      const domItem = DOM.categories.list.querySelector(`[data-id="${tempId}"]`);
+      if (domItem) {
+          domItem.dataset.id = realData.id;
+      }
+      
     } catch (e) {
+        console.error(e);
+        tg.showAlert("Failed to add category. Removing...");
+        
+        // Revert
+        const idx = state.categories.findIndex(c => c.id === tempId);
+        if (idx > -1) state.categories.splice(idx, 1);
+        
+        // Remove from DOM
+        const domItem = DOM.categories.list.querySelector(`[data-id="${tempId}"]`);
+        if (domItem) domItem.remove();
+        
+        // Restore inputs (optional, maybe nice to let user retry)
+        // DOM.categories.newNameInput.value = name;
+        // DOM.categories.newIconInput.value = icon;
     } finally {
       DOM.categories.addBtn.disabled = false;
     }
@@ -2032,12 +2092,9 @@ document.addEventListener("DOMContentLoaded", () => {
         transactionCount = data.transaction_count;
       }
     } catch (e) {
-      tg.showAlert("Failed to check category.");
-      if (swipeElement) {
-        swipeElement.style.transform = "translateX(0)";
-        swipeElement.closest(".category-item-wrapper").classList.remove("swiping-active");
-      }
-      return;
+      if (!swipeElement) tg.showAlert("Failed to check category.");
+      // For swipe, we might proceed or cancel. Let's proceed with generic message if check fails?
+      // Or safer to just show default message.
     }
 
     if (transactionCount > 0) {
@@ -2047,47 +2104,53 @@ document.addEventListener("DOMContentLoaded", () => {
 
     tg.showConfirm(message, async (confirmed) => {
       if (confirmed) {
-        try {
-          if (swipeElement) {
-            const wrapper = swipeElement.closest(".category-item-wrapper");
-            if (wrapper) {
-              wrapper.style.height = wrapper.offsetHeight + "px";
-              wrapper.offsetHeight; // Force reflow
-              wrapper.style.transition = "all 0.3s ease";
-              wrapper.style.height = "0px";
-              wrapper.style.opacity = "0";
-              wrapper.style.margin = "0";
-            }
-          }
+        tg.HapticFeedback.notificationOccurred("success");
 
+        // Optimistic Update
+        const catIdInt = parseInt(categoryId);
+        const originalCategories = [...state.categories]; // Backup
+        const categoryIndex = state.categories.findIndex(c => c.id === catIdInt);
+
+        if (categoryIndex > -1) {
+            state.categories.splice(categoryIndex, 1);
+        }
+
+        if (swipeElement) {
+             const wrapper = swipeElement.closest(".category-item-wrapper");
+             if (wrapper) {
+                 wrapper.style.height = wrapper.offsetHeight + "px";
+                 wrapper.offsetHeight; // Force reflow
+                 wrapper.style.transition = "all 0.3s ease";
+                 wrapper.style.height = "0px";
+                 wrapper.style.opacity = "0";
+                 wrapper.style.margin = "0";
+                 
+                 setTimeout(() => wrapper.remove(), 300);
+             }
+        } else {
+             showScreen("categories-screen");
+             loadCategoriesScreen();
+        }
+
+        try {
           const deleteResponse = await apiRequest(`${API_URLS.CATEGORIES}/${categoryId}`, { method: "DELETE" });
           if (!deleteResponse.ok) throw new Error("Delete failed");
-
-          tg.HapticFeedback.notificationOccurred("success");
-
-          if (swipeElement) await new Promise((r) => setTimeout(r, 300));
-
-          if (swipeElement) {
-            const wrapper = swipeElement.closest(".category-item-wrapper");
-            if (wrapper) wrapper.remove();
-          } else {
-            showScreen("categories-screen");
-            loadCategoriesScreen();
-          }
-
-          // Update categories state
-          await loadAllCategories();
+          
           await fetchAndRenderBalance();
         } catch (e) {
           console.error(e);
-          tg.showAlert("Error deleting category");
+          tg.showAlert("Error deleting category. Restoring...");
+          
+          // Revert
+          state.categories = originalCategories;
+          loadCategoriesScreen(); 
         }
       } else {
-        // Canceled
-        if (swipeElement) {
-          swipeElement.style.transform = "translateX(0)";
-          swipeElement.closest(".category-item-wrapper").classList.remove("swiping-active");
-        }
+         // Canceled
+         if (swipeElement) {
+            swipeElement.style.transform = "translateX(0)";
+            swipeElement.closest(".category-item-wrapper").classList.remove("swiping-active");
+         }
       }
     });
   }
@@ -2279,8 +2342,14 @@ document.addEventListener("DOMContentLoaded", () => {
       fetchAiData("summary", `Here's your ${rangeText} Summary`);
     });
     DOM.ai.btnAnomaly.addEventListener("click", () => {
-      const rangeText = state.aiRange.charAt(0).toUpperCase() + state.aiRange.slice(1);
-      fetchAiData("anomaly", `Largest Expense This ${rangeText}`);
+      let title = "";
+      if (state.aiRange === "all") {
+          title = "Largest Expense All-Time";
+      } else {
+          const rangeText = state.aiRange.charAt(0).toUpperCase() + state.aiRange.slice(1);
+          title = `Largest Expense This ${rangeText}`;
+      }
+      fetchAiData("anomaly", title);
     });
     DOM.ai.resultBackBtn.addEventListener("click", () => {
       tg.HapticFeedback.impactOccurred("light");

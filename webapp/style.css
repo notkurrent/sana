@@ -642,7 +642,8 @@ body {
 }
 
 /* Show delete background only during swipe */
-.expense-item.swiping-active .expense-item-delete-bg {
+.expense-item.swiping-active .expense-item-delete-bg,
+.category-item-wrapper.swiping-active .expense-item-delete-bg {
   opacity: 1;
 }
 
