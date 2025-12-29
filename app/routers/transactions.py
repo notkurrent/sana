@@ -224,7 +224,24 @@ async def update_transaction(
         transaction.date = new_date_val
 
     await session.commit()
-    return {"status": "updated"}
+    await session.refresh(transaction)
+
+    # Fetch category logic for UI return
+    cat_stmt = select(CategoryDB).where(CategoryDB.id == transaction.category_id)
+    cat_result = await session.execute(cat_stmt)
+    category_db = cat_result.scalar_one()
+
+    return Transaction(
+        id=transaction.id,
+        amount=transaction.amount,
+        original_amount=transaction.original_amount,
+        currency=transaction.currency,
+        date=transaction.date,
+        category_id=transaction.category_id,
+        category=category_db.name,
+        type=category_db.type,
+        note=transaction.note,
+    )
 
 
 @router.delete("/transactions/{tx_id}")

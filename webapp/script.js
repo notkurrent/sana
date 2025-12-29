@@ -977,12 +977,29 @@ document.addEventListener("DOMContentLoaded", () => {
           let targetGroup = allGroups.find(g => g.dataset.date === dateHeaderStr);
 
           if (targetGroup) {
-              // Existing group found - Prepend to it (after header)
-               if (targetGroup.children.length > 1) {
-                  targetGroup.insertBefore(newItem, targetGroup.children[1]);
-               } else {
+              // Existing group found - insert in correct order (descending time)
+              const existingItems = Array.from(targetGroup.querySelectorAll(".transaction-item"));
+              let insertedInGroup = false;
+
+              for (const item of existingItems) {
+                  const itemTxId = parseInt(item.dataset.txId);
+                  const itemTx = state.transactions.find(t => t.id === itemTxId);
+                  
+                  if (itemTx) {
+                      const itemDate = parseDateFromUTC(itemTx.date);
+                      // If new tx is newer (larger timestamp), insert before this item
+                      if (txDate > itemDate) {
+                          targetGroup.insertBefore(newItem, item);
+                          insertedInGroup = true;
+                          break;
+                      }
+                  }
+              }
+
+              if (!insertedInGroup) {
+                  // If not inserted before any (it's older/last), append to group
                   targetGroup.appendChild(newItem);
-               }
+              }
           } else {
               // Create new group
               targetGroup = document.createElement("div");
