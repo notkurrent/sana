@@ -816,14 +816,11 @@ document.addEventListener("DOMContentLoaded", () => {
         DOM.fullForm.deleteBtn.disabled = true;
 
         // Optimistic Delete
-        // 1. Close Screen
         showScreen("home-screen");
         
-        // 2. Remove from State
         const index = state.transactions.findIndex(t => t.id === txId);
         if (index > -1) state.transactions.splice(index, 1);
         
-        // 3. Remove from DOM
         const renderedItem = DOM.home.listContainer.querySelector(`[data-tx-id="${txId}"]`);
         let group = null;
         let nextSibling = null; 
@@ -834,7 +831,6 @@ document.addEventListener("DOMContentLoaded", () => {
              if (group && group.querySelectorAll(".expense-item").length === 0) group.remove();
         }
 
-        // 4. Update Balance
         updateBalanceLocally(-tx.amount, tx.type);
 
         const success = await deleteTransaction(txId);
@@ -944,7 +940,7 @@ document.addEventListener("DOMContentLoaded", () => {
             date: displayDate 
           };
 
-          // 1. Update State
+          // Update State
           // If currency differs, store original_amount for display logic
           if (txData.currency && txData.currency !== state.baseCurrencyCode) {
               tempTx.original_amount = txData.amount;
@@ -961,7 +957,6 @@ document.addEventListener("DOMContentLoaded", () => {
           state.transactions.unshift(tempTx);
           state.offset += 1;
 
-          // 2. Update DOM
           newItem = createTransactionElement(tempTx);
           newItem.classList.add("new-item-animation");
           newItem.addEventListener("animationend", () => newItem.classList.remove("new-item-animation"), { once: true });
@@ -978,7 +973,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
           if (targetGroup) {
               // Existing group found - insert in correct order (descending time)
-              const existingItems = Array.from(targetGroup.querySelectorAll(".transaction-item"));
+              const existingItems = Array.from(targetGroup.querySelectorAll(".expense-item"));
               let insertedInGroup = false;
 
               for (const item of existingItems) {
@@ -1016,7 +1011,7 @@ document.addEventListener("DOMContentLoaded", () => {
               
               for (const group of allGroups) {
                   // Safe Strategy: Check the first transaction item in the group
-                  const firstItem = group.querySelector(".transaction-item");
+                  const firstItem = group.querySelector(".expense-item");
                   if (firstItem && firstItem.dataset.txId) {
                       const txIdInGroup = parseInt(firstItem.dataset.txId);
                       const txInGroup = state.transactions.find(t => t.id === txIdInGroup);
@@ -1038,13 +1033,11 @@ document.addEventListener("DOMContentLoaded", () => {
               }
           }
 
-          // 3. Update Balance
           expectedBalanceText = updateBalanceLocally(tempTx.amount, tempTx.type);
           
           // Haptic Feedback (Immediate)
           tg.HapticFeedback.notificationOccurred("success");
 
-          // 4. Close UI
           showScreen("home-screen", false);
           closeBottomSheet();
           
@@ -1057,23 +1050,20 @@ document.addEventListener("DOMContentLoaded", () => {
           return;
       }
 
-      // 5. Run API (Background Interaction)
+      // Run API (Background Interaction)
       try {
           const savedTx = await savePromise;
           if (!savedTx) throw new Error("Save returned null");
 
-          // Update State ID
           const index = state.transactions.findIndex(t => t.id === tempId);
           if (index !== -1) {
               state.transactions[index] = savedTx;
           }
 
-          // Update DOM ID & Content
           const renderedItem = list.querySelector(`[data-tx-id="${tempId}"]`);
           if (renderedItem) {
               const newItemContent = createTransactionElement(savedTx);
               
-              // 1. Update Content
               renderedItem.innerHTML = newItemContent.innerHTML;
               renderedItem.dataset.txId = savedTx.id;
               
@@ -1170,10 +1160,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
       try {
-          // 1. Update State
           state.transactions[originalIndex] = tempTx;
 
-          // 2. Update DOM
           const renderedItem = list.querySelector(`[data-tx-id="${txId}"]`);
           if (renderedItem) {
               const newItemContent = createTransactionElement(tempTx);
@@ -1187,11 +1175,13 @@ document.addEventListener("DOMContentLoaded", () => {
               // For now, if date changed, we rely on full refresh or accept slight disorder until next load.
           }
 
-          // 3. Update Balance
-          // Revert old
-          updateBalanceLocally(-originalTx.amount, originalTx.type); 
-          // Apply new
-          updateBalanceLocally(tempTx.amount, tempTx.type);
+          const oldSigned = originalTx.type === "income" ? originalTx.amount : -originalTx.amount;
+          const newSigned = tempTx.type === "income" ? tempTx.amount : -tempTx.amount;
+          const netChange = newSigned - oldSigned;
+          
+          if (netChange !== 0) {
+              updateBalanceLocally(Math.abs(netChange), netChange > 0 ? "income" : "expense");
+          }
 
           tg.HapticFeedback.notificationOccurred("success");
           showScreen("home-screen", true);
@@ -1204,7 +1194,7 @@ document.addEventListener("DOMContentLoaded", () => {
           return;
       }
 
-      // 4. Run API
+      // Run API
       try {
           const savedTx = await savePromise;
           if (!savedTx) throw new Error("Save returned null");
@@ -1575,7 +1565,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (confirmed) {
         tg.HapticFeedback.notificationOccurred("success");
 
-        // 1. Visual Collapse
+        // Visual Collapse
         element.style.height = element.offsetHeight + "px";
         
         // Optimistic: Update Balance immediately
@@ -1593,7 +1583,7 @@ document.addEventListener("DOMContentLoaded", () => {
         element.addEventListener(
           "transitionend",
           async () => {
-             // 2. Remove from DOM & State Optimistically
+             // Remove from DOM & State Optimistically
              const group = element.closest(".transaction-group");
              element.remove();
              if (group && group.querySelectorAll(".expense-item").length === 0) group.remove();
@@ -1601,7 +1591,7 @@ document.addEventListener("DOMContentLoaded", () => {
              const index = state.transactions.findIndex(t => t.id === txId);
              if (index > -1) state.transactions.splice(index, 1);
 
-             // 3. API Call
+             // API Call
              const success = await deleteTransaction(txId);
 
              if (!success) {
@@ -2442,7 +2432,7 @@ document.addEventListener("DOMContentLoaded", () => {
           apiRequest(API_URLS.BALANCE),
         ]);
 
-        // 1. Process User Profile First (to get Currency & Rates)
+        // Process User Profile First (to get Currency & Rates)
         if (profileRes.ok) {
           const profileData = await profileRes.json();
           // Store Rates
@@ -2461,7 +2451,6 @@ document.addEventListener("DOMContentLoaded", () => {
           }
         }
 
-        // 2. Process Categories
         const expenseCats = catExpenseRes.ok ? await catExpenseRes.json() : [];
         const incomeCats = catIncomeRes.ok ? await catIncomeRes.json() : [];
         state.categories = [
@@ -2470,7 +2459,6 @@ document.addEventListener("DOMContentLoaded", () => {
         ];
         renderQuickAddGrids();
 
-        // 3. Process Transactions
         if (transactionsRes.ok) {
           const txData = await transactionsRes.json();
           state.transactions = txData;
@@ -2479,7 +2467,6 @@ document.addEventListener("DOMContentLoaded", () => {
           renderTransactions(state.transactions);
         }
 
-        // 4. Process Balance
         if (balanceRes.ok) {
           const balanceData = await balanceRes.json();
           const serverBalance = parseFloat(balanceData.balance);
