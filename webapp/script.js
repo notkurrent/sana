@@ -972,23 +972,53 @@ document.addEventListener("DOMContentLoaded", () => {
           const txDate = parseDateFromUTC(tempTx.date);
           const dateHeaderStr = formatDateForTitle(txDate);
           
-          const firstGroup = list.firstElementChild;
-          if (firstGroup && firstGroup.dataset && firstGroup.dataset.date === dateHeaderStr) {
-              if (firstGroup.children.length > 1) {
-                  firstGroup.insertBefore(newItem, firstGroup.children[1]);
-              } else {
-                  firstGroup.appendChild(newItem);
-              }
+          // Helper to find sorted insertion point
+          const allGroups = Array.from(list.querySelectorAll(".transaction-group"));
+          let targetGroup = allGroups.find(g => g.dataset.date === dateHeaderStr);
+
+          if (targetGroup) {
+              // Existing group found - Prepend to it (after header)
+               if (targetGroup.children.length > 1) {
+                  targetGroup.insertBefore(newItem, targetGroup.children[1]);
+               } else {
+                  targetGroup.appendChild(newItem);
+               }
           } else {
-              const newGroup = document.createElement("div");
-              newGroup.className = "transaction-group";
-              newGroup.dataset.date = dateHeaderStr;
+              // Create new group
+              targetGroup = document.createElement("div");
+              targetGroup.className = "transaction-group";
+              targetGroup.dataset.date = dateHeaderStr;
               const headerEl = document.createElement("div");
               headerEl.className = "date-header";
               headerEl.textContent = dateHeaderStr;
-              newGroup.appendChild(headerEl);
-              newGroup.appendChild(newItem);
-              list.prepend(newGroup);
+              targetGroup.appendChild(headerEl);
+              targetGroup.appendChild(newItem);
+
+              // Find where to insert group (chronologically descending)
+              let inserted = false;
+              
+              for (const group of allGroups) {
+                  // Safe Strategy: Check the first transaction item in the group
+                  const firstItem = group.querySelector(".transaction-item");
+                  if (firstItem && firstItem.dataset.txId) {
+                      const txIdInGroup = parseInt(firstItem.dataset.txId);
+                      const txInGroup = state.transactions.find(t => t.id === txIdInGroup);
+                      if (txInGroup) {
+                          const groupDate = parseDateFromUTC(txInGroup.date);
+                          if (groupDate < txDate) {
+                              // Insert new group BEFORE the older group
+                              list.insertBefore(targetGroup, group);
+                              inserted = true;
+                              break;
+                          }
+                      }
+                  }
+              }
+              
+              if (!inserted) {
+                  // If not inserted before any, it's older than all -> Append
+                  list.appendChild(targetGroup);
+              }
           }
 
           // 3. Update Balance
@@ -1067,6 +1097,126 @@ document.addEventListener("DOMContentLoaded", () => {
       }
   }
 
+  async function handleOptimisticEdit(txData, txId, savePromise) {
+      const list = DOM.home.listContainer;
+      const originalTx = state.transactions.find(t => t.id === txId);
+      if (!originalTx) {
+           // Should not happen, but fallback to normal await
+           const saved = await savePromise;
+           if (saved) {
+               await loadTransactions(false);
+               await fetchAndRenderBalance();
+               showScreen("home-screen", true);
+           }
+           return;
+      }
+
+      const originalIndex = state.transactions.indexOf(originalTx);
+      const categoryObj = state.categories.find(c => c.id === txData.category_id);
+      
+      // For display, if date is today (YYYY-MM-DD), use current detailed time
+      let displayDate = txData.date;
+      const todayStr = getLocalDateString(new Date());
+      if (txData.date === todayStr) {
+          // Keep original time if date hasn't changed, else use now
+          if (getLocalDateString(parseDateFromUTC(originalTx.date)) === txData.date) {
+               displayDate = originalTx.date;
+          } else {
+               displayDate = new Date().toISOString();
+          }
+      }
+
+      const tempTx = {
+        ...originalTx,
+        category_id: txData.category_id,
+        amount: txData.amount,
+        currency: txData.currency,
+        date: displayDate,
+        note: txData.note,
+        type: categoryObj ? categoryObj.type : (txData.amount < 0 ? "expense" : "income"),
+        category: categoryObj ? categoryObj.name : "Unknown",
+        original_amount: (txData.currency !== state.baseCurrencyCode) ? txData.amount : null 
+      };
+      
+      // Currency conversion approx for display (if needed)
+       if (txData.currency && txData.currency !== state.baseCurrencyCode) {
+          if (state.rates && state.rates[state.baseCurrencyCode] && state.rates[txData.currency]) {
+               const rateSource = state.rates[txData.currency];
+               const rateTarget = state.rates[state.baseCurrencyCode];
+               const conversionRate = rateTarget / rateSource;
+               tempTx.amount = txData.amount * conversionRate;
+          }
+       } else {
+           // Reset amount if same currency (case: switched back to base)
+           tempTx.amount = txData.amount;
+       }
+
+
+      try {
+          // 1. Update State
+          state.transactions[originalIndex] = tempTx;
+
+          // 2. Update DOM
+          const renderedItem = list.querySelector(`[data-tx-id="${txId}"]`);
+          if (renderedItem) {
+              const newItemContent = createTransactionElement(tempTx);
+              renderedItem.innerHTML = newItemContent.innerHTML;
+              
+              const newType = tempTx.type;
+              renderedItem.classList.remove("income", "expense");
+              renderedItem.classList.add(newType);
+              
+              // Move if date changed (Simplest: remove and re-insert, or just reload list if date changed)
+              // For now, if date changed, we rely on full refresh or accept slight disorder until next load.
+          }
+
+          // 3. Update Balance
+          // Revert old
+          updateBalanceLocally(-originalTx.amount, originalTx.type); 
+          // Apply new
+          updateBalanceLocally(tempTx.amount, tempTx.type);
+
+          tg.HapticFeedback.notificationOccurred("success");
+          showScreen("home-screen", true);
+
+      } catch (e) {
+          console.error("Optimistic Edit UI Error", e);
+          // Reload
+          await loadTransactions(false);
+          await fetchAndRenderBalance();
+          return;
+      }
+
+      // 4. Run API
+      try {
+          const savedTx = await savePromise;
+          if (!savedTx) throw new Error("Save returned null");
+
+          // Sync State with Server Response (authoritative)
+          state.transactions[originalIndex] = savedTx;
+          
+          // Sync DOM (Authoritative)
+          const finalItem = list.querySelector(`[data-tx-id="${txId}"]`);
+          if (finalItem) {
+               const content = createTransactionElement(savedTx);
+               finalItem.innerHTML = content.innerHTML;
+          }
+          // We likely don't need to re-update balance if our approx was close enough.
+          
+      } catch (e) {
+          console.error("Optimistic Edit API Error", e);
+          tg.showAlert("Failed to save changes. Reverting...");
+          
+          // Revert State
+          state.transactions[originalIndex] = originalTx;
+          
+          // Revert DOM / Balance
+          // Easiest is full reload
+          await loadTransactions(false);
+          await fetchAndRenderBalance();
+      }
+  }
+
   // Optimistic UI Update Logic
   async function handleSaveForm() {
     const categoryId = DOM.fullForm.categorySelect.value;
@@ -1102,14 +1252,9 @@ document.addEventListener("DOMContentLoaded", () => {
       };
 
       const txId = state.editTransaction.id;
-      const savedTransaction = await _saveTransaction(txData, txId);
-
-      if (savedTransaction) {
-        tg.HapticFeedback.notificationOccurred("success");
-        await loadTransactions(false);
-        await fetchAndRenderBalance();
-        showScreen("home-screen", true);
-      }
+      // Optimistic Edit
+      await handleOptimisticEdit(txData, txId, _saveTransaction(txData, txId));
+      
       DOM.fullForm.saveBtn.disabled = false;
       state.editTransaction = null;
     } else {
