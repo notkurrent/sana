@@ -588,6 +588,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const list = DOM.home.listContainer;
     if (!isAppend) list.innerHTML = "";
 
+
     if (!isAppend && transactions.length === 0) {
       list.innerHTML = `
                 <div class="list-placeholder">
@@ -601,38 +602,81 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     transactions.forEach((tx) => {
+        insertTransactionDOM(tx, list, highlightId === tx.id);
+    });
+  }
+
+  function insertTransactionDOM(tx, list, shouldAnimate = false) {
       const txDate = parseDateFromUTC(tx.date);
       const dateHeaderStr = formatDateForTitle(txDate);
+      
+      let targetGroup = Array.from(list.querySelectorAll(".transaction-group")).find(g => g.dataset.date === dateHeaderStr);
+      const newItem = createTransactionElement(tx);
+      
+      if (shouldAnimate) {
+          newItem.classList.add("new-item-animation");
+          newItem.addEventListener("animationend", () => newItem.classList.remove("new-item-animation"), { once: true });
+      }
 
-      let currentGroup = list.lastElementChild;
-      let groupToAppend;
+      if (targetGroup) {
+          const existingItems = Array.from(targetGroup.querySelectorAll(".expense-item"));
+          let insertedInGroup = false;
 
-      if (
-        currentGroup &&
-        currentGroup.classList.contains("transaction-group") &&
-        currentGroup.dataset.date === dateHeaderStr
-      ) {
-        groupToAppend = currentGroup;
+          for (const item of existingItems) {
+              const itemTxId = parseInt(item.dataset.txId);
+              const itemTx = state.transactions.find(t => t.id === itemTxId);
+              
+              if (itemTx) {
+                  const itemDate = parseDateFromUTC(itemTx.date);
+                  if (txDate > itemDate) {
+                      targetGroup.insertBefore(newItem, item);
+                      insertedInGroup = true;
+                      break;
+                  }
+              }
+          }
+
+          if (!insertedInGroup) {
+              targetGroup.appendChild(newItem);
+          }
       } else {
-        groupToAppend = document.createElement("div");
-        groupToAppend.className = "transaction-group";
-        groupToAppend.dataset.date = dateHeaderStr;
+          // Create new group
+          targetGroup = document.createElement("div");
+          targetGroup.className = "transaction-group";
+          targetGroup.dataset.date = dateHeaderStr;
+          
+          const headerEl = document.createElement("div");
+          headerEl.className = "date-header";
+          headerEl.textContent = dateHeaderStr;
+          
+          targetGroup.appendChild(headerEl);
+          targetGroup.appendChild(newItem);
 
-        const headerEl = document.createElement("div");
-        headerEl.className = "date-header";
-        headerEl.textContent = dateHeaderStr;
-
-        groupToAppend.appendChild(headerEl);
-        list.appendChild(groupToAppend);
+          const allGroups = Array.from(list.querySelectorAll(".transaction-group"));
+          let inserted = false;
+          
+          for (const group of allGroups) {
+              const firstItem = group.querySelector(".expense-item");
+              if (firstItem && firstItem.dataset.txId) {
+                  const txIdInGroup = parseInt(firstItem.dataset.txId);
+                  const txInGroup = state.transactions.find(t => t.id === txIdInGroup);
+                  if (txInGroup) {
+                      const groupDate = parseDateFromUTC(txInGroup.date);
+                      if (groupDate < txDate) {
+                          list.insertBefore(targetGroup, group);
+                          inserted = true;
+                          break;
+                      }
+                  }
+              }
+          }
+          
+          if (!inserted) {
+              list.appendChild(targetGroup);
+          }
       }
+      return newItem;
 
-      const item = createTransactionElement(tx);
-      if (tx.id === highlightId) {
-        item.classList.add("new-item-animation");
-        item.addEventListener("animationend", () => item.classList.remove("new-item-animation"), { once: true });
-      }
-      groupToAppend.appendChild(item);
-    });
   }
 
   function renderSkeleton() {
@@ -958,81 +1002,12 @@ document.addEventListener("DOMContentLoaded", () => {
           state.transactions.unshift(tempTx);
           state.offset += 1;
 
-          newItem = createTransactionElement(tempTx);
-          newItem.classList.add("new-item-animation");
-          newItem.addEventListener("animationend", () => newItem.classList.remove("new-item-animation"), { once: true });
           
           const placeholder = list.querySelector(".list-placeholder");
           if (placeholder) placeholder.remove();
 
-          const txDate = parseDateFromUTC(tempTx.date);
-          const dateHeaderStr = formatDateForTitle(txDate);
-          
-          // Helper to find sorted insertion point
-          const allGroups = Array.from(list.querySelectorAll(".transaction-group"));
-          let targetGroup = allGroups.find(g => g.dataset.date === dateHeaderStr);
+          insertTransactionDOM(tempTx, list, true);
 
-          if (targetGroup) {
-              // Existing group found - insert in correct order (descending time)
-              const existingItems = Array.from(targetGroup.querySelectorAll(".expense-item"));
-              let insertedInGroup = false;
-
-              for (const item of existingItems) {
-                  const itemTxId = parseInt(item.dataset.txId);
-                  const itemTx = state.transactions.find(t => t.id === itemTxId);
-                  
-                  if (itemTx) {
-                      const itemDate = parseDateFromUTC(itemTx.date);
-                      // If new tx is newer (larger timestamp), insert before this item
-                      if (txDate > itemDate) {
-                          targetGroup.insertBefore(newItem, item);
-                          insertedInGroup = true;
-                          break;
-                      }
-                  }
-              }
-
-              if (!insertedInGroup) {
-                  // If not inserted before any (it's older/last), append to group
-                  targetGroup.appendChild(newItem);
-              }
-          } else {
-              // Create new group
-              targetGroup = document.createElement("div");
-              targetGroup.className = "transaction-group";
-              targetGroup.dataset.date = dateHeaderStr;
-              const headerEl = document.createElement("div");
-              headerEl.className = "date-header";
-              headerEl.textContent = dateHeaderStr;
-              targetGroup.appendChild(headerEl);
-              targetGroup.appendChild(newItem);
-
-              // Find where to insert group (chronologically descending)
-              let inserted = false;
-              
-              for (const group of allGroups) {
-                  // Safe Strategy: Check the first transaction item in the group
-                  const firstItem = group.querySelector(".expense-item");
-                  if (firstItem && firstItem.dataset.txId) {
-                      const txIdInGroup = parseInt(firstItem.dataset.txId);
-                      const txInGroup = state.transactions.find(t => t.id === txIdInGroup);
-                      if (txInGroup) {
-                          const groupDate = parseDateFromUTC(txInGroup.date);
-                          if (groupDate < txDate) {
-                              // Insert new group BEFORE the older group
-                              list.insertBefore(targetGroup, group);
-                              inserted = true;
-                              break;
-                          }
-                      }
-                  }
-              }
-              
-              if (!inserted) {
-                  // If not inserted before any, it's older than all -> Append
-                  list.appendChild(targetGroup);
-              }
-          }
 
           expectedBalanceText = updateBalanceLocally(tempTx.amount, tempTx.type);
           
@@ -1172,9 +1147,19 @@ document.addEventListener("DOMContentLoaded", () => {
               renderedItem.classList.remove("income", "expense");
               renderedItem.classList.add(newType);
               
-              // Move if date changed (Simplest: remove and re-insert, or just reload list if date changed)
-              // For now, if date changed, we rely on full refresh or accept slight disorder until next load.
+              const newDate = parseDateFromUTC(tempTx.date);
+              const newDateHeader = formatDateForTitle(newDate);
+              const currentGroup = renderedItem.closest(".transaction-group");
+              
+              if (currentGroup && currentGroup.dataset.date !== newDateHeader) {
+                   const group = currentGroup;
+                   renderedItem.remove(); 
+                   if (group.querySelectorAll(".expense-item").length === 0) group.remove();
+                   
+                   insertTransactionDOM(tempTx, list, true);
+              }
           }
+
 
           const oldSigned = originalTx.type === "income" ? originalTx.amount : -originalTx.amount;
           const newSigned = tempTx.type === "income" ? tempTx.amount : -tempTx.amount;
@@ -1274,10 +1259,8 @@ document.addEventListener("DOMContentLoaded", () => {
           date: dateToSend,
           note: note
        };
-       // We pass the promise, but we don't await it here because handleOptimisticAdd awaits it internally
-       // while handling success/error. 
-       // Note: handleOptimisticAdd is async, so we await it to catch any synchronous errors if any, 
-       // but the API call is inside.
+
+
        await handleOptimisticAdd(txData, _saveTransaction(txData));
        DOM.fullForm.saveBtn.disabled = false;
     }
