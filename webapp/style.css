@@ -1009,8 +1009,14 @@ body {
   cursor: pointer;
   transition: background-color 0.2s ease;
 }
-.calendar-day:hover {
-  filter: brightness(1.1);
+@media (hover: hover) {
+  .calendar-day:hover {
+    filter: brightness(1.1);
+  }
+}
+.calendar-day:active {
+  filter: brightness(0.9);
+  transition: none;
 }
 .calendar-day.is-other-month {
   background-color: var(--tg-theme-bg-color);
@@ -1472,7 +1478,7 @@ a.settings-btn {
 
 .sticky-footer {
   position: sticky;
-  bottom: calc(85px + env(safe-area-inset-bottom));
+  bottom: calc(65px + env(safe-area-inset-bottom));
   box-sizing: border-box;
   padding: var(--space-md) 0;
   background-color: transparent;
@@ -1483,9 +1489,12 @@ a.settings-btn {
   border-radius: 0;
   z-index: 6;
 }
+.platform-android .sticky-footer {
+  bottom: 95px;
+}
 
 #quick-add-screen .sticky-footer {
-  bottom: calc(95px + env(safe-area-inset-bottom));
+  bottom: calc(75px + env(safe-area-inset-bottom));
   left: 25px;
   right: 25px;
   max-width: 390px;
@@ -1496,6 +1505,9 @@ a.settings-btn {
   -webkit-backdrop-filter: blur(10px);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15), inset 0 0 0 1px rgba(var(--tg-theme-hint-color-rgb), 0.15);
   border-radius: 20px;
+}
+.platform-android #quick-add-screen .sticky-footer {
+  bottom: 105px;
 }
 
 @media (prefers-color-scheme: dark) {
