@@ -1367,7 +1367,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (dayTransactions.length === 0) {
       DOM.daySheet.list.innerHTML = "<p class='list-placeholder'>No transactions on this day.</p>";
     } else {
-      dayTransactions.forEach((tx) => DOM.daySheet.list.appendChild(createTransactionElement(tx)));
+      const fragment = document.createDocumentFragment();
+      dayTransactions.forEach((tx) => fragment.appendChild(createTransactionElement(tx)));
+      DOM.daySheet.list.appendChild(fragment);
     }
     DOM.daySheet.contentWrapper.scrollTop = 0;
     openBottomSheet(DOM.daySheet.sheet);
@@ -2142,7 +2144,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (state.activeBottomSheet || document.getElementById("home-screen").classList.contains("hidden")) return;
     const scrollPosition = window.innerHeight + window.scrollY;
     const bodyHeight = document.body.offsetHeight;
-    if (scrollPosition >= bodyHeight - 1000) {
+    const SCROLL_THRESHOLD = 3000;
+    if (scrollPosition >= bodyHeight - SCROLL_THRESHOLD) {
       if (!state.isLoadingMore && !state.isAllLoaded) {
         loadTransactions(true);
       }

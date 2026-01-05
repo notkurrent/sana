@@ -491,8 +491,6 @@ body {
   transition: opacity 0.3s ease, height 0.3s ease;
   height: auto;
   min-height: 56px;
-  content-visibility: auto;
-  contain-intrinsic-size: 56px;
   transform: translateZ(0);
   will-change: transform;
   touch-action: pan-y;
@@ -656,7 +654,7 @@ body {
 
 .tab-bar {
   position: fixed;
-  bottom: calc(20px + env(safe-area-inset-bottom));
+  bottom: env(safe-area-inset-bottom);
   left: 25px;
   right: 25px;
   max-width: 400px;
@@ -672,6 +670,10 @@ body {
   border-radius: 100px;
   z-index: 10;
   transition: background-color 0.3s ease;
+}
+
+.platform-android .tab-bar {
+  bottom: 30px;
 }
 @media (prefers-color-scheme: dark) {
   .tab-bar {
@@ -797,8 +799,15 @@ body {
   text-align: left;
   transition: background-color 0.2s ease;
 }
-.ai-feature-card:hover {
-  filter: brightness(0.95);
+@media (hover: hover) {
+  .ai-feature-card:hover {
+    filter: brightness(0.95);
+  }
+}
+.ai-feature-card:active {
+  background-color: var(--tg-theme-secondary-bg-color);
+  filter: brightness(0.9);
+  transition: none;
 }
 .ai-feature-icon {
   flex-shrink: 0;
