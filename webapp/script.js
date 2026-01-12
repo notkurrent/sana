@@ -1856,21 +1856,77 @@ document.addEventListener("DOMContentLoaded", () => {
   async function handleResetData() {
     DOM.settings.resetDataBtn.disabled = true;
     DOM.settings.resetDataBtn.textContent = "Resetting...";
+
+    // --- OPTIMISTIC UPDATE ---
+    
+    // Capture Pre-Reset State for Animation
+    const balanceEl = DOM.home.balanceAmount;
+    const currentBalanceText = balanceEl.textContent;
+    const currentBalanceVal = parseFloat(currentBalanceText.replace(/[^0-9.-]+/g, "")) || 0;
+    
+    // Clear State
+    const previousTransactions = [...state.transactions]; // Backup for rollback
+    state.transactions = [];
+    state.categories = []; // Will be re-fetched 
+    state.offset = 0;
+    state.isAllLoaded = true;
+
+    // Clear Storage
+    localStorage.removeItem("last_used_currency");
+
+    // Clear DOM
+    DOM.home.listContainer.innerHTML = `
+        <div class="list-placeholder">
+            <span class="icon">📁</span>
+            <h3>All Clear!</h3>
+            <p>Your new transactions will appear here.</p>
+            <p>Tap the <b>(+)</b> button to add your first transaction.</p>
+        </div>
+    `;
+    DOM.home.balanceAmount.textContent = `${state.currencySymbol}0.00`;
+
+    // Add Flash Animation (UX: "Losing" positive balance = red, "Clearing" debt = green)
+    if (Math.abs(currentBalanceVal) > 0.01) {
+        const container = DOM.home.balanceAmount.closest(".total-container");
+        if (container) {
+            const classToAdd = currentBalanceVal > 0 ? "balance-flash-negative" : "balance-flash-positive";
+            container.classList.remove("balance-flash-positive", "balance-flash-negative");
+            
+            requestAnimationFrame(() => {
+                container.classList.add(classToAdd);
+            });
+            container.addEventListener("animationend", () => container.classList.remove(classToAdd), { once: true });
+        }
+    }
+
+    // 4. Feedback & Navigation
+    tg.HapticFeedback.notificationOccurred("success");
+    showScreen("home-screen");
+    tg.showPopup({
+      title: "Data Reset",
+      message: "Your account has been successfully reset.",
+      buttons: [{ type: "ok" }],
+    });
+
+    // --- API CALL ---
     try {
       const response = await apiRequest(API_URLS.USER_RESET, { method: "DELETE" });
       if (!response.ok) throw new Error("Reset failed");
-      tg.HapticFeedback.notificationOccurred("success");
-      await loadTransactions();
+
+      // Success: Re-fetch default categories (created by server on reset)
+      await loadAllCategories();
+      // We can also re-fetch transactions to be 100% sure we are in sync (should be empty)
+      await loadTransactions(false);
+
+    } catch (error) {
+      console.error("Reset Failed", error);
+      tg.showAlert("Failed to reset data. Restoring...");
+      
+      // Rollback
+      state.transactions = previousTransactions;
+      await loadTransactions(false); // Reload attempts to restore DOM
       await loadAllCategories();
       await fetchAndRenderBalance();
-      showScreen("home-screen");
-      tg.showPopup({
-        title: "Data Reset",
-        message: "Your account has been successfully reset.",
-        buttons: [{ type: "ok" }],
-      });
-    } catch (error) {
-      tg.showAlert("Failed to reset data.");
     } finally {
       DOM.settings.resetDataBtn.disabled = false;
       DOM.settings.resetDataBtn.textContent = "Reset All Data";

@@ -42,15 +42,12 @@ class AnalyticsService:
         """
         Fetches largest transactions, prioritizing those with notes.
         """
-        # Improved sorting:
-        # 1. Transactions with notes usually have more context, so we might want to prioritize them?
-        # For now, let's strictly sort by amount (descending) to capture "heavy" spending.
-        # But we ensure we fetch the note field.
 
         stmt = (
             select(
                 TransactionDB.date,
                 TransactionDB.amount,
+                TransactionDB.original_amount,
                 TransactionDB.currency,
                 TransactionDB.note,
                 CategoryDB.name.label("category"),

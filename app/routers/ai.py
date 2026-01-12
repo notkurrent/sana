@@ -101,9 +101,12 @@ async def get_ai_advice(
     details_str = "DETAILS (Top Expenses):\n"
     for tx in top_txs:
         note_str = f' - Note: "{tx["note"]}"' if tx["note"] else ""
-        details_str += (
-            f"- {tx['date'].strftime('%d %b')}: {tx['amount']} {tx['currency']} ({tx['category']}){note_str}\n"
-        )
+
+        amount_str = f"{tx['amount']} {tx['currency']}"
+        if tx["currency"] != currency and tx.get("original_amount"):
+            amount_str = f"{tx['original_amount']} {tx['currency']} (~{tx['amount']} {currency})"
+
+        details_str += f"- {tx['date'].strftime('%d %b')}: {amount_str} ({tx['category']}){note_str}\n"
 
     full_data_block = f"{stats_str}\n{details_str}"
 
