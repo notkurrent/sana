@@ -360,6 +360,50 @@ document.addEventListener("DOMContentLoaded", () => {
     },
   };
 
+  // --- TELEGRAM BACK BUTTON ---
+  tg.BackButton.onClick(() => {
+    if (state.activeBottomSheet) {
+      closeBottomSheet();
+      return;
+    }
+
+    const currentScreen = Array.from(DOM.screens).find((s) => !s.classList.contains("hidden"))?.id;
+
+    if (!currentScreen) {
+      showScreen("home-screen");
+      return;
+    }
+
+    switch (currentScreen) {
+      case "categories-screen":
+        if (DOM.categories.backBtn) DOM.categories.backBtn.click();
+        else showScreen("home-screen");
+        break;
+      case "edit-category-screen":
+        if (DOM.editCategory.backBtn) DOM.editCategory.backBtn.click();
+        else showScreen("categories-screen");
+        break;
+      case "full-form-screen":
+        if (DOM.fullForm.cancelBtn) DOM.fullForm.cancelBtn.click();
+        else showScreen("home-screen");
+        break;
+      case "ai-screen":
+        if (!DOM.ai.resultContainer.classList.contains("hidden")) {
+          if (DOM.ai.resultBackBtn) DOM.ai.resultBackBtn.click();
+        } else {
+          showScreen("home-screen");
+        }
+        break;
+      case "analytics-screen":
+      case "settings-screen":
+      case "quick-add-screen":
+        showScreen("home-screen");
+        break;
+      default:
+        showScreen("home-screen");
+    }
+  });
+
   // --- BUSINESS LOGIC ---
 
   async function fetchAndRenderBalance() {
@@ -438,6 +482,14 @@ document.addEventListener("DOMContentLoaded", () => {
     if (["home-screen", "analytics-screen", "ai-screen", "settings-screen", "quick-add-screen"].includes(screenId)) {
       sessionStorage.setItem("lastActiveScreen", screenId);
       state.lastActiveScreen = screenId;
+    }
+
+    // Telegram Back Button Logic
+    // Hide on top-level tabs (Home, Analytics, AI, Settings, Quick Add)
+    if (["home-screen", "analytics-screen", "ai-screen", "settings-screen", "quick-add-screen"].includes(screenId)) {
+      tg.BackButton.hide();
+    } else {
+      tg.BackButton.show();
     }
 
     if (screenId === "analytics-screen") {
@@ -2062,13 +2114,23 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     const fullName = icon ? `${icon} ${name}` : name;
+
+    // Check for duplicates
+    const isDuplicate = state.categories.some(
+        (c) => c.type === state.categoryType && c.name.toLowerCase() === fullName.toLowerCase()
+    );
+
+    if (isDuplicate) {
+        tg.showAlert("This category already exists.");
+        return;
+    }
     tg.HapticFeedback.impactOccurred("light");
     
     // Optimistic Update
     const tempId = Date.now();
     const newCategory = {
         id: tempId,
-        user_id: 123, // Dummy ID
+        user_id: 123,
         name: fullName,
         type: state.categoryType,
         is_active: true
@@ -2088,7 +2150,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       if (!response.ok) throw new Error("Add failed");
       
-      const realData = await response.json(); // {id: 123, status: "created"}
+      const realData = await response.json();
       
       // Update ID in state
       const idx = state.categories.findIndex(c => c.id === tempId);
@@ -2114,9 +2176,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const domItem = DOM.categories.list.querySelector(`[data-id="${tempId}"]`);
         if (domItem) domItem.remove();
         
-        // Restore inputs (optional, maybe nice to let user retry)
-        // DOM.categories.newNameInput.value = name;
-        // DOM.categories.newIconInput.value = icon;
+
     } finally {
       DOM.categories.addBtn.disabled = false;
     }
@@ -2134,8 +2194,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } catch (e) {
       if (!swipeElement) tg.showAlert("Failed to check category.");
-      // For swipe, we might proceed or cancel. Let's proceed with generic message if check fails?
-      // Or safer to just show default message.
+
     }
 
     if (transactionCount > 0) {
@@ -2229,8 +2288,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (tg.platform === "android" || tg.platform === "android_x") document.body.classList.add("platform-android");
     const applyTheme = () => {
       if (tg.colorScheme === "dark") {
-        tg.setHeaderColor("#1C1C1E");
-        tg.setBackgroundColor("#1C1C1E");
+        tg.setHeaderColor("#000000");
+        tg.setBackgroundColor("#000000");
       } else {
         tg.setHeaderColor("#FFFFFF");
         tg.setBackgroundColor("#FFFFFF");
@@ -2608,6 +2667,9 @@ document.addEventListener("DOMContentLoaded", () => {
       }, 100);
     })();
   }
+
+  // Hack to enable :active states on iOS
+  document.body.addEventListener("touchstart", () => {}, { passive: true });
 
   init();
 });

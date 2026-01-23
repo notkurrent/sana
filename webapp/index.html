@@ -8,8 +8,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Onest:wght@700&display=swap" rel="stylesheet" />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" />
 
-    <link rel="stylesheet" href="/static/style.css?v=10.1" />
+    <link rel="stylesheet" href="/static/style.css?v=10.2" />
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   </head>
@@ -111,6 +112,7 @@
           <button id="ai-btn-advice" class="ai-feature-card">
             <div class="ai-feature-icon">
               <svg
+                aria-hidden="true"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -134,6 +136,7 @@
           <button id="ai-btn-summary" class="ai-feature-card">
             <div class="ai-feature-icon">
               <svg
+                aria-hidden="true"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -157,6 +160,7 @@
           <button id="ai-btn-anomaly" class="ai-feature-card">
             <div class="ai-feature-icon">
               <svg
+                aria-hidden="true"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -180,7 +184,7 @@
 
         <div id="ai-result-container" class="ai-result-container hidden">
           <h4 id="ai-result-title">Here's your advice</h4>
-          <p id="ai-result-body">Thinking...</p>
+          <p id="ai-result-body">Thinking…</p>
           <button id="ai-result-back-btn" class="cancel-btn">Back</button>
         </div>
       </div>
@@ -208,7 +212,7 @@
           <label>Community & Support</label>
           <a href="https://t.me/+w2vW3Pgrlok1N2Uy" target="_blank" class="settings-btn support-btn">
             <span>Join Discussion Group</span>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="btn-icon">
+            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="btn-icon">
               <path
                 d="M1.946 9.315c-.522-.174-.527-.455.01-.634l19.087-6.362c.529-.176.832.12.684.638l-5.454 19.086c-.15.529-.455.547-.679.045L12 14l6-8-8 6-8.054-2.685z"
               />
@@ -241,6 +245,7 @@
 
           <button id="add-category-btn" class="add-category-btn" aria-label="Add new category">
             <svg
+              aria-hidden="true"
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
               viewBox="0 0 24 24"
@@ -290,7 +295,7 @@
 
           <label for="category-select">Category</label>
           <select id="category-select">
-            <option value="">Loading categories...</option>
+            <option value="">Loading categories…</option>
           </select>
 
           <label for="transaction-amount">Amount</label>
@@ -317,7 +322,7 @@
           <input type="date" id="transaction-date" />
 
           <label for="transaction-note">Note</label>
-          <input type="text" id="transaction-note" placeholder="Add a note... (optional)" autocomplete="off" />
+          <input type="text" id="transaction-note" placeholder="Add a note… (optional)" autocomplete="off" />
 
           <button id="save-btn" class="save-btn">Save Transaction</button>
           <button id="cancel-btn" class="cancel-btn">Cancel</button>
@@ -345,6 +350,7 @@
               aria-label="Add full expense transaction"
             >
               <svg
+                aria-hidden="true"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -356,6 +362,7 @@
             </button>
             <button id="quick-manual-income" class="quick-manual-btn income" aria-label="Add full income transaction">
               <svg
+                aria-hidden="true"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -374,6 +381,7 @@
     <nav class="tab-bar">
       <button id="tab-home" class="tab-button active" aria-label="Home">
         <svg
+          aria-hidden="true"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
@@ -392,6 +400,7 @@
       </button>
       <button id="tab-analytics" class="tab-button" aria-label="Analytics">
         <svg
+          aria-hidden="true"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
@@ -410,6 +419,7 @@
       </button>
       <button id="tab-add" class="tab-button-add" aria-label="Add transaction">
         <svg
+          aria-hidden="true"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
@@ -423,6 +433,7 @@
       </button>
       <button id="tab-ai" class="tab-button" aria-label="AI Advisor">
         <svg
+          aria-hidden="true"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
@@ -441,6 +452,7 @@
       </button>
       <button id="tab-settings" class="tab-button" aria-label="Settings">
         <svg
+          aria-hidden="true"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
@@ -499,6 +511,7 @@
         <button id="quick-add-note-toggle" class="note-toggle-btn">
           <div class="note-toggle-content">
             <svg
+              aria-hidden="true"
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
               viewBox="0 0 24 24"
@@ -514,12 +527,12 @@
                 d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
               />
             </svg>
-            <span>Add Note...</span>
+            <span>Add Note…</span>
           </div>
           <span class="note-toggle-chevron">›</span>
         </button>
 
-        <input type="text" id="quick-modal-note" class="hidden" placeholder="Type a note..." autocomplete="off" />
+        <input type="text" id="quick-modal-note" class="hidden" placeholder="Type a note…" autocomplete="off" />
 
         <button id="quick-modal-save-btn" class="save-btn">Save</button>
       </div>
@@ -538,6 +551,6 @@
       </div>
     </div>
 
-    <script src="/static/script.js?v=10.1" defer></script>
+    <script src="/static/script.js?v=10.2" defer></script>
   </body>
 </html>

@@ -24,3 +24,6 @@ __pycache__/
 # Testing
 .pytest_cache/
 tests/__pycache__/
+
+# AI Agents (Vercel Skills)
+.agents/
