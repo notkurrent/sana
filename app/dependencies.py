@@ -36,15 +36,21 @@ async def verify_telegram_authentication(x_telegram_init_data: str = Header(None
         secret_key = hmac.new(b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256).digest()
         calculated_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
 
-        if calculated_hash != received_hash:
+        if not hmac.compare_digest(calculated_hash, received_hash):
             print("❌ [AUTH FAIL] Hash mismatch")
             raise HTTPException(status_code=403, detail="Data integrity check failed")
 
-        user_data = json.loads(parsed_data.get("user", "{}"))
-        user_data["id"] = str(user_data["id"])
+        try:
+            user_data = json.loads(parsed_data.get("user", "{}"))
+            user_data["id"] = str(user_data["id"])
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            print(f"❌ [AUTH ERROR]: Invalid user data: {e}")
+            raise HTTPException(status_code=401, detail="Invalid authentication data") from e
 
         return user_data
 
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"❌ [AUTH ERROR]: {e}")
         raise HTTPException(status_code=401, detail="Invalid authentication data") from e
