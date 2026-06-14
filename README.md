@@ -218,18 +218,41 @@ The project employs a comprehensive testing strategy using **Pytest** to ensure 
 
 ### How to Run Tests Locally
 
-Since the tests use a dedicated database within your Docker container (`sana_test`), ensure your **Dev Environment** is running first.
+The tests use `TEST_DATABASE_URL`. If it is not set, Pytest defaults to:
 
-1.  **Activate your virtual environment:**
+```text
+postgresql+asyncpg://postgres:password@localhost:5432/sana_test
+```
+
+CI creates this PostgreSQL database automatically. For local full test runs, make sure PostgreSQL is running and that the `sana_test` database exists.
+
+1.  **Start local PostgreSQL:**
+
+    ```bash
+    docker compose -f docker-compose.dev.yml up -d db
+    ```
+
+2.  **Create the test database if it does not exist:**
+
+    ```bash
+    docker compose -f docker-compose.dev.yml exec -T db sh -c 'psql -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '\''sana_test'\''" | grep -q 1 || createdb -U postgres sana_test'
+    ```
+
+    This only creates `sana_test` when it is missing. Do not delete Docker volumes or reset the database for normal test runs.
+
+3.  **Activate your virtual environment:**
 
     ```bash
     source venv/bin/activate
     ```
 
-2.  **Run the tests:**
+4.  **Run the tests:**
+
     ```bash
     pytest tests/ -v
     ```
+
+    To use another test database, set `TEST_DATABASE_URL` before running Pytest.
 
 ### CI/CD Pipeline
 
