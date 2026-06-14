@@ -272,7 +272,7 @@ This project was built with a focus on **security**, **scalability**, and **perf
 
 1.  **Modern Async Stack:** Fully migrated to **SQLAlchemy (Async)** and **asyncpg**. This allows the server to handle high concurrency without blocking, ensuring the interface remains snappy even under load.
 2.  **Resilient Database Connections:** Uses `pool_pre_ping=True` and connection recycling strategies to handle cloud database (Supabase) idle timeouts gracefully. The app automatically recovers lost connections without user errors.
-3.  **Soft Delete Pattern:** Categories AND Transactions are never physically deleted. They are marked with `is_active=False` or `is_deleted=True`. This preserves history and data integrity.
+3.  **Deletion Behavior:** Categories use a soft delete pattern and are hidden with `is_active=False`, preserving historical category data. Transactions are physically deleted when removed, matching the user's expectation that a deleted entry is gone.
 4.  **Database Migrations:** All database schema changes are managed by **Alembic**, ensuring smooth updates (e.g., adding multi-currency support without losing data).
 5.  **HMAC Validation:** Every API request is authenticated using Telegram's `initData` hash (HMAC SHA-256) to ensure requests originate from a verified Telegram session.
 6.  **Multi-Currency Architecture:** Transactions store the `original_amount` and `currency` code alongside the base amount, allowing for accurate historical records even if exchange rates change.
