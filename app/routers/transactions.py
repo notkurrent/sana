@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy import case, delete, desc, func, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,13 +50,28 @@ def _get_date_for_storage(date_input: str | datetime, timezone_offset_str: str |
         return datetime.now(UTC)
 
 
+async def _get_available_category(session: AsyncSession, category_id: int, user_id: str) -> CategoryDB:
+    stmt = select(CategoryDB).where(
+        (CategoryDB.id == category_id)
+        & (CategoryDB.is_active.is_(True))
+        & ((CategoryDB.user_id.is_(None)) | (CategoryDB.user_id == user_id))
+    )
+    result = await session.execute(stmt)
+    category = result.scalar_one_or_none()
+
+    if not category:
+        raise HTTPException(status_code=400, detail="Invalid category_id")
+
+    return category
+
+
 # --- Endpoints ---
 
 
 @router.get("/transactions", response_model=list[Transaction])
 async def get_transactions(
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     user=Depends(verify_telegram_authentication),
     session: AsyncSession = Depends(get_session),
 ):
@@ -122,6 +137,7 @@ async def add_transaction(
 ):
     user_id = user["id"]
     final_date = _get_date_for_storage(tx.date, x_timezone_offset)
+    category_db = await _get_available_category(session, tx.category_id, user_id)
 
     insert_stmt = (
         pg_insert(UserDB).values(id=user_id, base_currency="USD").on_conflict_do_nothing(index_elements=["id"])
@@ -151,11 +167,6 @@ async def add_transaction(
     try:
         await session.commit()
         await session.refresh(new_tx)
-
-        # Fetch category details to return a complete Transaction object for the UI
-        cat_stmt = select(CategoryDB).where(CategoryDB.id == new_tx.category_id)
-        cat_result = await session.execute(cat_stmt)
-        category_db = cat_result.scalar_one()
 
         return Transaction(
             id=new_tx.id,
@@ -190,6 +201,9 @@ async def update_transaction(
 
     if not transaction:
         raise HTTPException(status_code=404, detail="Transaction not found")
+
+    if update_data.category_id is not None:
+        await _get_available_category(session, update_data.category_id, user_id)
 
     should_recalculate = False
 

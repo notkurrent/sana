@@ -53,6 +53,170 @@ async def test_create_transaction_with_currency_conversion(client, session, mock
 
 
 @pytest.mark.asyncio
+async def test_create_transaction_rejects_invalid_currency(client):
+    app.dependency_overrides[verify_telegram_authentication] = lambda: MOCK_USER
+
+    payload = {
+        "amount": 100.00,
+        "currency": "JPY",
+        "category_id": 1,
+        "date": "2023-10-10",
+    }
+
+    response = await client.post("/api/transactions", json=payload)
+
+    assert response.status_code == 422
+
+    app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_create_category_rejects_invalid_type(client):
+    app.dependency_overrides[verify_telegram_authentication] = lambda: MOCK_USER
+
+    response = await client.post("/api/categories", json={"name": "Bad", "type": "transfer"})
+
+    assert response.status_code == 422
+
+    app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_create_transaction_rejects_other_users_category(client, session, mocker):
+    app.dependency_overrides[verify_telegram_authentication] = lambda: MOCK_USER
+    mocker.patch("app.services.currency.CurrencyService.get_rate", return_value=Decimal("1.00"))
+
+    category = CategoryDB(name="Private", type="expense", user_id="other-user", is_active=True)
+    session.add(category)
+    await session.commit()
+    await session.refresh(category)
+
+    payload = {
+        "amount": 100.00,
+        "currency": "USD",
+        "category_id": category.id,
+        "date": "2023-10-10",
+    }
+
+    response = await client.post("/api/transactions", json=payload)
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid category_id"
+
+    app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_create_transaction_rejects_inactive_category(client, session, mocker):
+    app.dependency_overrides[verify_telegram_authentication] = lambda: MOCK_USER
+    mocker.patch("app.services.currency.CurrencyService.get_rate", return_value=Decimal("1.00"))
+
+    category = CategoryDB(name="Inactive", type="expense", user_id=MOCK_USER["id"], is_active=False)
+    session.add(category)
+    await session.commit()
+    await session.refresh(category)
+
+    payload = {
+        "amount": 100.00,
+        "currency": "USD",
+        "category_id": category.id,
+        "date": "2023-10-10",
+    }
+
+    response = await client.post("/api/transactions", json=payload)
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid category_id"
+
+    app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_update_transaction_rejects_other_users_category(client, session, mocker):
+    app.dependency_overrides[verify_telegram_authentication] = lambda: MOCK_USER
+    mocker.patch("app.services.currency.CurrencyService.get_rate", return_value=Decimal("1.00"))
+
+    own_category = CategoryDB(name="Own", type="expense", user_id=MOCK_USER["id"], is_active=True)
+    other_category = CategoryDB(name="Other", type="expense", user_id="other-user", is_active=True)
+    session.add_all([own_category, other_category])
+    await session.commit()
+    await session.refresh(own_category)
+    await session.refresh(other_category)
+
+    tx = TransactionDB(
+        user_id=MOCK_USER["id"],
+        category_id=own_category.id,
+        amount=100,
+        original_amount=100,
+        currency="USD",
+        date=datetime.now(),
+    )
+    session.add(tx)
+    await session.commit()
+    await session.refresh(tx)
+
+    response = await client.patch(f"/api/transactions/{tx.id}", json={"category_id": other_category.id})
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid category_id"
+
+    await session.refresh(tx)
+    assert tx.category_id == own_category.id
+
+    app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_update_transaction_rejects_invalid_category_before_mutating_amount(client, session, mocker):
+    app.dependency_overrides[verify_telegram_authentication] = lambda: MOCK_USER
+    mocker.patch("app.services.currency.CurrencyService.get_rate", return_value=Decimal("1.00"))
+
+    own_category = CategoryDB(name="Own", type="expense", user_id=MOCK_USER["id"], is_active=True)
+    other_category = CategoryDB(name="Other", type="expense", user_id="other-user", is_active=True)
+    session.add_all([own_category, other_category])
+    await session.commit()
+    await session.refresh(own_category)
+    await session.refresh(other_category)
+
+    tx = TransactionDB(
+        user_id=MOCK_USER["id"],
+        category_id=own_category.id,
+        amount=100,
+        original_amount=100,
+        currency="USD",
+        date=datetime.now(),
+    )
+    session.add(tx)
+    await session.commit()
+    await session.refresh(tx)
+
+    response = await client.patch(
+        f"/api/transactions/{tx.id}",
+        json={"amount": 250, "category_id": other_category.id},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid category_id"
+    assert tx.amount == 100
+    assert tx.original_amount == 100
+    assert tx.category_id == own_category.id
+
+    app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("query", ["limit=0", "limit=101", "offset=-1"])
+async def test_get_transactions_rejects_invalid_limit_or_offset(client, query):
+    app.dependency_overrides[verify_telegram_authentication] = lambda: MOCK_USER
+
+    response = await client.get(f"/api/transactions?{query}")
+
+    assert response.status_code == 422
+
+    app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
 async def test_balance_calculation_mixed_currencies(client, session, mocker):
     """
     Tests if the total balance is calculated correctly with mixed currencies.

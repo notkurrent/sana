@@ -1,13 +1,16 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel
+
+SUPPORTED_CURRENCIES = Literal["USD", "TRY", "KZT", "RUB", "EUR", "GBP", "UAH"]
 
 
 # --- Category Models ---
 class CategoryCreate(BaseModel):
     name: str
-    type: str  # 'expense' or 'income'
+    type: Literal["income", "expense"]
 
 
 class Category(CategoryCreate):
@@ -21,7 +24,7 @@ class Category(CategoryCreate):
 # --- Transaction Models ---
 class TransactionCreate(BaseModel):
     amount: Decimal
-    currency: str = "USD"
+    currency: SUPPORTED_CURRENCIES = "USD"
     category_id: int
     date: str | datetime
     note: str | None = None
@@ -29,7 +32,7 @@ class TransactionCreate(BaseModel):
 
 class TransactionUpdate(BaseModel):
     amount: Decimal | None = None
-    currency: str | None = None
+    currency: SUPPORTED_CURRENCIES | None = None
     category_id: int | None = None
     date: str | datetime | None = None
     note: str | None = None
