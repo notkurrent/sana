@@ -33,6 +33,7 @@ document.addEventListener("DOMContentLoaded", () => {
     GBP: "£",
     UAH: "₴",
   };
+  const TEMP_CATEGORY_USER_ID = "__optimistic__";
 
   // --- STATE MANAGEMENT ---
   const state = {
@@ -194,10 +195,33 @@ document.addEventListener("DOMContentLoaded", () => {
     return { icon: null, name: fullName.trim() };
   }
 
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (char) => {
+      const entities = {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      };
+      return entities[char];
+    });
+  }
+
   function formatCurrency(amount, symbol = state.currencySymbol) {
     const num = parseFloat(amount);
     if (isNaN(num)) return `${symbol}0.00`;
     return `${symbol}${num.toFixed(2)}`;
+  }
+
+  function getOptimisticBaseAmount(amount, currency) {
+    if (!currency || currency === state.baseCurrencyCode) return amount;
+    if (state.rates && state.rates[state.baseCurrencyCode] && state.rates[currency]) {
+      const rateSource = state.rates[currency];
+      const rateTarget = state.rates[state.baseCurrencyCode];
+      return amount * (rateTarget / rateSource);
+    }
+    return 0;
   }
 
   function formatCurrencyForSummary(amount) {
@@ -589,7 +613,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const timeHtml = `<span class="tx-time">${formattedTime}</span>`;
     let noteHtml = "";
     if (tx.note && tx.note.trim() !== "") {
-      noteHtml = `<span class="tx-separator">•</span><span class="tx-note">${tx.note}</span>`;
+      noteHtml = `<span class="tx-separator">•</span><span class="tx-note">${escapeHtml(tx.note)}</span>`;
     }
 
     let amountHTML = "";
@@ -598,7 +622,7 @@ document.addEventListener("DOMContentLoaded", () => {
       amountHTML = `
             <div style="display:flex; flex-direction:column; align-items:flex-end;">
                 <span class="original-amount ${tx.type}" style="font-size: 0.95em; font-weight:600;">
-                    ${tx.type === "income" ? "+" : "-"}${symbol}${parseFloat(tx.original_amount).toFixed(2)}
+                    ${tx.type === "income" ? "+" : "-"}${escapeHtml(symbol)}${parseFloat(tx.original_amount).toFixed(2)}
                 </span>
                 ${
                    parseFloat(tx.amount) !== 0 
@@ -621,7 +645,7 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
             <div class="expense-item-content">
                 <div class="tx-info">
-                    <span class="tx-category">${categoryDisplay}</span>
+                    <span class="tx-category">${escapeHtml(categoryDisplay)}</span>
                     <div class="tx-bottom-row">
                         ${timeHtml}
                         ${noteHtml}
@@ -797,7 +821,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const btn = document.createElement("button");
       btn.className = "category-grid-btn";
-      btn.innerHTML = `<span class="icon">${emojiToShow}</span><span>${categoryName}</span>`;
+      btn.innerHTML = `<span class="icon">${escapeHtml(emojiToShow)}</span><span>${escapeHtml(categoryName)}</span>`;
       btn.addEventListener("click", () => openQuickModal(cat));
       if (cat.type === "income") DOM.quickAdd.gridIncome.appendChild(btn);
       else DOM.quickAdd.gridExpense.appendChild(btn);
@@ -1017,6 +1041,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const list = DOM.home.listContainer;
       let newItem = null;
       let expectedBalanceText = null;
+      let appliedBalanceAmount = txData.amount;
 
       try {
           // --- UI UPDATES (Synchronous) ---
@@ -1036,20 +1061,13 @@ document.addEventListener("DOMContentLoaded", () => {
             category: categoryObj ? categoryObj.name : "Unknown",
             date: displayDate 
           };
+          appliedBalanceAmount = getOptimisticBaseAmount(txData.amount, txData.currency);
 
           // Update State
           // If currency differs, store original_amount for display logic
           if (txData.currency && txData.currency !== state.baseCurrencyCode) {
               tempTx.original_amount = txData.amount;
-              
-              if (state.rates && state.rates[state.baseCurrencyCode] && state.rates[txData.currency]) {
-                   const rateSource = state.rates[txData.currency];
-                   const rateTarget = state.rates[state.baseCurrencyCode];
-                   const conversionRate = rateTarget / rateSource;
-                   tempTx.amount = txData.amount * conversionRate;
-              } else {
-                   tempTx.amount = 0; 
-              }
+              tempTx.amount = appliedBalanceAmount;
           }
           state.transactions.unshift(tempTx);
           state.offset += 1;
@@ -1061,7 +1079,7 @@ document.addEventListener("DOMContentLoaded", () => {
           insertTransactionDOM(tempTx, list, true);
 
 
-          expectedBalanceText = updateBalanceLocally(tempTx.amount, tempTx.type);
+          expectedBalanceText = updateBalanceLocally(appliedBalanceAmount, tempTx.type);
           
           // Haptic Feedback (Immediate)
           tg.HapticFeedback.notificationOccurred("success");
@@ -1126,7 +1144,7 @@ document.addEventListener("DOMContentLoaded", () => {
           // Revert Balance
           const categoryObj = state.categories.find(c => c.id === txData.category_id);
           const type = categoryObj ? categoryObj.type : (txData.amount < 0 ? "expense" : "income");
-          updateBalanceLocally(txData.amount, type === "income" ? "expense" : "income"); // Inverse logic
+          updateBalanceLocally(appliedBalanceAmount, type === "income" ? "expense" : "income"); // Inverse logic
 
           tg.showAlert("Failed to save transaction.");
       }
@@ -1172,19 +1190,7 @@ document.addEventListener("DOMContentLoaded", () => {
         category: categoryObj ? categoryObj.name : "Unknown",
         original_amount: (txData.currency !== state.baseCurrencyCode) ? txData.amount : null 
       };
-      
-      // Currency conversion approx for display (if needed)
-       if (txData.currency && txData.currency !== state.baseCurrencyCode) {
-          if (state.rates && state.rates[state.baseCurrencyCode] && state.rates[txData.currency]) {
-               const rateSource = state.rates[txData.currency];
-               const rateTarget = state.rates[state.baseCurrencyCode];
-               const conversionRate = rateTarget / rateSource;
-               tempTx.amount = txData.amount * conversionRate;
-          }
-       } else {
-           // Reset amount if same currency (case: switched back to base)
-           tempTx.amount = txData.amount;
-       }
+      tempTx.amount = getOptimisticBaseAmount(txData.amount, txData.currency);
 
 
       try {
@@ -1717,7 +1723,7 @@ document.addEventListener("DOMContentLoaded", () => {
           categoryDisplay = `${defaultIcon} ${name}`;
         }
         itemEl.innerHTML = `
-            <span class="category">${categoryDisplay}</span>
+            <span class="category">${escapeHtml(categoryDisplay)}</span>
             <span class="amount" style="color: var(--color-${isExpense ? "expense" : "income"})">
               ${isExpense ? "-" : "+"}${formatCurrency(item.total)}
             </span>`;
@@ -2027,7 +2033,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 ${trashIconSvg}
             </div>
             <div class="category-item-content">
-                <span class="cat-name">${displayName}</span>
+                <span class="cat-name">${escapeHtml(displayName)}</span>
                 ${rightSideHtml}
             </div>
         `;
@@ -2130,7 +2136,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const tempId = Date.now();
     const newCategory = {
         id: tempId,
-        user_id: 123,
+        user_id: TEMP_CATEGORY_USER_ID,
         name: fullName,
         type: state.categoryType,
         is_active: true
@@ -2155,7 +2161,12 @@ document.addEventListener("DOMContentLoaded", () => {
       // Update ID in state
       const idx = state.categories.findIndex(c => c.id === tempId);
       if (idx > -1) {
-          state.categories[idx].id = realData.id;
+          state.categories[idx] = {
+              ...state.categories[idx],
+              ...realData,
+              type: realData.type || state.categories[idx].type,
+              user_id: realData.user_id ?? state.categories[idx].user_id,
+          };
       }
       
       // Update DOM ID if needed (for subsequent interactions)
