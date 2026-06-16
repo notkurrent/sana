@@ -67,6 +67,9 @@ Sana-Project/
 │   │   ├── handlers.py     # Command Handlers
 │   │   ├── lifecycle.py    # Startup/Shutdown Logic
 │   │   └── loader.py       # Bot Instance
+│   ├── config.py           # Environment Config
+│   ├── database.py         # Async Engine & Session
+│   ├── dependencies.py     # Auth & DI
 │   ├── models/             # Data Models
 │   │   ├── __init__.py
 │   │   ├── schemas.py      # Pydantic Schemas
@@ -81,25 +84,34 @@ Sana-Project/
 │   └── services/           # ⚙️ Business Logic & Core
 │       ├── __init__.py
 │       ├── analytics.py    # 📊 Aggregation Service
-│       ├── config.py       # Environment Config
-│       ├── currency.py     # Currency Logic
-│       ├── database.py     # Async Engine & Session
-│       └── dependencies.py # Auth & DI
+│       └── currency.py     # Currency Logic
 ├── tests/                  # 🧪 Automated Tests (Unit & Integration)
+│   ├── conftest.py         # Test fixtures
+│   ├── test_ai.py
+│   ├── test_analytics.py
+│   ├── test_api.py
+│   ├── test_auth.py
+│   ├── test_currency.py
+│   └── test_sanity.py
 ├── webapp/                 # 🎨 Frontend Source (SPA)
 │   ├── index.html          # Main entry point
 │   ├── script.js           # UI Logic
 │   └── style.css           # Styles
+├── .dockerignore           # Docker build exclusions
 ├── .env.example            # Environment variables template
 ├── .gitignore
 ├── alembic.ini             # Alembic Config
 ├── banner.png              # 🖼️ Project Banner
+├── CONTRIBUTING.md         # Contribution Guide
 ├── docker-compose.dev.yml  # Local Development (Hot-reload)
 ├── docker-compose.yml      # Production orchestration
 ├── Dockerfile              # Docker image config
+├── LICENSE
 ├── main.py                 # 🚀 App Entry Point
+├── pyproject.toml          # Ruff configuration
 ├── pytest.ini              # Test Configuration
 ├── requirements.txt        # Python dependencies
+├── SECURITY.md             # Security Policy
 └── setup_bot.py            # 🤖 Webhook/Bot setup
 ```
 
