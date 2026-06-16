@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
@@ -10,6 +11,7 @@ from app.models.schemas import Category, CategoryCreate
 from app.models.sql import CategoryDB, TransactionDB
 
 router = APIRouter(tags=["categories"])
+logger = logging.getLogger(__name__)
 
 # Global lock for default categories initialization
 init_lock = asyncio.Lock()
@@ -90,7 +92,7 @@ async def add_category(
         return {"id": new_id, "status": "created"}
     except Exception as e:
         await session.rollback()
-        print(f"Error adding category: {e}")
+        logger.exception("Error adding category")
         raise HTTPException(status_code=500, detail="Database error") from e
 
 

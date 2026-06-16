@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import logging
 import urllib.parse
 from collections.abc import AsyncGenerator
 
@@ -9,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import BOT_TOKEN
 from app.database import async_session_maker
+
+logger = logging.getLogger(__name__)
 
 
 async def get_session() -> AsyncGenerator[AsyncSession]:
@@ -21,7 +24,7 @@ async def verify_telegram_authentication(x_telegram_init_data: str = Header(None
         raise HTTPException(status_code=401, detail="Missing auth header")
 
     if not BOT_TOKEN:
-        print("❌ [AUTH]: BOT_TOKEN is missing on server")
+        logger.error("Telegram bot credentials are missing on server")
         raise HTTPException(status_code=500, detail="Server config error")
 
     try:
@@ -37,14 +40,14 @@ async def verify_telegram_authentication(x_telegram_init_data: str = Header(None
         calculated_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
 
         if not hmac.compare_digest(calculated_hash, received_hash):
-            print("❌ [AUTH FAIL] Hash mismatch")
+            logger.warning("Telegram authentication hash mismatch")
             raise HTTPException(status_code=403, detail="Data integrity check failed")
 
         try:
             user_data = json.loads(parsed_data.get("user", "{}"))
             user_data["id"] = str(user_data["id"])
         except (json.JSONDecodeError, KeyError, TypeError) as e:
-            print(f"❌ [AUTH ERROR]: Invalid user data: {e}")
+            logger.warning("Invalid Telegram user data: %s", e)
             raise HTTPException(status_code=401, detail="Invalid authentication data") from e
 
         return user_data
@@ -52,5 +55,5 @@ async def verify_telegram_authentication(x_telegram_init_data: str = Header(None
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ [AUTH ERROR]: {e}")
+        logger.exception("Telegram authentication failed")
         raise HTTPException(status_code=401, detail="Invalid authentication data") from e

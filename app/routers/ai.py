@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime, timedelta
 
 import google.generativeai as genai
@@ -11,6 +12,7 @@ from app.models.sql import UserDB
 from app.services.analytics import AnalyticsService
 
 router = APIRouter(tags=["ai"])
+logger = logging.getLogger(__name__)
 
 PROMPTS = {
     "advice": (
@@ -120,8 +122,5 @@ async def get_ai_advice(
         return {"advice": response.text}
 
     except Exception as e:
-        import traceback
-
-        print(f"AI Generation Error: {e}")
-        print(traceback.format_exc())
+        logger.exception("AI generation failed")
         raise HTTPException(status_code=503, detail="AI is currently busy") from e

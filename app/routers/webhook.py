@@ -1,9 +1,12 @@
+import logging
+
 from fastapi import APIRouter, Request
 from telegram import Update
 
 from app.bot.loader import ptb_app
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post("/webhook")
@@ -15,6 +18,6 @@ async def telegram_webhook(request: Request):
         update = Update.de_json(data, ptb_app.bot)
         await ptb_app.process_update(update)
         return {"status": "ok"}
-    except Exception as e:
-        print(f"Webhook error: {e}")
+    except Exception:
+        logger.exception("Webhook processing failed")
         return {"status": "error"}

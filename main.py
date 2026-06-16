@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 from contextlib import asynccontextmanager
 
@@ -13,6 +14,7 @@ from app.services.currency import CurrencyService
 
 # --- Global Cache ---
 SPA_HTML_CACHE = None
+logger = logging.getLogger(__name__)
 
 
 # --- Lifespan ---
@@ -24,9 +26,9 @@ async def lifespan(app: FastAPI):
     if os.path.exists(html_path):
         with open(html_path, encoding="utf-8") as f:
             SPA_HTML_CACHE = f.read()
-            print(f"✅ Frontend cached ({len(SPA_HTML_CACHE)} bytes)")
+            logger.info("Frontend cached (%s bytes)", len(SPA_HTML_CACHE))
     else:
-        print("⚠️ Frontend index.html not found during startup")
+        logger.warning("Frontend index.html not found during startup")
 
     # 2. Start Services
     await start_bot()
@@ -37,19 +39,19 @@ async def lifespan(app: FastAPI):
 
     # 3.1. Warmup Cache (Avoid Race Condition)
     # Ensure rates are loaded (or attempted) before accepting requests
-    print("⏳ Warming up currency cache...")
+    logger.info("Warming up currency cache")
     await CurrencyService().get_all_rates()
-    print("✅ Currency cache warmup complete")
+    logger.info("Currency cache warmup complete")
 
     yield
 
     # 4. Graceful Shutdown
-    print("🛑 Shutting down background tasks...")
+    logger.info("Shutting down background tasks")
     currency_task.cancel()
     try:
         await currency_task
     except asyncio.CancelledError:
-        print("✅ Currency task cancelled")
+        logger.info("Currency task cancelled")
 
     await stop_bot()
 

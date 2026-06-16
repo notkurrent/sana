@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
@@ -11,6 +12,7 @@ from app.models.sql import CategoryDB, TransactionDB, UserDB
 from app.services.currency import CurrencyService
 
 router = APIRouter(tags=["transactions"])
+logger = logging.getLogger(__name__)
 
 
 # --- Helpers ---
@@ -45,8 +47,8 @@ def _get_date_for_storage(date_input: str | datetime, timezone_offset_str: str |
 
         return datetime.now(UTC)
 
-    except Exception as e:
-        print(f"Date parse error: {e}")
+    except Exception:
+        logger.exception("Date parse error")
         return datetime.now(UTC)
 
 
