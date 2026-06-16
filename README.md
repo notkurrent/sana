@@ -1,5 +1,8 @@
 # Sana — AI-Powered Personal Finance Tracker 🚀
 
+[![Run Tests](https://github.com/notkurrent/sana/actions/workflows/tests.yml/badge.svg)](https://github.com/notkurrent/sana/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 **Sana** is a seamless Telegram Mini App (TMA) designed to make personal finance tracking intuitive, fast, and smart. Unlike traditional apps, Sana lives right inside your messenger, offering instant access without logins or loading screens.
 
 It combines a modern, responsive **SPA frontend** with a robust **Python backend** and integrates **Google Gemini AI** to provide personalized financial advice based on your spending habits.
@@ -273,6 +276,17 @@ This project was built with a focus on **security**, **scalability**, and **perf
 4.  **Database Migrations:** All database schema changes are managed by **Alembic**, ensuring smooth updates (e.g., adding multi-currency support without losing data).
 5.  **HMAC Validation:** Every API request is authenticated using Telegram's `initData` hash (HMAC SHA-256) to ensure requests originate from a verified Telegram session.
 6.  **Multi-Currency Architecture:** Transactions store the `original_amount` and `currency` code alongside the base amount, allowing for accurate historical records even if exchange rates change.
+
+---
+
+## 🌱 Open Source & Maintenance
+
+Sana is maintained as an open-source reference implementation for building secure Telegram Mini Apps with a Python backend, PostgreSQL, Docker-based deployment, and a lightweight SPA frontend.
+
+- **Maintainer:** Gayas Serikuly (`@notkurrent`)
+- **License:** MIT
+- **Contributions:** Bug reports, documentation improvements, tests, and focused pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+- **Security:** Please report vulnerabilities privately. See [SECURITY.md](SECURITY.md).
 
 ---
 
