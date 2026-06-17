@@ -1,6 +1,29 @@
+import {
+  API_URLS,
+  CURRENCY_SYMBOLS,
+  TEMP_CATEGORY_USER_ID,
+  defaultEmojis,
+  defaultIconExpense,
+  defaultIconIncome,
+} from "./modules/config.js?v=10.4";
+import {
+  escapeHtml,
+  formatDateForTitle,
+  formatForDayMarker,
+  formatTime,
+  getLocalDateString,
+  parseCategory,
+  parseDateFromUTC,
+  preciseNumberFormatter,
+} from "./modules/formatters.js?v=10.4";
+import { getDOM } from "./modules/dom.js?v=10.4";
+import { createInitialState } from "./modules/state.js?v=10.4";
+import { createApiRequest } from "./modules/api.js?v=10.4";
+
 document.addEventListener("DOMContentLoaded", () => {
   const tg = window.Telegram.WebApp;
   const tgInitData = tg.initData;
+  const apiRequest = createApiRequest({ tg, tgInitData });
 
   // Initialize Telegram WebApp
   tg.ready();
@@ -11,61 +34,8 @@ document.addEventListener("DOMContentLoaded", () => {
     console.log("Vertical swipes disable not supported");
   }
 
-  // --- CONFIGURATION ---
-  const API_URLS = {
-    TRANSACTIONS: "/api/transactions",
-    BALANCE: "/api/balance",
-    CATEGORIES: "/api/categories",
-    AI_ADVICE: "/api/ai/advice",
-    ANALYTICS_SUMMARY: "/api/analytics/summary",
-    ANALYTICS_CALENDAR: "/api/analytics/calendar",
-    USER_RESET: "/api/users/me/reset",
-    USER_SETTINGS_CURRENCY: "/api/users/me/settings/currency",
-    USER_PROFILE: "/api/users/me",
-  };
-
-  const CURRENCY_SYMBOLS = {
-    USD: "$",
-    TRY: "₺",
-    KZT: "₸",
-    RUB: "₽",
-    EUR: "€",
-    GBP: "£",
-    UAH: "₴",
-  };
-  const TEMP_CATEGORY_USER_ID = "__optimistic__";
-
   // --- STATE MANAGEMENT ---
-  const state = {
-    transactions: [],
-    categories: [],
-    currencySymbol: "$",
-    baseCurrencyCode: "USD",
-    editTransaction: null,
-    quickCategory: null,
-    categoryBeingEdited: null,
-    activeBottomSheet: null,
-    lastActiveScreen: "home-screen",
-    isInitialLoad: true,
-    chart: null,
-    analyticsDate: new Date(),
-    summaryRange: "month",
-    summaryType: "expense",
-    categoryType: "expense",
-    aiRange: "month",
-    calendarSummary: { income: 0, expense: 0, net: 0 },
-    isLoading: false,
-
-    // Scroll Position
-    savedScrollPosition: 0,
-
-    // Infinite Scroll
-    offset: 0,
-    limit: 100,
-    isAllLoaded: false,
-    isLoadingMore: false,
-    rates: {}, // Cache for exchange rates
-  };
+  const state = createInitialState();
 
   // --- HELPERS & FORMATTERS ---
 
@@ -102,112 +72,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  async function apiRequest(url, options = {}) {
-    if (!tgInitData) {
-      console.error("tgInitData is missing.");
-      tg.showAlert("Authentication data is missing. Please restart the app.");
-      throw new Error("No init data");
-    }
-
-    const headers = {
-      "X-Telegram-Init-Data": tgInitData,
-      "X-Timezone-Offset": String(new Date().getTimezoneOffset()),
-      "Content-Type": "application/json",
-      ...options.headers,
-    };
-
-    const config = { ...options, headers: headers };
-
-    try {
-      const response = await fetch(url, config);
-      if (response.status === 401 || response.status === 403) {
-        tg.showAlert("Authentication Failed. Please try restarting the app inside Telegram.");
-      }
-      return response;
-    } catch (error) {
-      console.error("Network Error:", error);
-      throw error;
-    }
-  }
-
-  function parseDateFromUTC(dateString) {
-    if (!dateString) return new Date();
-    if (dateString instanceof Date) return dateString;
-
-    // 1. Handle simple YYYY-MM-DD
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-        return new Date(dateString + "T00:00:00Z");
-    }
-
-    // 2. Handle ISO strings
-    if (typeof dateString === "string" && dateString.includes("T")) {
-        // If no timezone indicator (Z or +HH:MM or -HH:MM), assume UTC
-        const hasTimezone = /([Zz]|[+-]\d{2}:?\d{2})$/.test(dateString);
-        if (!hasTimezone) {
-            return new Date(dateString + "Z");
-        }
-    }
-    
-    return new Date(dateString);
-  }
-
-  const defaultEmojis = {
-    Food: "🍔",
-    Transport: "🚌",
-    Housing: "🏠",
-    Salary: "💰",
-    Freelance: "💻",
-    Gifts: "🎁",
-  };
-  const defaultIconExpense = "📦";
-  const defaultIconIncome = "💎";
-
-  const timeFormatter = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
-  const headerDateFormatter = new Intl.DateTimeFormat("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-  const preciseNumberFormatter = new Intl.NumberFormat("en-US", {
-    style: "decimal",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-
-  const formatDateForTitle = (date) => headerDateFormatter.format(date);
-  const formatTime = (date) => timeFormatter.format(date);
-
-  function getLocalDateString(date) {
-    const year = date.getFullYear();
-    const month = (date.getMonth() + 1).toString().padStart(2, "0");
-    const day = date.getDate().toString().padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  }
-
-  function parseCategory(fullName) {
-    if (!fullName) return { icon: null, name: "" };
-    const emojiRegex = /^(\p{Extended_Pictographic}|\p{Emoji})(\p{Emoji_Modifier}|\uFE0F)*/u;
-    const match = fullName.match(emojiRegex);
-    if (match && match[0]) {
-      return { icon: match[0], name: fullName.substring(match[0].length).trim() };
-    }
-    return { icon: null, name: fullName.trim() };
-  }
-
-  function escapeHtml(value) {
-    return String(value ?? "").replace(/[&<>"']/g, (char) => {
-      const entities = {
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;",
-      };
-      return entities[char];
-    });
-  }
-
   function formatCurrency(amount, symbol = state.currencySymbol) {
     const num = parseFloat(amount);
     if (isNaN(num)) return `${symbol}0.00`;
@@ -240,149 +104,8 @@ document.addEventListener("DOMContentLoaded", () => {
     return num === 0 ? `${state.currencySymbol}0.00` : `${sign}${state.currencySymbol}${formattedAmount}`;
   }
 
-  function formatForDayMarker(amount) {
-    const num = parseFloat(amount);
-    if (isNaN(num) || num === 0) return "";
-
-    const absAmount = Math.abs(Math.round(num));
-    const sign = num < 0 ? "-" : "+";
-    if (absAmount >= 1000000) return `${sign}${(absAmount / 1000000).toFixed(1)}M`;
-    if (absAmount >= 1000) return `${sign}${(absAmount / 1000).toFixed(0)}K`;
-    return `${sign}${absAmount}`;
-  }
-
   // --- DOM ELEMENTS ---
-  const DOM = {
-    screens: document.querySelectorAll(".screen"),
-    backdrop: document.getElementById("backdrop"),
-    home: {
-      screen: document.getElementById("home-screen"),
-      balanceAmount: document.getElementById("balance-amount"),
-      listContainer: document.getElementById("transactions-list"),
-    },
-    analytics: {
-      screen: document.getElementById("analytics-screen"),
-      segBtnSummary: document.getElementById("seg-btn-summary"),
-      segBtnCalendar: document.getElementById("seg-btn-calendar"),
-      summaryPane: document.getElementById("summary-pane"),
-      calendarPane: document.getElementById("calendar-pane"),
-      summaryTypeFilter: document.getElementById("summary-type-filter"),
-      summaryRangeFilter: document.getElementById("summary-range-filter"),
-      doughnutChartCanvas: document.getElementById("doughnut-chart"),
-      summaryList: document.getElementById("summary-list"),
-    },
-    calendar: {
-      container: document.getElementById("calendar-container"),
-      prevMonthBtn: document.getElementById("prev-month-btn"),
-      nextMonthBtn: document.getElementById("next-month-btn"),
-      monthSelect: document.getElementById("month-select"),
-      yearSelect: document.getElementById("year-select"),
-      summaryIncome: document.getElementById("calendar-summary-income"),
-      summaryExpense: document.getElementById("calendar-summary-expense"),
-      summaryNet: document.getElementById("calendar-summary-net"),
-      boxIncome: document.getElementById("calendar-summary-box-income"),
-      boxExpense: document.getElementById("calendar-summary-box-expense"),
-      boxNet: document.getElementById("calendar-summary-box-net"),
-    },
-    ai: {
-      screen: document.getElementById("ai-screen"),
-      dateFilter: document.getElementById("ai-date-filter"),
-      featuresList: document.getElementById("ai-features-list"),
-      btnAdvice: document.getElementById("ai-btn-advice"),
-      btnSummary: document.getElementById("ai-btn-summary"),
-      btnAnomaly: document.getElementById("ai-btn-anomaly"),
-      resultContainer: document.getElementById("ai-result-container"),
-      resultTitle: document.getElementById("ai-result-title"),
-      resultBody: document.getElementById("ai-result-body"),
-      resultBackBtn: document.getElementById("ai-result-back-btn"),
-    },
-    settings: {
-      screen: document.getElementById("settings-screen"),
-      currencySelect: document.getElementById("currency-select"),
-      resetDataBtn: document.getElementById("reset-data-btn"),
-    },
-    categories: {
-      screen: document.getElementById("categories-screen"),
-      backBtn: document.getElementById("categories-back-btn"),
-      segBtnExpense: document.getElementById("cat-seg-btn-expense"),
-      segBtnIncome: document.getElementById("cat-seg-btn-income"),
-      newIconInput: document.getElementById("new-category-icon"),
-      newNameInput: document.getElementById("new-category-name"),
-      addBtn: document.getElementById("add-category-btn"),
-      list: document.getElementById("categories-list"),
-    },
-    editCategory: {
-      screen: document.getElementById("edit-category-screen"),
-      nameInput: document.getElementById("edit-category-name"),
-      iconInput: document.getElementById("edit-category-icon"),
-      saveBtn: document.getElementById("save-category-changes-btn"),
-      deleteBtn: document.getElementById("delete-category-permanent-btn"),
-      backBtn: document.getElementById("edit-category-back-btn"),
-    },
-    fullForm: {
-      screen: document.getElementById("full-form-screen"),
-      title: document.getElementById("form-title"),
-      typeWrapper: document.getElementById("form-type-wrapper"),
-      typeExpense: document.getElementById("form-type-expense"),
-      typeIncome: document.getElementById("form-type-income"),
-      categorySelect: document.getElementById("category-select"),
-
-      amountInput: document.getElementById("transaction-amount"),
-      currencySelect: document.getElementById("form-currency-select"),
-      currencyLabel: document.getElementById("form-currency-label"),
-
-      dateInput: document.getElementById("transaction-date"),
-      noteInput: document.getElementById("transaction-note"),
-
-      saveBtn: document.getElementById("save-btn"),
-      cancelBtn: document.getElementById("cancel-btn"),
-      deleteBtn: document.getElementById("delete-btn"),
-    },
-    quickAdd: {
-      screen: document.getElementById("quick-add-screen"),
-      manageBtn: document.getElementById("quick-add-manage-categories-btn"),
-      gridExpense: document.getElementById("quick-add-grid-expense"),
-      gridIncome: document.getElementById("quick-add-grid-income"),
-      manualExpense: document.getElementById("quick-manual-expense"),
-      manualIncome: document.getElementById("quick-manual-income"),
-    },
-    daySheet: {
-      sheet: document.getElementById("day-details-sheet"),
-      header: document.querySelector("#day-details-sheet .sheet-header"),
-      contentWrapper: document.getElementById("sheet-content-wrapper"),
-      title: document.getElementById("sheet-date-title"),
-      list: document.getElementById("sheet-transactions-list"),
-    },
-    quickModal: {
-      sheet: document.getElementById("quick-add-modal-sheet"),
-      header: document.querySelector("#quick-add-modal-sheet .sheet-header"),
-      title: document.getElementById("quick-modal-title"),
-
-      currencySelect: document.getElementById("quick-currency-select"),
-      currencyLabel: document.getElementById("quick-currency-label"),
-
-      amountInput: document.getElementById("quick-modal-amount"),
-
-      noteToggleBtn: document.getElementById("quick-add-note-toggle"),
-      noteInput: document.getElementById("quick-modal-note"),
-
-      saveBtn: document.getElementById("quick-modal-save-btn"),
-    },
-    summarySheet: {
-      sheet: document.getElementById("summary-details-sheet"),
-      header: document.querySelector("#summary-details-sheet .sheet-header"),
-      title: document.getElementById("summary-sheet-title"),
-      currency: document.getElementById("summary-sheet-currency"),
-      amountInput: document.getElementById("summary-sheet-amount"),
-    },
-    tabs: {
-      home: document.getElementById("tab-home"),
-      analytics: document.getElementById("tab-analytics"),
-      add: document.getElementById("tab-add"),
-      ai: document.getElementById("tab-ai"),
-      settings: document.getElementById("tab-settings"),
-    },
-  };
+  const DOM = getDOM();
 
   // --- TELEGRAM BACK BUTTON ---
   tg.BackButton.onClick(() => {
